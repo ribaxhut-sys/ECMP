@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Alert,
   Button,
@@ -29,6 +29,7 @@ export interface FollowUpWorkspaceProps {
 export function FollowUpWorkspace({ complaintId }: FollowUpWorkspaceProps) {
   const t = useTranslations("intake");
   const tShell = useTranslations("shell");
+  const locale = useLocale();
   const router = useRouter();
   const { getById, saveFollowUp } = useAssignmentRepository();
   const complaint = getById(complaintId);
@@ -124,7 +125,7 @@ export function FollowUpWorkspace({ complaintId }: FollowUpWorkspaceProps) {
                   >
                     <p className="text-ecmp-text-primary">{item.text}</p>
                     <p className="mt-1 text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                      {new Date(item.recordedAt).toLocaleString()}
+                      {new Date(item.recordedAt).toLocaleString(locale)}
                     </p>
                   </li>
                 ))}

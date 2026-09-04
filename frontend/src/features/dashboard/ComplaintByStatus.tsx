@@ -3,19 +3,22 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { ComplaintStatus, StatusCount } from "@/lib/api/types";
+import { useAuth } from "@/auth/AuthProvider";
+import type { StatusCount, StatusCountStatus } from "@/lib/api/types";
+import { IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import {
   DASHBOARD_CAPTION,
+  DASHBOARD_COMMAND_LABEL,
   DASHBOARD_HOVER_ROW,
-  DASHBOARD_SECTION_TITLE,
-  DASHBOARD_SURFACE_QUIET,
+  DASHBOARD_TILE,
+  dashboardStatusSliceHref,
 } from "./dashboardUtils";
 import { STATUS_CHART_COLORS, STATUS_CHART_FALLBACK } from "./statusPalette";
 
 function buildConicGradient(
-  slices: { status: ComplaintStatus; count: number; pct: number }[],
-  highlight: ComplaintStatus | null,
+  slices: { status: StatusCountStatus; count: number; pct: number }[],
+  highlight: StatusCountStatus | null,
 ): string {
   if (slices.length === 0) return STATUS_CHART_FALLBACK;
   let cursor = 0;
@@ -25,8 +28,12 @@ function buildConicGradient(
     const end = cursor + slice.pct;
     const base = STATUS_CHART_COLORS[slice.status] ?? STATUS_CHART_FALLBACK;
     const dimmed = highlight !== null && highlight !== slice.status;
+    // Token is --ecmp-color-surface (the bare --ecmp-surface name only
+    // exists as the Tailwind utility bg-ecmp-surface). An undefined var
+    // here makes color-mix invalid, which invalidates the whole
+    // conic-gradient — the donut vanished entirely on legend hover.
     const color = dimmed
-      ? `color-mix(in srgb, ${base} 28%, var(--ecmp-surface))`
+      ? `color-mix(in srgb, ${base} 28%, var(--ecmp-color-surface))`
       : base;
     parts.push(`${color} ${start}% ${end}%`);
     cursor = end;
@@ -37,17 +44,18 @@ function buildConicGradient(
 export function ComplaintByStatus({
   rows,
   loading,
-  onRefresh,
 }: {
   rows: StatusCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
+  const { hasPermission } = useAuth();
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
   const tCommon = useTranslations("common");
   const tStatus = useTranslations("status");
-  const [highlight, setHighlight] = useState<ComplaintStatus | null>(null);
+  const [highlight, setHighlight] = useState<StatusCountStatus | null>(null);
 
   const slices = useMemo(() => {
     const visible = (rows ?? []).filter((row) => row.count > 0);
@@ -57,6 +65,7 @@ export function ComplaintByStatus({
       status: row.status,
       count: row.count,
       pct: (row.count / total) * 100,
+      labelKey: row.labelKey,
     }));
   }, [rows]);
 
@@ -67,12 +76,12 @@ export function ComplaintByStatus({
     <section
       data-testid="dashboard-status-distribution"
       aria-label={t("byStatus")}
-      className={`${DASHBOARD_SURFACE_QUIET} flex h-full flex-col p-3.5`}
+      className={`${DASHBOARD_TILE} flex h-full flex-col p-5`}
     >
       <div>
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("byStatus")}</h2>
+        <h2 className={DASHBOARD_COMMAND_LABEL}>{t("byStatus")}</h2>
         <p className={`mt-0.5 ${DASHBOARD_CAPTION}`}>
-          {t("statusDistributionDescription")}
+          {t("statusDistributionAggregateHint")}
         </p>
       </div>
 
@@ -83,28 +92,30 @@ export function ComplaintByStatus({
       ) : slices.length === 0 ? (
         <div className="mt-3 flex-1">
           <Empty
+            className="py-8"
+            icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noStatusData")}
             description={t("noStatusDataDescription")}
-            primaryAction={{
-              label: t("refreshDashboard"),
-              onClick: onRefresh,
-            }}
-            secondaryAction={{
-              label: tCommon("goToComplaints"),
-              onClick: () => router.push("/complaints"),
-            }}
+            primaryAction={
+              canOpenComplaintList
+                ? {
+                    label: tCommon("goToComplaints"),
+                    onClick: () => router.push("/complaints"),
+                  }
+                : undefined
+            }
           />
         </div>
       ) : (
-        <div className="mt-3 flex flex-1 flex-col items-center gap-3 sm:flex-row sm:items-start">
+        <div className="mt-3 flex flex-1 flex-col items-center gap-4 sm:flex-row sm:items-start">
           <div
-            className="relative size-32 shrink-0 rounded-full"
+            className="relative size-36 shrink-0 rounded-full"
             style={{ background: gradient }}
             role="img"
             aria-label={t("byStatus")}
           >
-            <div className="absolute inset-[22%] flex flex-col items-center justify-center rounded-full bg-ecmp-background">
-              <span className="text-[20px] font-medium tabular-nums text-ecmp-text-primary">
+            <div className="absolute inset-[24%] flex flex-col items-center justify-center rounded-full bg-ecmp-surface">
+              <span className="font-mono text-[24px] font-medium tabular-nums text-ecmp-text-primary">
                 {total}
               </span>
               <span className={DASHBOARD_CAPTION}>{t("total")}</span>
@@ -113,6 +124,12 @@ export function ComplaintByStatus({
           <ul className="w-full min-w-0 flex-1 space-y-0.5" aria-label={t("byStatus")}>
             {slices.map((slice) => {
               const active = highlight === slice.status;
+              const label = slice.labelKey
+                ? t(slice.labelKey)
+                : tStatus(slice.status);
+              const href = canOpenComplaintList
+                ? dashboardStatusSliceHref(slice.status)
+                : null;
               return (
                 <li key={slice.status}>
                   <button
@@ -121,10 +138,11 @@ export function ComplaintByStatus({
                     onMouseLeave={() => setHighlight(null)}
                     onFocus={() => setHighlight(slice.status)}
                     onBlur={() => setHighlight(null)}
+                    onClick={href ? () => router.push(href) : undefined}
                     className={`${DASHBOARD_HOVER_ROW} flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left ${
                       active ? "bg-ecmp-hover/50" : ""
                     }`}
-                    aria-label={`${tStatus(slice.status)}: ${slice.count} (${Math.round(slice.pct)}%)`}
+                    aria-label={`${label}: ${slice.count} (${Math.round(slice.pct)}%)`}
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span
@@ -137,10 +155,10 @@ export function ComplaintByStatus({
                         aria-hidden
                       />
                       <span className="truncate text-[12px] text-ecmp-text-primary">
-                        {tStatus(slice.status)}
+                        {label}
                       </span>
                     </span>
-                    <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
+                    <span className="flex shrink-0 items-baseline gap-1.5 font-mono tabular-nums">
                       <span className="text-[12px] font-medium text-ecmp-text-primary">
                         {slice.count}
                       </span>

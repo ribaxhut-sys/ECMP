@@ -1,16 +1,18 @@
 """SQLAlchemy ORM for CM Batch 1 Aggregate persistence (S2 Task 01).
 
 Separate from legacy ``complaints`` / ``complaint_cases`` tables.
-No Case FK or Batch-2 columns.
+Optional ``case_id`` pin (FR-004) references ``cm_cases`` when a Case exists.
+No Batch-2 columns on the Complaint aggregate itself.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -38,6 +40,19 @@ class CmBatch1ComplaintORM(Base):
         Index("ix_cm_batch1_complaints_status", "status"),
         Index("ix_cm_batch1_complaints_created_at", "created_at"),
         Index("ix_cm_batch1_complaints_intake_disposition", "intake_disposition"),
+        Index("ix_cm_batch1_complaints_hq_accepted_at", "hq_accepted_at"),
+        Index("ix_cm_batch1_complaints_decided_by", "decided_by"),
+        Index("ix_cm_batch1_complaints_owning_unit_id", "owning_unit_id"),
+        Index(
+            "ix_cm_batch1_complaints_hq_destination_unit_id",
+            "hq_destination_unit_id",
+        ),
+        # SLA feed only scans still-open complaints (DEC-031).
+        Index(
+            "ix_cm_batch1_complaints_open_created_at",
+            "created_at",
+            postgresql_where=text("closed_at IS NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -56,15 +71,64 @@ class CmBatch1ComplaintORM(Base):
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="REGISTERED"
     )
+    # When the Aggregate reached CLOSED (DEC-031). Kept in lockstep with
+    # ``status`` by ``apply_complaint_status`` — cleared again on reopen, so it
+    # always describes the *current* closure, never a stale earlier one.
+    # ``updated_at`` cannot serve this purpose: any edit moves it.
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Intake path label (not Aggregate lifecycle). e.g. ESCALATE_PENDING_APPROVAL.
     intake_disposition: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )
-    # Hard invariant Batch 1 (CTO D-02) — always false; Case deferred.
+    # When set, HQ has accepted/claimed — Batalkan Eskalasi blocked.
+    hq_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Pusat officer who accepted. Without it the "accepted, not yet scheduled"
+    # phase has no handler to show on the work lists.
+    hq_accepted_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Org unit key (Branch.code / "PUSAT") — list visibility SoT (DEC-024 pattern).
+    owning_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Customer visit schedule at HQ (Batch-1 lab; not foundation Appointment).
+    hq_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    hq_arrival_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Which Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE /
+    # PUSAT-SUBAN-…). Set by Pusat together with the final arrival time — never
+    # by the branch, and never written into owning_unit_id (that column is the
+    # visibility SoT and holds the originating branch).
+    hq_destination_unit_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    hq_destination_set_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    hq_destination_set_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Branch-proposed slot at escalation time — advisory only, cleared once
+    # Pusat decides (accept/return). Not a reservation.
+    proposed_arrival_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    proposed_arrival_time: Mapped[str | None] = mapped_column(
+        String(5), nullable=True
+    )
+    proposed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    proposed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # True after the first Case exists (mark_complaint_in_progress /
+    # sync_complaint_status_from_cases). Default false at intake.
     case_created: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
     created_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Who resolved the intake-escalation decision (APPROVE/REJECT/CANCEL) and
+    # when — UM-BUG-006, see decide_intake_escalation in service.py.
+    decided_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -160,7 +224,7 @@ class CmBatch1CustomerLockORM(Base):
 
 
 class CmBatch1NumberCounterORM(Base):
-    """Portable complaint-number counter (CM-########)."""
+    """Portable counter — key ``cn:UNIT:YYYYMM`` for ``CM{UNIT}-YYMM-NNNN``."""
 
     __tablename__ = "cm_batch1_number_counters"
 
@@ -289,6 +353,7 @@ class CmBatch1AttachmentORM(Base):
         Index("ix_cm_batch1_attachments_platform_id", "platform_attachment_id"),
         Index("ix_cm_batch1_attachments_checksum", "checksum_sha256"),
         Index("ix_cm_batch1_attachments_customer_id", "customer_id"),
+        Index("ix_cm_batch1_attachments_case_id", "case_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -309,6 +374,11 @@ class CmBatch1AttachmentORM(Base):
         nullable=True,
     )
     customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_cases.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     classification: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     original_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -405,4 +475,41 @@ class CmBatch1OutboxORM(Base):
     )
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+
+class CmBatch1PusatQueueSeenORM(Base):
+    """Per-user Pusat read receipt for the HQ queue row (one row per parent).
+
+    Derived-unread model: no fan-out at escalation time, so a Pusat user who
+    joins later still sees the backlog and no user directory is needed (the
+    directory belongs to the Enterprise Platform, ADR-015). A row is written
+    only when someone opens the complaint (or one of its Cases); the badge
+    treats the row as read while ``seen_at`` is newer than the last branch
+    movement on that complaint.
+    """
+
+    __tablename__ = "cm_pusat_queue_seen"
+    __table_args__ = (
+        UniqueConstraint(
+            "complaint_id", "user_id", name="uq_cm_pusat_queue_seen_pair"
+        ),
+        Index("ix_cm_pusat_queue_seen_user_id", "user_id"),
+        Index("ix_cm_pusat_queue_seen_complaint_id", "complaint_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    complaint_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_batch1_complaints.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )

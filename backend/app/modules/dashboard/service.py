@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 
+from app.core.config import get_settings
 from app.core.errors import ValidationAppError
 from app.core.user_messages import m
-from app.modules.complaints.service import ComplaintService
 from app.modules.dashboard.domain.dto import DashboardFilters, TrendPeriod
+from app.modules.dashboard.providers.cm_batch1_activity_provider import (
+    CmBatch1ActivityDashboardProvider,
+)
 from app.modules.dashboard.providers.complaint_provider import (
     ComplaintDashboardProvider,
 )
@@ -17,6 +21,8 @@ from app.modules.dashboard.providers.notification_provider import (
 from app.modules.dashboard.providers.queue_provider import QueueDashboardProvider
 from app.modules.dashboard.providers.sla_provider import SlaDashboardProvider
 from app.modules.dashboard.schemas import (
+    ComplaintSlaAlertsResponse,
+    DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardHeader,
     DashboardKpiResponse,
@@ -33,10 +39,8 @@ from app.modules.dashboard.schemas import (
 from app.modules.kpi.service import KpiService
 from app.modules.settings.registry import SettingsKey
 from app.modules.settings.service import SettingsService
-from app.modules.timelines.service import TimelineService
 
 _DEFAULT_RECENT_LIMIT = 10
-_SYSTEM_ACTOR = "SYSTEM"
 
 
 def _ensure_utc(value: datetime) -> datetime:
@@ -82,8 +86,7 @@ class DashboardService:
         sla_provider: SlaDashboardProvider,
         notification_provider: NotificationDashboardProvider,
         kpi_service: KpiService | None = None,
-        timeline_service: TimelineService | None = None,
-        complaint_service: ComplaintService | None = None,
+        activity_provider: CmBatch1ActivityDashboardProvider | None = None,
         settings_service: SettingsService | None = None,
     ) -> None:
         self._complaints = complaint_provider
@@ -91,8 +94,7 @@ class DashboardService:
         self._sla = sla_provider
         self._notifications = notification_provider
         self._kpi = kpi_service
-        self._timeline = timeline_service
-        self._complaint_svc = complaint_service
+        self._activity = activity_provider
         self._settings = settings_service
 
     def summary(
@@ -109,6 +111,62 @@ class DashboardService:
             escalatedComplaints=m.escalated_complaints,
             todayComplaints=m.today_complaints,
             thisMonthComplaints=m.this_month_complaints,
+        )
+
+    def recent_activity(
+        self, *, limit: int, branch_id: uuid.UUID | None = None
+    ) -> list[DashboardRecentActivityItem]:
+        """UM-BUG-009 — standalone, branch-filterable recent activity feed."""
+        if self._activity is None:
+            raise RuntimeError("Dashboard recent_activity requires Activity wiring")
+        return self._activity.list_recent(limit=limit, branch_id=branch_id)
+
+    def aggregate_kpis(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> DashboardAggregateKpiResponse:
+        """DEC-020 Aggregate complaint KPI counts (branch-lockable via router).
+
+        An optional ``date_from``/``date_to`` window lets /reports read the
+        same SoT per period; the dashboard keeps calling it without one.
+        """
+        if self._activity is None:
+            raise RuntimeError("Dashboard aggregate_kpis requires Activity wiring")
+        f = _validate_filters(
+            DashboardFilters(branch_id=branch_id, date_from=date_from, date_to=date_to)
+        )
+        settings = get_settings()
+        return self._activity.complaint_kpis(
+            branch_id=branch_id,
+            date_from=f.date_from,
+            date_to=f.date_to,
+            target_days=settings.complaint_resolution_target_days,
+            warning_percent=settings.complaint_sla_warning_percent,
+        )
+
+    def sla_alerts(
+        self,
+        *,
+        branch_id: uuid.UUID | None = None,
+        limit: int = 20,
+    ) -> ComplaintSlaAlertsResponse:
+        """DEC-031 in-app alert feed — complaints approaching or past 30 days.
+
+        Read-time computation, no scheduler and no transport: this is the part
+        of "notify me" that can be built while CAP-005 (delivery) and CAP-006
+        (breach engine) stay deferred. See DEC-031 §3.
+        """
+        if self._activity is None:
+            raise RuntimeError("Dashboard sla_alerts requires Activity wiring")
+        settings = get_settings()
+        return self._activity.sla_alerts(
+            branch_id=branch_id,
+            target_days=settings.complaint_resolution_target_days,
+            warning_percent=settings.complaint_sla_warning_percent,
+            limit=limit,
         )
 
     def queue(
@@ -182,15 +240,14 @@ class DashboardService:
         )
 
     def overview(self) -> DashboardOverviewResponse:
-        """API-319 composition (KPI + timeline + complaint). No SQL in dashboard."""
+        """API-319 composition (KPI + activity). No SQL in dashboard."""
         if (
             self._kpi is None
-            or self._timeline is None
-            or self._complaint_svc is None
+            or self._activity is None
             or self._settings is None
         ):
             raise RuntimeError(
-                "Dashboard overview requires KPI/Timeline/Complaint/Settings wiring"
+                "Dashboard overview requires KPI/Activity/Settings wiring"
             )
 
         kpi = self._kpi.summary()
@@ -200,28 +257,7 @@ class DashboardService:
         )
         if recent_limit < 1:
             recent_limit = _DEFAULT_RECENT_LIMIT
-        rows = self._timeline.list_recent(limit=recent_limit)
-
-        recent: list[DashboardRecentActivityItem] = []
-        for row in rows:
-            complaint = self._complaint_svc.get(row.complaint_id)
-            actor = row.__dict__.get("actor")
-            actor_name = (
-                getattr(actor, "full_name", None) if actor is not None else None
-            )
-            if not actor_name:
-                meta = row.metadata_json if isinstance(row.metadata_json, dict) else None
-                meta_actor = meta.get("actor") if meta else None
-                actor_name = str(meta_actor) if meta_actor else _SYSTEM_ACTOR
-
-            recent.append(
-                DashboardRecentActivityItem(
-                    eventType=str(row.event_type),
-                    complaintNumber=complaint.complaint_number,
-                    timestamp=row.event_at,
-                    actor=actor_name,
-                )
-            )
+        recent = self._activity.list_recent(limit=recent_limit)
 
         return DashboardOverviewResponse(
             header=DashboardHeader(

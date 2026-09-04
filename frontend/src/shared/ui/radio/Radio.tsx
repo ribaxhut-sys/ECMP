@@ -26,6 +26,8 @@ export interface RadioGroupProps {
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Default stacked. Inline = one row, wrap on small screens. */
+  orientation?: "vertical" | "horizontal";
 }
 
 /**
@@ -45,6 +47,7 @@ export function RadioGroup({
   required,
   disabled,
   className,
+  orientation = "vertical",
 }: RadioGroupProps) {
   const groupId = `${name}-group`;
   const labelId = label ? `${groupId}-label` : undefined;
@@ -87,6 +90,13 @@ export function RadioGroup({
             ) : null}
           </p>
         ) : null}
+        <div
+          className={cn(
+            orientation === "horizontal"
+              ? "flex flex-wrap items-center gap-x-6 gap-y-2"
+              : "flex flex-col gap-[var(--ecmp-space-8)]",
+          )}
+        >
         {options.map((option) => {
           const optionId = `${name}-${option.value}`;
           return (
@@ -123,6 +133,7 @@ export function RadioGroup({
             </label>
           );
         })}
+        </div>
       </div>
     </FormField>
   );

@@ -1159,7 +1159,7 @@ Logical ECMP Backend API capabilities required by Batch 1. **Payload design and 
 | FR-003 | Record duplicate decision / linkage | `API-506` `POST /api/v1/cm/duplicates/decisions` (**Planned**) | Frontend → ECMP Backend | — |
 | FR-004 | Upload attachment | Existing shared: `API-323` / `API-507` `POST /api/v1/attachments` | Frontend → ECMP Backend | Enterprise Storage; optional malware scan service |
 | FR-004 | Transfer staged attachments to surviving Complaint | `API-508` `POST /api/v1/cm/attachments/transfer` (**Planned**) | ECMP Backend internal / Frontend-triggered redirect flow | Enterprise Storage (rebind metadata) |
-| FR-004 | List attachments for Complaint | Existing shared: `API-387` / `API-509` `GET /api/v1/complaints/{id}/attachments` | Frontend → ECMP Backend | — |
+| FR-004 | List attachments for Complaint | `API-509` `GET /api/v1/cm/complaints/{complaintId}/attachments` (align API-387) | Frontend → ECMP Backend | — |
 | FR-004 | Get metadata / download | Existing shared: `API-324`/`API-325` / `API-510`/`API-511` | Frontend → ECMP Backend | Enterprise Storage |
 | FR-004 | Logical void | Existing shared: `API-326` / `API-512` (semantics MUST match BR-012 void rules) | Frontend → ECMP Backend | — |
 

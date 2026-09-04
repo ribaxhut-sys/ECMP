@@ -176,3 +176,65 @@ def enforce_org_scope(
 ) -> None:
     """Module-level helper used by routers after permission checks."""
     OrgUnitGuard(settings).enforce(principal, resource_org_unit_id, settings=settings)
+
+
+def enforce_org_scope_any(
+    principal: Principal,
+    resource_org_unit_ids: list[str | None] | tuple[str | None, ...],
+    settings: Settings,
+) -> None:
+    """Allow when the principal matches *any* of the resource org units.
+
+    Used for F4 Case read/visibility where Owner unit and current Handling
+    unit both retain access after transfer. Dev AuthN mode remains a no-op
+    (same as ``enforce_org_scope``).
+    """
+    if not org_scope_enforcement_enabled(settings):
+        return
+
+    principal_org = OrgUnitResolver.normalize(principal.org_unit_id)
+    allowed = {
+        org
+        for org in (
+            OrgUnitResolver.normalize(value) for value in resource_org_unit_ids
+        )
+        if org
+    }
+
+    if principal_org is None:
+        if is_service_account_allowlisted(principal, settings):
+            return
+        _audit_org_scope_denied(
+            principal=principal,
+            reason="missing_org_unit_claim",
+            principal_org=None,
+            resource_org=",".join(sorted(allowed)) if allowed else None,
+        )
+        raise OrgScopeDeniedError(
+            m("org.scope_missing_org_unit_claim"),
+            details=_public_denial_details("missing_org_unit_claim"),
+        )
+
+    if not allowed:
+        _audit_org_scope_denied(
+            principal=principal,
+            reason="missing_resource_org_unit",
+            principal_org=principal_org,
+            resource_org=None,
+        )
+        raise OrgScopeDeniedError(
+            m("org.scope_resource_no_org_unit"),
+            details=_public_denial_details("missing_resource_org_unit"),
+        )
+
+    if principal_org not in allowed:
+        _audit_org_scope_denied(
+            principal=principal,
+            reason="org_unit_mismatch",
+            principal_org=principal_org,
+            resource_org=",".join(sorted(allowed)),
+        )
+        raise OrgScopeDeniedError(
+            m("common.org_scope_denied"),
+            details=_public_denial_details("org_unit_mismatch"),
+        )

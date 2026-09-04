@@ -32,7 +32,7 @@ SETTING_ALLOWED_MIME = "storage.allowed.mime"
 
 _DEFAULT_PROVIDER = "local"
 _DEFAULT_ROOT_PATH = "storage/attachments"
-_DEFAULT_MAX_UPLOAD_MB = 10
+_DEFAULT_MAX_UPLOAD_MB = 50
 _DEFAULT_ALLOWED_MIME: list[str] = [
     "application/pdf",
     "image/jpeg",
@@ -44,6 +44,7 @@ _DEFAULT_ALLOWED_MIME: list[str] = [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/zip",
 ]
 
 _MIME_EXTENSIONS: dict[str, frozenset[str]] = {
@@ -61,7 +62,19 @@ _MIME_EXTENSIONS: dict[str, frozenset[str]] = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": frozenset(
         {".xlsx"}
     ),
+    "application/zip": frozenset({".zip"}),
 }
+
+# ZIP is stored as an opaque blob — never extracted (zip-bomb / path traversal).
+_ZIP_MAGIC_PREFIXES = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
+_ZIP_MIME_ALIASES = frozenset(
+    {
+        "application/zip",
+        "application/x-zip",
+        "application/x-zip-compressed",
+        "application/zip-compressed",
+    }
+)
 
 _UNSAFE_FILENAME_RE = re.compile(r"[\x00-\x1f\x7f<>:\"|?*]")
 
@@ -80,6 +93,10 @@ def build_storage_provider(settings: SettingsService) -> StorageProvider:
                 m("storage.root_path_not_empty"),
                 details={"key": SETTING_STORAGE_ROOT_PATH},
             )
+        # Lab guard: pytest fixtures must not leave /tmp/pytest-* in shared DB.
+        normalized = root.replace("\\", "/")
+        if "/pytest-" in normalized or normalized.startswith("/tmp/pytest"):
+            root = _DEFAULT_ROOT_PATH
         return LocalStorageProvider(root)
     raise ValidationAppError(
         f"penyedia storage tidak didukung: {provider}",
@@ -122,6 +139,37 @@ def _extension_of(filename: str) -> str | None:
     return suffix
 
 
+def looks_like_zip(data: bytes) -> bool:
+    """True when bytes start with a ZIP local/empty/spanned header (PK)."""
+    return any(data.startswith(prefix) for prefix in _ZIP_MAGIC_PREFIXES)
+
+
+def normalize_upload_mime(
+    *,
+    content_type: str | None,
+    filename: str | None,
+    data: bytes,
+) -> str:
+    """Canonical MIME for upload allowlists.
+
+    ZIP aliases (Windows ``x-zip-compressed``, empty/octet-stream + ``.zip``)
+    become ``application/zip``. ZIP is never extracted — only magic-checked.
+    """
+    mime = (content_type or "").strip().lower() or "application/octet-stream"
+    extension = _extension_of(filename) if filename else None
+    zip_claimed = mime in _ZIP_MIME_ALIASES or (
+        mime == "application/octet-stream" and extension == ".zip"
+    )
+    if zip_claimed:
+        if not looks_like_zip(data):
+            raise ValidationAppError(
+                m("storage.zip_invalid"),
+                details={"mimeType": mime, "extension": extension},
+            )
+        return "application/zip"
+    return mime
+
+
 def _storage_relative_path(*, file_name: str, uploaded_at: datetime) -> str:
     """Build ``yyyy/mm/<uuid.ext>`` relative path under storage root."""
     return f"{uploaded_at.year:04d}/{uploaded_at.month:02d}/{file_name}"
@@ -142,6 +190,8 @@ def _to_response(entity: Attachment) -> AttachmentResponse:
         uploadedBy=entity.uploaded_by,
         uploadedAt=entity.uploaded_at,
         status=entity.status,  # type: ignore[arg-type]
+        accessLevel=entity.access_level,  # type: ignore[arg-type]
+        uploadedOrgUnitId=entity.uploaded_org_unit_id,
     )
 
 
@@ -184,13 +234,16 @@ class AttachmentService:
 
         safe_name = sanitize_filename(filename)
         extension = _extension_of(safe_name)
-        mime_type = (content_type or "").strip().lower() or "application/octet-stream"
 
         if not data:
             raise ValidationAppError(
                 m("storage.file_empty"),
                 details={"sizeBytes": 0},
             )
+
+        mime_type = normalize_upload_mime(
+            content_type=content_type, filename=safe_name, data=data
+        )
 
         if max_bytes is None:
             max_mb = self._settings.get_int(

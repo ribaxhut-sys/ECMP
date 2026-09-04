@@ -4,19 +4,21 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   ApiError,
+  closeCmCase,
+  recordCmCaseAcceptance,
   resolveCmCase,
   type CmCase,
-  type CmCaseResolveAction,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Button,
-  Input,
   Modal,
   ModalSection,
   Select,
-  Textarea,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import {
   emptyResolveCaseForm,
   toResolveCaseRequest,
@@ -24,12 +26,28 @@ import {
   type ResolveCaseFormValues,
 } from "./caseForms";
 
-const ACTION_OPTIONS: { value: CmCaseResolveAction; label: string }[] = [
-  { value: "ACCEPT", label: "actionAccept" },
-  { value: "PROPOSE", label: "actionPropose" },
+/** Quick-fill presets for the resolve dialog (PUBLIC settings, JSON arrays). */
+const RESOLUTION_COMMENT_PRESET_KEY = "case.resolution_comment_presets";
+const REJECTION_REASON_PRESET_KEY = "case.rejection_reason_presets";
+const PRESET_KEYS = [
+  RESOLUTION_COMMENT_PRESET_KEY,
+  REJECTION_REASON_PRESET_KEY,
+];
+
+const INTENT_OPTIONS: {
+  value: ResolveCaseFormValues["intent"];
+  label: string;
+}[] = [
+  { value: "CLOSE", label: "actionClose" },
   { value: "REJECT", label: "actionReject" },
 ];
 
+/**
+ * DEC-021 Mode A resolve dialog:
+ * - Tutup → ACCEPT (comment only) + Owner ACCEPT if needed + close when allowed
+ * - Tolak → REJECT + rejectionReason
+ * Eskalasi ke Pusat is a Case-page CTA (DEC-029), not a resolve action.
+ */
 export function ResolveCaseDialog({
   open,
   onClose,
@@ -43,7 +61,10 @@ export function ResolveCaseDialog({
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [values, setValues] = useState(emptyResolveCaseForm());
+  const presets = useReasonPresets(PRESET_KEYS);
   const [fieldErrors, setFieldErrors] = useState<
     ReturnType<typeof validateResolveCaseForm>
   >({});
@@ -65,22 +86,62 @@ export function ResolveCaseDialog({
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
+  async function finishCloseWithComment(comment: string): Promise<CmCase> {
+    const resolved = await resolveCmCase(caseId, {
+      action: "ACCEPT",
+      comment,
+    });
+    let current = resolved.data;
+    if (current.status === "CLOSED") {
+      return current;
+    }
+    if (current.status === "RESOLVED" && !current.ownerAcceptance) {
+      try {
+        const owned = await recordCmCaseAcceptance(caseId, {
+          party: "OWNER",
+          decision: "ACCEPT",
+          note: comment,
+        });
+        current = owned.data;
+      } catch {
+        // Owner acceptance may be forbidden (SoD / role); still try close.
+      }
+    }
+    if (current.status === "CLOSED") {
+      return current;
+    }
+    try {
+      const closed = await closeCmCase(caseId, { note: comment });
+      return closed.data;
+    } catch {
+      return current;
+    }
+  }
+
   async function submit() {
     const errors = validateResolveCaseForm(values);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
+
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await resolveCmCase(caseId, toResolveCaseRequest(values));
-      onResolved?.(res.data);
+      if (values.intent === "CLOSE") {
+        const next = await finishCloseWithComment(values.comment.trim());
+        onResolved?.(next);
+      } else {
+        const res = await resolveCmCase(caseId, toResolveCaseRequest(values));
+        onResolved?.(res.data);
+      }
       setValues(emptyResolveCaseForm());
       setFieldErrors({});
       setSubmitError(null);
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("resolveFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("resolveFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -95,8 +156,12 @@ export function ResolveCaseDialog({
       size="lg"
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose} disabled={submitting}>{t("back")}          </Button>
-          <Button onClick={submit} loading={submitting}>{t("submitResolution")}          </Button>
+          <Button variant="ghost" onClick={handleClose} disabled={submitting}>
+            {t("back")}
+          </Button>
+          <Button onClick={() => void submit()} loading={submitting}>
+            {t("submitResolution")}
+          </Button>
         </>
       }
     >
@@ -109,57 +174,57 @@ export function ResolveCaseDialog({
           />
         ) : null}
         <Select
-          name="action"
+          name="intent"
           label={t("action")}
-          value={values.action}
+          value={values.intent}
           onChange={(e) =>
-            setField("action", e.target.value as CmCaseResolveAction)
+            setField(
+              "intent",
+              e.target.value as ResolveCaseFormValues["intent"],
+            )
           }
-          options={ACTION_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
+          options={INTENT_OPTIONS.map((option) => ({
+            ...option,
+            label: t(option.label),
+          }))}
         />
-        <Textarea
+        {values.intent === "CLOSE" ? (
+          <Alert
+            tone="info"
+            title={t("closeCommentOnlyTitle")}
+            description={t("closeCommentOnlyBody")}
+          />
+        ) : null}
+        <PresetTextField
+          presets={presets[RESOLUTION_COMMENT_PRESET_KEY] ?? []}
           name="comment"
           label={t("commentRequired")}
           value={values.comment}
-          onChange={(e) => setField("comment", e.target.value)}
-          error={fieldErrors.comment ? tValidation(fieldErrors.comment) : undefined}
+          onChange={(next) => setField("comment", next)}
+          error={
+            fieldErrors.comment
+              ? tValidation(fieldErrors.comment)
+              : undefined
+          }
           required
         />
-        {values.action !== "REJECT" ? (
+        {values.intent === "REJECT" ? (
           <>
-            <Input
-              name="resolutionCode"
-              label={t("resolutionCode")}
-              value={values.resolutionCode}
-              onChange={(e) => setField("resolutionCode", e.target.value)}
-              error={fieldErrors.resolutionCode ? tValidation(fieldErrors.resolutionCode) : undefined}
+            <PresetTextField
+              presets={presets[REJECTION_REASON_PRESET_KEY] ?? []}
+              name="rejectionReason"
+              label={t("rejectionReason")}
+              value={values.rejectionReason}
+              onChange={(next) => setField("rejectionReason", next)}
+              error={
+                fieldErrors.rejectionReason
+                  ? tValidation(fieldErrors.rejectionReason)
+                  : undefined
+              }
               required
-            />
-            <Input
-              name="summary"
-              label={t("summary")}
-              value={values.summary}
-              onChange={(e) => setField("summary", e.target.value)}
-              error={fieldErrors.summary ? tValidation(fieldErrors.summary) : undefined}
-              required
-            />
-            <Textarea
-              name="detail"
-              label={t("detailLabel")}
-              value={values.detail}
-              onChange={(e) => setField("detail", e.target.value)}
             />
           </>
-        ) : (
-          <Textarea
-            name="rejectionReason"
-            label={t("rejectionReason")}
-            value={values.rejectionReason}
-            onChange={(e) => setField("rejectionReason", e.target.value)}
-            error={fieldErrors.rejectionReason ? tValidation(fieldErrors.rejectionReason) : undefined}
-            required
-          />
-        )}
+        ) : null}
       </ModalSection>
     </Modal>
   );

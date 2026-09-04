@@ -34,6 +34,16 @@ def test_supervisor_gate_allows_supervisor() -> None:
     assert require_supervisor_assign(principal) is principal
 
 
+def test_supervisor_gate_allows_manager() -> None:
+    """F4: Manager has assign capability parity with Supervisor (no bypass)."""
+    principal = Principal(
+        user_id=uuid.uuid4(),
+        roles=("MANAGER",),
+        permissions=frozenset({"complaints:assign"}),
+    )
+    assert require_supervisor_assign(principal) is principal
+
+
 def test_assign_new_to_assigned(monkeypatch: pytest.MonkeyPatch) -> None:
     complaint_id = uuid.uuid4()
     assignee_id = uuid.uuid4()

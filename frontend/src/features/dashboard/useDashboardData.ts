@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
@@ -15,8 +15,12 @@ type LoadState =
   | { status: "success"; data: DashboardData }
   | { status: "error"; error: string; code?: string };
 
+const AUTO_REFRESH_MS = 60_000;
+
 export function useDashboardData() {
   const [state, setState] = useState<LoadState>({ status: "idle" });
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
   const inFlight = useRef(false);
   const tErrors = useTranslations("errors");
   const tCommon = useTranslations("common");
@@ -25,10 +29,14 @@ export function useDashboardData() {
   const reload = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
-    setState({ status: "loading" });
+    setIsFetching(true);
+    // Only show the first-load skeleton before any data has ever landed —
+    // background/manual refresh keeps the current data visible.
+    setState((prev) => (prev.status === "success" ? prev : { status: "loading" }));
     try {
       const data = await loadDashboardData();
       setState({ status: "success", data });
+      setUpdatedAt(new Date());
     } catch (err) {
       const message = resolveApiErrorMessage(
         err,
@@ -44,8 +52,19 @@ export function useDashboardData() {
       });
     } finally {
       inFlight.current = false;
+      setIsFetching(false);
     }
   }, [tCommon, tDashboard, tErrors]);
 
-  return { state, reload };
+  // Silent background refresh — paused while the tab is not visible so we
+  // never poll a screen nobody is looking at.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void reload();
+    }, AUTO_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [reload]);
+
+  return { state, reload, updatedAt, isFetching };
 }

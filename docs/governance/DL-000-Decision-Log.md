@@ -1013,6 +1013,8 @@ Menutup **OQ-CM-B1-004** (lewat BQ-002).
 **Notes**
 BQ-005 penting untuk BC-000: SLA **diikat** tapi **tidak berjalan** di Mode A.
 
+**Format BQ-004:** string `CASE-YYYY-NNNNNN` pada tabel di atas adalah kunci 2026-08-01. **Diganti** 2026-08-22 oleh **DL-070 / DEC-028** (`UNIT-YYMM-NNNN` / `CM{UNIT}-YYMM-NNNN`). Independensi nomor Case **tidak** dibuka.
+
 ---
 
 #### DL-025 — Kepemilikan Konfigurasi Workflow
@@ -2807,6 +2809,50 @@ Executed G0.2D: §2 PWDM-001 & IA-001 → Draft. Paket **belum** Approved; Revie
 
 ---
 
+#### DL-070 — BQ-004 format opsi C + unit tujuan eskalasi Pusat
+
+| Field | Value |
+|---|---|
+| **Decision ID** | DL-070 |
+| **Title** | Format nomor Case/pengaduan (`UNIT-YYMM-NNNN` / `CM{UNIT}-YYMM-NNNN`) dan unit tujuan eskalasi Pusat |
+| **Status** | Approved (Product Owner, 2026-08-22) |
+| **Source** | DEC-028 |
+
+**Decision**
+BQ-004 dibuka **hanya untuk string format**. Independensi nomor Case dari nomor pengaduan tetap LOCKED.
+
+- Case: `UNIT-YYMM-NNNN` (contoh `TAB-2608-0001`); counter `cs:UNIT:YYYYMM`.
+- Pengaduan: `CM{UNIT}-YYMM-NNNN` (contoh `CMTAB-2608-0001`); counter `cn:UNIT:YYYYMM`.
+- Format `CASE-YYYY-NNNNNN` / `CASE-YYYY-NNNN` tidak dipakai untuk nomor baru.
+
+Saat Pusat menerima eskalasi: Pusat menetapkan jam final **dan** unit tujuan (CRO / Sekretariat / Suban) di kolom terpisah dari unit asal; **Pusat** yang menginformasikan ke wajib pajak, bukan CRO cabang. `PUSAT-*` (pemisah wajib) = Pusat; `PUSATAKA` bukan.
+
+**Business Context**
+Nomor Case dan pengaduan harus bisa dibedakan di lapangan tanpa prefiks `CASE-`. Eskalasi ke Pusat bukan satu pintu.
+
+**Reason**
+Bentuk sejajar unit-bulan dengan prefiks `CM` pada pengaduan. Proses kedatangan WP diputus dan diinformasikan oleh Pusat.
+
+**Alternatives Considered**
+A — pertahankan `CASE-YYYY-NNNNNN` · B — `CASE-YYYY-NNNN` · **C — dipilih**.
+
+**Impact**
+Identitas Case/pengaduan · OpenAPI API-530…535 · counter lab `0096` (drop baris lama) · terima eskalasi + `hq_destination_unit_id` · copy operator.
+
+**Affected Documents**
+`27 Project Decisions/DEC-028_*` · DEC-MODEA-B2-001 v1.1 · FRD-CM-B2-001 · `cm-case-management.v1.yaml` · CAP-008 v1.3 · BC-9.9 · BR-CAS-001 · BW-000 WS-02
+
+**Related Decisions**
+DL-024 · DL-044 · DEC-025 (overlay identitas)
+
+**Supersedes**
+String format BQ-004 pada DL-024 saja — bukan independensi, bukan BQ lain.
+
+**Notes**
+Lab: counter Case lama dibuang. UAT `v1.2.0` tetap historis.
+
+---
+
 ## 4. Decision Index (Deliverable 2)
 
 | DL | Judul | Kategori | Status | Artefak sumber | Tanggal |
@@ -2880,6 +2926,7 @@ Executed G0.2D: §2 PWDM-001 & IA-001 → Draft. Paket **belum** Approved; Revie
 | DL-067 | SLA Constitution (satu konstitusi resmi) | Timeline | Approved | BO-002 Option A | 2026-08-05 |
 | DL-068 | Manager Business Persona; Workspace deferred | UX | Approved | BO-003 Option A | 2026-08-05 |
 | DL-069 | UX Package status synchronization | UX / Governance | Approved | BO-004 Option A | 2026-08-05 |
+| DL-070 | BQ-004 format opsi C + unit tujuan eskalasi Pusat | Business | Approved | DEC-028 | 2026-08-22 |
 
 **Rekap jumlah per kategori:** Business 11 · Organization 3 · Timeline 6 · Workflow 5 · UX 4 · Architecture 16 · Governance 8 · Security 6 · Reporting 3 · Audit 3 — **total 65 keputusan**.
 
@@ -2961,6 +3008,7 @@ Legenda hubungan:
 | DL-067 | DL-005, DL-016…019, DL-024 | BC SLA | DL-018 (timeline events) | ⊗ unlock runtime CAP-006 |
 | DL-068 | DL-001, DL-062 | BC Aktor | DL-069 | ⊗ M-26 delivery |
 | DL-069 | DL-001, DL-068 | Review UX paket | — | ⊗ klaim READY prematur |
+| DL-070 | DL-024 | Catalog identitas Mode A | DL-044, DL-046 | ⊗ format BQ-004 pada DL-024 |
 
 ### 5.1 Rantai dependensi kritis
 
@@ -2997,7 +3045,7 @@ Daftar ini **bukan** keputusan. Isinya: butir yang berstatus Open/Proposed/Pendi
 |---|---|---|---|
 | M-11 | **Paket UX Foundation** (PDS-001 · PWDM-001 · IA-001) + turunannya (NAV-001, WF-000, WF-PLAN-001, WF-001-01) | **DRAFT — status §2 disinkronkan (DL-069)**; belum READY FOR APPROVAL; Review ulang pasca-merge masih wajib | DL-001 merge Approved; DL-069 menutup inkonsistensi status; **isi** turunan belum mengikat sampai paket Approved |
 | M-12 | **DEC-F4 countersign Architecture Board** | Berkas DEC-F4 🟡 *Proposed — awaiting formal DEC approval*; countersign pack 🟡 *Ready for countersign* | Keputusan bisnis F4…F4.5 sudah **Locked** oleh Business Owner; lingkup escalation Mode A dikunci DL-066; jalur countersign Board belum tertutup (lih. DL-012) |
-| M-13 | **Retirement DEC untuk dual SoT** | Belum ada; disyaratkan eksplisit oleh DL-044, DL-051, DL-052, dan Forbidden Behavior DL-046 | Tanpa ini, dua namespace `/api/v1/complaints` dan `/api/v1/cm` tetap hidup berdampingan tanpa batas waktu |
+| M-13 | **Retirement DEC untuk dual SoT** | **DEC-026 Accepted with Conditions** (2026-08-13); **M-026-1…3 executed** (FE redirect, unmount `/api/v1/complaints`, DROP `complaints*` H1). DEC-020 tubuh tidak di-rewrite. | **Tertutup untuk runtime Mode A.** Sisa: CA BC bukan objek retire; Mode B tetap CLOSED |
 | M-14 | **Resolution unlock Mode B** | Belum ada; disyaratkan C-B6-1 + C-B6-3 (prasyarat gap model organisasi) + kesiapan operasional | Seluruh rantai DL-039…DL-042 tetap desain sampai ada Resolution ini |
 
 ### 6.3 Ditunda secara sengaja (Deferred by decision) — perlu keputusan lanjutan bila diaktifkan
@@ -3086,18 +3134,19 @@ Daftar lengkap per keputusan ada pada field **Affected Documents** masing-masing
 | DL-060 · DL-061 | `27 Project Decisions/DEC-015_*`, `DEC-016_*` · `07 API Catalog/` (API-318, API-319) · `docs/domain/kpi.md`, `docs/domain/dashboard.md` |
 | DL-062 | `deploy/evidence/B2-11…B2-14` |
 | DL-063 | `27 Project Decisions/OPEN_QUESTIONS.md`, `DEC-002_*` · `03 Functional Requirements/ECMP_FRD_ECMF_v0.1.md` §9 |
+| DL-070 | `27 Project Decisions/DEC-028_*` · DEC-MODEA-B2-001 v1.1 · FRD-CM-B2-001 · `cm-case-management.v1.yaml` · CAP-008 · BC-9.9 · BR-CAS-001 · BW-000 WS-02 |
 
 ### 7.2 Indeks terbalik: dokumen/folder → keputusan yang mengikatnya
 
 | Dokumen / folder | Keputusan yang mengikat |
 |---|---|
 | `01 Business Blueprint/` | DL-002 · DL-030 |
-| `02 Business Rules/` | DL-002 · DL-003 · DL-004 · DL-006 · DL-012 · DL-023 · DL-025 · DL-026 · DL-044 · DL-063 · DL-064 · DL-065 |
-| `03 Functional Requirements/` | DL-002 · DL-004 · DL-019 · DL-023 · DL-024 · DL-044 · DL-063 |
+| `02 Business Rules/` | DL-002 · DL-003 · DL-004 · DL-006 · DL-012 · DL-023 · DL-025 · DL-026 · DL-044 · DL-063 · DL-064 · DL-065 · DL-070 |
+| `03 Functional Requirements/` | DL-002 · DL-004 · DL-019 · DL-023 · DL-024 · DL-044 · DL-063 · DL-070 |
 | `04 Solution Architecture/` | DL-005 · DL-026 · DL-030 · DL-035 · DL-039 |
 | `05 Architecture Decision Records/` | DL-020 · DL-021 · DL-025 · DL-026 · DL-030…DL-042 · DL-048 · DL-049 · DL-054 · DL-055 · DL-056 · DL-057 |
 | `06 Data Dictionary/` | DL-002 · DL-006 · DL-013 · DL-025 · DL-031 · DL-056 |
-| `07 API Catalog/` | DL-002 · DL-005 · DL-006 · DL-007…DL-011 · DL-016…DL-018 · DL-022 · DL-024 · DL-032 · DL-034 · DL-060 · DL-061 |
+| `07 API Catalog/` | DL-002 · DL-005 · DL-006 · DL-007…DL-011 · DL-016…DL-018 · DL-022 · DL-024 · DL-032 · DL-034 · DL-060 · DL-061 · DL-070 |
 | `08 Event Catalog/` | DL-002 · DL-007…DL-011 · DL-018 · DL-019 · DL-022 · DL-025 · DL-030 · DL-032 · DL-035 |
 | `09 Integration Catalog/` | DL-013 · DL-014 · DL-031 |
 | `10 Security and Access Standards/` | DL-004 · DL-014 · DL-022 · DL-039 · DL-040 · DL-041 · DL-042 · DL-054 · DL-055 · DL-056 · DL-057 · DL-065 |
@@ -3107,17 +3156,17 @@ Daftar lengkap per keputusan ada pada field **Affected Documents** masing-masing
 | `14 Deployment Standards/` | DL-036 · DL-054 · DL-055 |
 | `15 Operations Runbook/` | DL-036 |
 | `17 Compliance/` | DL-064 · DL-065 |
-| `18 Architecture Governance/` | DL-012 · DL-013 · DL-014 · DL-015 · DL-023 · DL-024 · DL-027 · DL-039…DL-042 · DL-044 · DL-046…DL-049 · DL-052 |
+| `18 Architecture Governance/` | DL-012 · DL-013 · DL-014 · DL-015 · DL-023 · DL-024 · DL-027 · DL-039…DL-042 · DL-044 · DL-046…DL-049 · DL-052 · DL-070 |
 | `20 Domain Architecture/` | DL-006 · DL-021 · DL-023 |
 | `21 Technical Standards/` | DL-032 · DL-033 · DL-034 · DL-037 · DL-038 |
 | `22 Engineering Handbook/` | DL-033 |
 | `26 Traceability/` | DL-002 · DL-003 · DL-012 · DL-024 |
-| `27 Project Decisions/` | DL-002…DL-011 · DL-016…DL-018 · DL-022 · DL-043 · DL-044 · DL-050 · DL-051 · DL-053 · DL-058 · DL-059 · DL-060 · DL-061 · DL-063 |
+| `27 Project Decisions/` | DL-002…DL-011 · DL-016…DL-018 · DL-022 · DL-043 · DL-044 · DL-050 · DL-051 · DL-053 · DL-058 · DL-059 · DL-060 · DL-061 · DL-063 · DL-070 |
 | `docs/ux/` | DL-001 |
 | `docs/frontend/` | DL-029 · DL-038 · DL-040 · DL-045 · DL-056 |
-| `docs/governance/` | DL-015 · DL-027 · DL-028 · DL-046 · DL-047 |
+| `docs/governance/` | DL-015 · DL-027 · DL-028 · DL-046 · DL-047 · DL-070 |
 | `docs/domain/` | DL-060 · DL-061 |
-| `docs/product/` | DL-023 |
+| `docs/product/` | DL-023 · DL-070 |
 | `docs/releases/` | DL-043 |
 | `deploy/` + `deploy/evidence/` | DL-015 · DL-019 · DL-021 · DL-028 · DL-036 · DL-051 · DL-052 · DL-053 · DL-058 · DL-059 · DL-062 |
 | `implementation/backend/`, `implementation/frontend/` | DL-033 · DL-043 · DL-044 · DL-051 |

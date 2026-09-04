@@ -1,0 +1,342 @@
+"""HQ schedule HTTP routes — dependency-override smoke tests (no DB upgrade).
+
+Follows the fake-repository pattern from test_hq_schedule_service.py; the
+FastAPI dependency `get_hq_schedule_service` is overridden directly so these
+tests never touch a real database or require an alembic upgrade.
+"""
+
+from __future__ import annotations
+
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from typing import Iterator
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.core.authorization.authentication import get_current_principal
+from app.core.authorization.principal import Principal
+from app.db.base import Base
+from app.db.session import get_db_session
+from app.integrations.customer import StubCustomerProvider
+from app.main import create_app
+from app.models import Branch, User
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM, CmBatch1OutboxORM
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
+from app.modules.hq_schedule.repository import ArrivalRow
+from app.modules.hq_schedule.router import get_hq_schedule_service
+from app.modules.hq_schedule.service import HqScheduleService
+from app.modules.settings.registry import SettingsKey
+from app.modules.settings.service import SettingsService
+
+# require_hq_intake_action may fall back to OrgUnitResolver.resolve_principal_membership
+# (a User lookup) for AGENT-family roles without a declared org_unit_id — give it an
+# empty in-memory schema instead of touching the real (unmigrated-here) test database.
+_ORG_RESOLVER_TABLES = [
+    User.__table__,
+    Branch.__table__,
+    CmBatch1ComplaintORM.__table__,
+    CmBatch1OutboxORM.__table__,
+    CmCaseORM.__table__,
+]
+
+
+@dataclass
+class _FakeSettingRow:
+    value: str
+
+
+class _FakeSettingsRepository:
+    def get_by_key(self, key: str) -> _FakeSettingRow | None:
+        values = {
+            SettingsKey.HQ_SCHEDULE_START.value: "08:00",
+            SettingsKey.HQ_SCHEDULE_END.value: "10:00",
+            SettingsKey.HQ_SCHEDULE_SLOT_MINUTES.value: "60",
+            SettingsKey.HQ_SCHEDULE_CAPACITY_PER_SLOT.value: "2",
+            SettingsKey.HQ_SCHEDULE_WORKDAYS.value: "1,2,3,4,5",
+        }
+        if key not in values:
+            return None
+        return _FakeSettingRow(value=values[key])
+
+
+class _FakeHoliday:
+    def __init__(self, holiday_date: date, label: str) -> None:
+        self.holiday_date = holiday_date
+        self.label = label
+        self.kind = None
+        self.source = None
+        self.imported_at = None
+        self.created_by = "hq-1"
+        self.created_at = datetime(2026, 8, 17, tzinfo=UTC)
+
+
+class _FakeHqScheduleRepository:
+    def __init__(self, *, arrivals: list | None = None) -> None:
+        self._holidays: list[_FakeHoliday] = []
+        self._arrivals = arrivals or []
+
+    def list_holidays(self, *, date_from: date, date_to: date) -> list:
+        return [h for h in self._holidays if date_from <= h.holiday_date <= date_to]
+
+    def list_arrivals_in_range(self, *, date_from: date, date_to: date) -> list:
+        return list(self._arrivals)
+
+    def list_pusat_units(self) -> list:
+        return []
+
+    def get_holiday(self, holiday_date: date) -> _FakeHoliday | None:
+        return next((h for h in self._holidays if h.holiday_date == holiday_date), None)
+
+    def create_holiday(
+        self,
+        *,
+        holiday_date: date,
+        label: str,
+        created_by: str | None,
+        kind: str | None = None,
+        source: str | None = None,
+        imported_at: datetime | None = None,
+    ) -> _FakeHoliday:
+        row = _FakeHoliday(holiday_date, label)
+        row.created_by = created_by or "hq-1"
+        row.kind = kind
+        row.source = source
+        row.imported_at = imported_at
+        self._holidays.append(row)
+        return row
+
+    def delete_holiday(self, holiday_date: date) -> bool:
+        before = len(self._holidays)
+        self._holidays = [h for h in self._holidays if h.holiday_date != holiday_date]
+        return len(self._holidays) < before
+
+    def commit(self) -> None:
+        return None
+
+
+def _service(*, arrivals: list | None = None, customers=None) -> HqScheduleService:
+    return HqScheduleService(
+        _FakeHqScheduleRepository(arrivals=arrivals),
+        SettingsService(_FakeSettingsRepository()),
+        customers=customers,
+    )
+
+
+def _principal(
+    *, roles: tuple[str, ...], permissions: frozenset[str], org_unit_id: str | None = None
+) -> Principal:
+    return Principal(
+        user_id=uuid.UUID("22222222-2222-2222-2222-222222222222"),
+        roles=roles,
+        permissions=permissions,
+        org_unit_id=org_unit_id,
+    )
+
+
+@contextmanager
+def _client_for(
+    principal: Principal, *, service: HqScheduleService | None = None
+) -> Iterator[TestClient]:
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine, tables=_ORG_RESOLVER_TABLES)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session: Session = factory()
+
+    app = create_app()
+    service = service or _service()
+    app.dependency_overrides[get_hq_schedule_service] = lambda: service
+    app.dependency_overrides[get_current_principal] = lambda: principal
+    app.dependency_overrides[get_db_session] = lambda: session
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        app.dependency_overrides.clear()
+        session.close()
+        engine.dispose()
+
+
+def test_availability_200_with_complaints_read_no_hq_role() -> None:
+    principal = _principal(
+        roles=("AGENT",), permissions=frozenset({"complaints:read"})
+    )
+    with _client_for(principal) as client:
+        resp = client.get("/api/v1/hq-schedule/availability")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["days"]
+
+
+def test_availability_detail_403_without_hq_gate() -> None:
+    principal = _principal(
+        roles=("AGENT",), permissions=frozenset({"complaints:read"})
+    )
+    with _client_for(principal) as client:
+        resp = client.get("/api/v1/hq-schedule/availability/detail")
+    assert resp.status_code == 403, resp.text
+
+
+def test_availability_detail_200_for_hq_eligible_actor() -> None:
+    principal = _principal(
+        roles=("HO_SCHEDULER",), permissions=frozenset({"escalations:review"})
+    )
+    with _client_for(principal) as client:
+        resp = client.get("/api/v1/hq-schedule/availability/detail")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["days"]
+
+
+def test_availability_detail_200_for_pusat_unit_agent() -> None:
+    principal = _principal(
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id="PUSAT",
+    )
+    with _client_for(principal) as client:
+        resp = client.get("/api/v1/hq-schedule/availability/detail")
+    assert resp.status_code == 200, resp.text
+
+
+def _next_monday(start: date) -> date:
+    cursor = start
+    while cursor.isoweekday() != 1:
+        cursor += timedelta(days=1)
+    return cursor
+
+
+def test_availability_shows_scheduled_cases_from_every_branch() -> None:
+    monday = _next_monday(date.today())
+    arrivals = [
+        ArrivalRow(
+            complaint_id="c1",
+            complaint_number="TAB-2608-0001",
+            owning_unit_id="UPPPD-TANAH-ABANG",
+            hq_arrival_date=monday,
+            hq_arrival_time="08:00",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            customer_id="CUST-10001",
+        ),
+        ArrivalRow(
+            complaint_id="c2",
+            complaint_number="GAM-2608-0001",
+            owning_unit_id="UPPPD-GAMBIR",
+            hq_arrival_date=monday,
+            hq_arrival_time="08:15",
+            proposed_arrival_date=None,
+            proposed_arrival_time=None,
+            proposed_by=None,
+            proposed_at=None,
+            customer_id="CUST-10002",
+        ),
+    ]
+    principal = _principal(
+        roles=("AGENT",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id="UPPPD-TANAH-ABANG",
+    )
+    with _client_for(
+        principal,
+        service=_service(arrivals=arrivals, customers=StubCustomerProvider()),
+    ) as client:
+        resp = client.get(
+            "/api/v1/hq-schedule/availability",
+            params={"from": monday.isoformat(), "to": monday.isoformat()},
+        )
+    assert resp.status_code == 200, resp.text
+    slots = resp.json()["data"]["days"][0]["slots"]
+    scheduled = {
+        case["complaintNumber"]: case
+        for slot in slots
+        for case in slot["scheduledCases"]
+    }
+    assert set(scheduled) == {"TAB-2608-0001", "GAM-2608-0001"}
+    assert scheduled["TAB-2608-0001"]["customerDisplayName"] == "Synthetic Customer One"
+    assert scheduled["GAM-2608-0001"]["customerDisplayName"] is None
+
+
+def test_get_hq_schedule_service_wires_dependencies() -> None:
+    from unittest.mock import MagicMock
+
+    settings = MagicMock()
+    settings.customer_provider = "stub"
+    settings.customer_provider_enterprise_base_url = None
+    svc = get_hq_schedule_service(MagicMock(), settings)
+    assert isinstance(svc, HqScheduleService)
+
+
+def test_holiday_routes_require_settings_permissions() -> None:
+    reader = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read"})
+    )
+    writer = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read", "settings:update"})
+    )
+    day = date.today().isoformat()
+    with _client_for(reader) as client:
+        listed = client.get("/api/v1/hq-schedule/holidays")
+        assert listed.status_code == 200, listed.text
+        denied = client.post(
+            "/api/v1/hq-schedule/holidays",
+            json={"holidayDate": day, "label": "Cuti"},
+        )
+        assert denied.status_code == 403
+    with _client_for(writer) as client:
+        created = client.post(
+            "/api/v1/hq-schedule/holidays",
+            json={"holidayDate": day, "label": "Cuti"},
+        )
+        assert created.status_code == 200, created.text
+        assert created.json()["data"]["label"] == "Cuti"
+        deleted = client.delete(f"/api/v1/hq-schedule/holidays/{day}")
+        assert deleted.status_code == 204
+
+
+def test_holiday_catalog_and_import_routes() -> None:
+    reader = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read"})
+    )
+    writer = _principal(
+        roles=("ADMIN",), permissions=frozenset({"settings:read", "settings:update"})
+    )
+    with _client_for(reader) as client:
+        catalog = client.get("/api/v1/hq-schedule/holidays/catalog", params={"year": 2026})
+        assert catalog.status_code == 200, catalog.text
+        payload = catalog.json()["data"]
+        assert payload["year"] == 2026
+        assert any(row["holidayDate"] == "2026-08-17" for row in payload["entries"])
+        denied = client.post(
+            "/api/v1/hq-schedule/holidays/import",
+            json={"year": 2026, "dates": ["2026-08-17"]},
+        )
+        assert denied.status_code == 403
+        missing = client.get(
+            "/api/v1/hq-schedule/holidays/catalog", params={"year": 2099}
+        )
+        assert missing.status_code == 400
+    with _client_for(writer) as client:
+        imported = client.post(
+            "/api/v1/hq-schedule/holidays/import",
+            json={"year": 2026, "dates": ["2026-08-17", "2026-12-24"]},
+        )
+        assert imported.status_code == 200, imported.text
+        body = imported.json()["data"]
+        assert body["importedCount"] == 2
+        listed = client.get(
+            "/api/v1/hq-schedule/holidays",
+            params={"from": "2026-01-01", "to": "2026-12-31"},
+        )
+        assert listed.status_code == 200
+        dates = {row["holidayDate"] for row in listed.json()["data"]}
+        assert {"2026-08-17", "2026-12-24"} <= dates

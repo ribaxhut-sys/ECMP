@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -12,6 +12,7 @@ import {
   type CmBatch1LaterReviewWorkItem,
   type CmBatch1SupervisorQueueResponse,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Badge,
   Button,
@@ -40,18 +41,7 @@ import {
   cmBatch1SupervisorStatusLabel,
   isCmBatch1AgingPastThreshold,
 } from "./cmBatch1SupervisorQueue";
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
+import { formatDateTime24 } from "@/shared/utils/datetime";
 
 /**
  * Mode A Batch-1 supervisor visibility (API-513).
@@ -62,7 +52,8 @@ export function CmBatch1SupervisorQueueView() {
   const router = useRouter();
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
-  const tTable = useTranslations("table");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
 
@@ -95,13 +86,13 @@ export function CmBatch1SupervisorQueueView() {
       setData(null);
       setError(
         err instanceof ApiError
-          ? err.message
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
           : t("unableToLoadQueue"),
       );
     } finally {
       setLoading(false);
     }
-  }, [agingHours, canRead, t, workItemStatus]);
+  }, [agingHours, canRead, t, tErrors, tCommon, workItemStatus]);
 
   useEffect(() => {
     void load();
@@ -167,7 +158,7 @@ export function CmBatch1SupervisorQueueView() {
     {
       key: "createdAt",
       header: t("createdAt"),
-      cell: (row) => formatWhen(row.createdAt),
+      cell: (row) => formatDateTime24(row.createdAt, locale, "—"),
     },
   ];
 
@@ -222,7 +213,7 @@ export function CmBatch1SupervisorQueueView() {
     {
       key: "createdAt",
       header: t("registered"),
-      cell: (row) => formatWhen(row.createdAt),
+      cell: (row) => formatDateTime24(row.createdAt, locale, "—"),
     },
   ];
 
@@ -351,14 +342,18 @@ export function CmBatch1SupervisorQueueView() {
                   onClick: () => void load(),
                 }}
                 secondaryAction={{
-                  label: tCommon("goToQueue"),
-                  onClick: () => router.push("/queue"),
+                  label: tCommon("goToComplaints"),
+                  onClick: () => router.push("/complaints"),
                 }}
               />
             ) : (
               <>
                 <WorkspaceToolbar
-                  summary={tTable("itemsInView", { count: laterCount })}
+                  summary={tCommon("showingItems", {
+                    from: laterCount === 0 ? 0 : 1,
+                    to: laterCount,
+                    total: laterCount,
+                  })}
                   density={
                     <DensityToggle value={density} onChange={setDensity} />
                   }
@@ -411,7 +406,11 @@ export function CmBatch1SupervisorQueueView() {
             ) : (
               <>
                 <WorkspaceToolbar
-                  summary={tTable("itemsInView", { count: agingCount })}
+                  summary={tCommon("showingItems", {
+                    from: agingCount === 0 ? 0 : 1,
+                    to: agingCount,
+                    total: agingCount,
+                  })}
                   density={
                     <DensityToggle value={density} onChange={setDensity} />
                   }
@@ -442,7 +441,7 @@ export function CmBatch1SupervisorQueueView() {
       {data ? (
         <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
           {t("snapshotAsOf", {
-            date: formatWhen(data.asOf),
+            date: formatDateTime24(data.asOf, locale),
             hours: data.agingThresholdHours,
             later: data.laterReviewItems.length,
             aging: data.agingComplaints.length,

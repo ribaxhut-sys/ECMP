@@ -28,26 +28,19 @@ export function ConfigurationHelpPanel({
       impact: t("helpGeneralImpact"),
       bestPractice: t("helpGeneralBestPractice"),
     },
+    preferences: {
+      description: t("helpPreferencesDescription"),
+      status: t("helpStatusPersonal"),
+      statusTone: "info",
+      impact: t("helpPreferencesImpact"),
+      bestPractice: t("helpPreferencesBestPractice"),
+    },
     sla: {
       description: t("helpSlaDescription"),
       status: t("helpStatusActivePolicies"),
       statusTone: "info",
       impact: t("helpSlaImpact"),
       bestPractice: t("helpSlaBestPractice"),
-    },
-    notifications: {
-      description: t("helpNotificationsDescription"),
-      status: t("statusDisabled"),
-      statusTone: "neutral",
-      impact: t("helpNotificationsImpact"),
-      bestPractice: t("helpNotificationsBestPractice"),
-    },
-    security: {
-      description: t("helpSecurityDescription"),
-      status: t("helpStatusProfileLinked"),
-      statusTone: "warning",
-      impact: t("helpSecurityImpact"),
-      bestPractice: t("helpSecurityBestPractice"),
     },
     workflow: {
       description: t("helpWorkflowDescription"),

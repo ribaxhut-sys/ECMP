@@ -31,6 +31,7 @@ vi.mock("@/lib/api", async () => {
 });
 
 import { CmBatch1BoundAttachmentsCard } from "./CmBatch1BoundAttachmentsCard";
+import { ApiError } from "@/lib/api";
 
 const COMPLAINT_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -71,7 +72,68 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       expect(screen.getByTestId("bound-item-att-bound-1")).toBeInTheDocument();
     });
     expect(fetchCmBatch1ComplaintAttachments).toHaveBeenCalledWith(COMPLAINT_ID);
-    expect(screen.getByText("1 attachment")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open bound.pdf" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Download bound.pdf" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("on a Case page hides files pinned to another Case", async () => {
+    fetchCmBatch1ComplaintAttachments.mockResolvedValue({
+      data: [
+        {
+          attachmentId: "att-shared",
+          platformAttachmentId: "plat-s",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "shared.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 10,
+          checksumSha256: "s",
+          createdAt: "2026-08-23T00:00:00Z",
+        },
+        {
+          attachmentId: "att-case-1",
+          platformAttachmentId: "plat-1",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "case1.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 20,
+          checksumSha256: "c1",
+          caseId: "case-1",
+          createdAt: "2026-08-23T00:00:00Z",
+        },
+        {
+          attachmentId: "att-case-2",
+          platformAttachmentId: "plat-2",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "case2.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 30,
+          checksumSha256: "c2",
+          caseId: "case-2",
+          createdAt: "2026-08-23T00:00:00Z",
+        },
+      ],
+      meta: { page: 1, pageSize: 100, totalItems: 3 },
+    });
+
+    renderWithProviders(
+      <CmBatch1BoundAttachmentsCard
+        complaintId={COMPLAINT_ID}
+        caseId="case-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bound-item-att-shared")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("bound-item-att-case-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("bound-item-att-case-2")).not.toBeInTheDocument();
   });
 
   it("shows empty label when none bound", async () => {
@@ -85,7 +147,33 @@ describe("CmBatch1BoundAttachmentsCard", () => {
     });
   });
 
-  it("voids a bound attachment with reason", async () => {
+  it("treats 404 list as empty, not an attachment error", async () => {
+    fetchCmBatch1ComplaintAttachments.mockRejectedValue(
+      new ApiError(404, "NOT_FOUND", "Sumber daya tidak ditemukan."),
+    );
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("bound-empty")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/attachment error/i)).toBeNull();
+  });
+
+  it("still surfaces server errors when listing attachments", async () => {
+    // Non-404 errors must render a localized message, never the raw backend
+    // string verbatim (backend always responds in Bahasa Indonesia; the UI
+    // may be running in any locale).
+    fetchCmBatch1ComplaintAttachments.mockRejectedValue(
+      new ApiError(500, "INTERNAL", "store unavailable"),
+    );
+    renderWithProviders(<CmBatch1BoundAttachmentsCard complaintId={COMPLAINT_ID} />);
+    await waitFor(() => {
+      expect(screen.getByText("An unexpected error occurred.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("store unavailable")).toBeNull();
+    expect(screen.queryByTestId("bound-empty")).toBeNull();
+  });
+
+  it("voids a bound attachment in one click", async () => {
     const user = userEvent.setup();
     fetchCmBatch1ComplaintAttachments.mockResolvedValue({
       data: [
@@ -113,7 +201,7 @@ describe("CmBatch1BoundAttachmentsCard", () => {
         mimeType: "application/pdf",
         sizeBytes: 100,
         checksumSha256: "qqq",
-        voidReason: "wrong upload",
+        voidReason: "removed_by_uploader",
         createdAt: "2026-07-31T00:00:00Z",
       },
     });
@@ -123,18 +211,68 @@ describe("CmBatch1BoundAttachmentsCard", () => {
       expect(screen.getByTestId("bound-item-att-bound-2")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole("button", { name: "Mark as void: letter.pdf" }));
-    await user.type(screen.getByLabelText("Void reason"), "wrong upload");
     await user.click(
-      screen.getByRole("button", { name: "Confirm void" }),
+      screen.getByRole("button", { name: "Delete attachment: letter.pdf" }),
     );
+    expect(screen.queryByTestId("bound-void-form")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(voidCmBatch1Attachment).toHaveBeenCalledWith(
         "att-bound-2",
-        "wrong upload",
+        "removed_by_uploader",
       );
     });
     expect(screen.getByTestId("bound-empty")).toBeInTheDocument();
+  });
+
+  it("when locked keeps Open and hides upload/void chrome", async () => {
+    hasPermission.mockImplementation((code: string) =>
+      ["attachment:read", "attachment:create", "attachment:delete"].includes(
+        code,
+      ),
+    );
+    fetchCmBatch1ComplaintAttachments.mockResolvedValue({
+      data: [
+        {
+          attachmentId: "att-bound-3",
+          platformAttachmentId: "plat-3",
+          status: "ACTIVE",
+          classification: "customer_evidence",
+          originalName: "test.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 45,
+          checksumSha256: "abc",
+          createdAt: "2026-08-11T00:00:00Z",
+        },
+      ],
+      meta: { page: 1, pageSize: 100, totalItems: 1 },
+    });
+
+    renderWithProviders(
+      <CmBatch1BoundAttachmentsCard
+        complaintId={COMPLAINT_ID}
+        allowUpload={false}
+        allowVoid={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bound-item-att-bound-3")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("test.pdf - 45 B - Taxpayer evidence"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open test.pdf" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete attachment: test.pdf" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Classification"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Upload attachment to complaint" }),
+    ).not.toBeInTheDocument();
   });
 });

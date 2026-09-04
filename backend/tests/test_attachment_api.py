@@ -92,7 +92,11 @@ def require_attachment_schema(db_session: Session) -> None:
 
 @pytest.fixture()
 def storage_root(tmp_path: Path, db_session: Session) -> Path:
-    """Point storage.root.path at a temp dir for isolated API tests."""
+    """Point storage.root.path at a temp dir for isolated API tests.
+
+    Always restore the previous value — otherwise a shared lab/dev DB keeps
+    writing blobs under /tmp/pytest-* and downloads 404 after the temp dir dies.
+    """
     from app.models import Setting
 
     row = db_session.scalar(
@@ -100,9 +104,18 @@ def storage_root(tmp_path: Path, db_session: Session) -> Path:
     )
     if row is None:
         pytest.skip("storage settings seed not migrated (0017_attachments)")
+    previous = row.value
     row.value = str(tmp_path)
     db_session.commit()
-    return tmp_path
+    try:
+        yield tmp_path
+    finally:
+        current = db_session.scalar(
+            select(Setting).where(Setting.key == "storage.root.path")
+        )
+        if current is not None:
+            current.value = previous
+            db_session.commit()
 
 
 def _auth(actor: User, *permissions: str) -> dict[str, str]:
@@ -166,12 +179,12 @@ def test_upload_get_list_download_delete_flow(
     assert listed.status_code == 200
     assert any(item["id"] == attachment_id for item in listed.json()["data"])
 
+    # DEC-026: nested Foundation listing is unmounted; shared catalog remains.
     complaint_list = client.get(
         f"/api/v1/complaints/{aggregate_id}/attachments",
         headers=_auth(actor, ATTACHMENT_READ),
     )
-    assert complaint_list.status_code == 200
-    assert any(item["id"] == attachment_id for item in complaint_list.json()["data"])
+    assert complaint_list.status_code == 404
 
     download = client.get(
         f"/api/v1/attachments/{attachment_id}/download",

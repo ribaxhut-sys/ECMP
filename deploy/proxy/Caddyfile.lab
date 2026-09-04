@@ -21,6 +21,9 @@
 
 	@backend path /api/* /live /ready /health /version /openapi.json /docs /redoc
 	handle @backend {
+		request_body {
+			max_size 55MB
+		}
 		reverse_proxy backend:8000
 	}
 

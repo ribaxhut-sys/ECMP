@@ -143,6 +143,7 @@ class UserResponse(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     preferred_language: str = Field(default="id", alias="preferredLanguage")
+    initials: str = Field(min_length=3, max_length=3)
 
 
 class PreferredLanguageUpdateRequest(BaseModel):

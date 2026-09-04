@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import type { BranchCount, StatusCount } from "@/lib/api/types";
+import type { StatusCount } from "@/lib/api/types";
 import {
   Card,
   CardBody,
@@ -12,10 +12,7 @@ import {
   SectionHeader,
   Skeleton,
 } from "@/shared/ui";
-import {
-  highestQueueBranch,
-  resolutionBuckets,
-} from "./reportSummaryStats";
+import { escalationTotal, resolutionBuckets } from "./reportSummaryStats";
 
 function InsightTile({
   title,
@@ -23,19 +20,15 @@ function InsightTile({
   caption,
   emptyTitle,
   emptyDescription,
-  onRefresh,
 }: {
   title: string;
   value?: string | null;
   caption?: string | null;
   emptyTitle: string;
   emptyDescription: string;
-  onRefresh?: () => void;
 }) {
-  const t = useTranslations("reports");
-
   return (
-    <Card className="h-full">
+    <Card className="h-full border-l-4 border-l-ecmp-warning">
       <CardHeader>
         <PanelHeader title={title} className="mb-0 border-0 pb-0" />
       </CardHeader>
@@ -56,11 +49,6 @@ function InsightTile({
             className="border-0 bg-transparent px-2 py-6"
             title={emptyTitle}
             description={emptyDescription}
-            primaryAction={
-              onRefresh
-                ? { label: t("refreshReport"), onClick: onRefresh }
-                : undefined
-            }
           />
         )}
       </CardBody>
@@ -70,24 +58,19 @@ function InsightTile({
 
 export function InsightsPanel({
   byStatus,
-  byBranch,
   loading,
-  onRefresh,
 }: {
   byStatus: StatusCount[] | null;
-  byBranch: BranchCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
 }) {
   const t = useTranslations("reports");
 
   const buckets = useMemo(() => resolutionBuckets(byStatus), [byStatus]);
-  const topQueue = useMemo(() => highestQueueBranch(byBranch), [byBranch]);
 
   const topRisk =
-    buckets && buckets.escalated > 0
+    buckets && escalationTotal(buckets) > 0
       ? {
-          value: t("topRiskEscalated", { count: buckets.escalated }),
+          value: t("topRiskEscalated", { count: escalationTotal(buckets) }),
           caption: t("topRiskEscalatedCaption"),
         }
       : buckets && buckets.waiting > 0
@@ -96,13 +79,6 @@ export function InsightsPanel({
             caption: t("topRiskWaitingCaption"),
           }
         : null;
-
-  const queueInsight = topQueue
-    ? {
-        value: topQueue.branchName?.trim() || t("unknownBranch"),
-        caption: t("highestQueueCaption", { count: topQueue.total }),
-      }
-    : null;
 
   return (
     <section
@@ -116,22 +92,13 @@ export function InsightsPanel({
       {loading ? (
         <Skeleton rows={3} />
       ) : (
-        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)]">
           <InsightTile
             title={t("topOperationalRisk")}
             value={topRisk?.value}
             caption={topRisk?.caption}
             emptyTitle={t("insightUnavailable")}
             emptyDescription={t("topRiskUnavailable")}
-            onRefresh={onRefresh}
-          />
-          <InsightTile
-            title={t("highestQueue")}
-            value={queueInsight?.value}
-            caption={queueInsight?.caption}
-            emptyTitle={t("insightUnavailable")}
-            emptyDescription={t("highestQueueUnavailable")}
-            onRefresh={onRefresh}
           />
         </div>
       )}

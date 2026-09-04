@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,7 @@ from app.modules.cm_batch1.models import (
     CmBatch1IdempotencyORM,
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
+    CmBatch1OutboxORM,
 )
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.router import get_cm_batch1_service
@@ -52,6 +54,7 @@ from app.modules.cm_batch1.schemas import (
     TransferAttachmentsRequest,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.service import SettingsService
 from cm_batch1_helpers import confirmed_create
@@ -66,8 +69,12 @@ _TABLES = [
     CmBatch1DuplicateDecisionORM.__table__,
     CmBatch1LaterReviewItemORM.__table__,
     CmBatch1AttachmentStagingORM.__table__,
+    CmCaseORM.__table__,
     CmBatch1AttachmentORM.__table__,
     CmBatch1AttachmentHistoryORM.__table__,
+    # Org resolution falls back to the ComplaintCreated outbox payload when a
+    # row predates owning_unit_id — the attachment routes resolve units now.
+    CmBatch1OutboxORM.__table__,
 ]
 
 
@@ -139,10 +146,35 @@ def _create_complaint(cm_service: CmBatch1Service, request_id: str) -> str:
     return created.complaint_id
 
 
+def _insert_case(
+    db_session: Session, *, complaint_id: str, case_number: str
+) -> str:
+    case_id = uuid.uuid4()
+    db_session.add(
+        CmCaseORM(
+            id=case_id,
+            case_number=case_number,
+            complaint_id=complaint_id,
+            customer_id="CUST-10001",
+            status="CREATED",
+            case_type="BILLING",
+            subject="Attachment pin case",
+            description="Case for FR-004 pin",
+            priority="MEDIUM",
+            created_by="actor",
+            created_at=datetime.now(UTC),
+        )
+    )
+    db_session.commit()
+    return str(case_id)
+
+
 def test_unit_config_provider_defaults() -> None:
     cfg = DefaultAttachmentConfigProvider().get()
-    assert cfg.max_file_size_bytes == 10 * 1024 * 1024
+    assert cfg.max_file_size_bytes == 50 * 1024 * 1024
     assert "application/pdf" in cfg.allowed_mime_types
+    assert "application/zip" in cfg.allowed_mime_types
+    assert "image/gif" in cfg.allowed_mime_types
     assert cfg.checksum_algorithm == "SHA-256"
     assert cfg.antivirus_mode == "STUB_ONLY"
     assert cfg.abandoned_staging_action == "VOID"
@@ -209,6 +241,22 @@ def test_tc_cm_fr004_02b_reject_oversize(
         )
 
 
+def test_tc_cm_fr004_other_classification_allowed(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-other")
+    result = batch1_attachments.upload(
+        data=b"other class note",
+        filename="note.txt",
+        content_type="text/plain",
+        classification="other",
+        actor_id="a1",
+        complaint_id=complaint_id,
+    )
+    assert result.status == "ACTIVE"
+    assert result.classification == "other"
+
+
 def test_tc_cm_fr004_04_void_with_reason(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:
@@ -226,6 +274,167 @@ def test_tc_cm_fr004_04_void_with_reason(
     )
     assert voided.status == "VOID"
     assert voided.void_reason == "customer_retract"
+
+
+def _mark_complaint_closed(db_session: Session, complaint_id: str) -> None:
+    row = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert row is not None
+    row.status = "CLOSED"
+    db_session.commit()
+
+
+def test_upload_rejected_when_complaint_closed(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-closed-up")
+    _mark_complaint_closed(db_session, complaint_id)
+    with pytest.raises(ConflictError) as exc:
+        batch1_attachments.upload(
+            data=b"too-late",
+            filename="late.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            complaint_id=complaint_id,
+        )
+    assert "CLOSED" in str(exc.value).upper()
+
+
+def test_void_rejected_when_complaint_closed(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-closed-void")
+    uploaded = batch1_attachments.upload(
+        data=b"before-close",
+        filename="note.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="a1",
+        complaint_id=complaint_id,
+    )
+    _mark_complaint_closed(db_session, complaint_id)
+    with pytest.raises(ConflictError):
+        batch1_attachments.void(
+            uploaded.attachment_id, reason="too_late", actor_id="a1"
+        )
+
+
+def test_void_forbidden_for_non_uploader_non_creator(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    from app.core.errors import PermissionDeniedError
+
+    complaint_id = _create_complaint(cm_service, "att-void-deny")
+    uploaded = batch1_attachments.upload(
+        data=b"secret",
+        filename="note.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="actor",
+        complaint_id=complaint_id,
+    )
+    with pytest.raises(PermissionDeniedError):
+        batch1_attachments.void(
+            uploaded.attachment_id,
+            reason="removed_by_uploader",
+            actor_id="other-agent",
+        )
+    # Admin bypass
+    voided = batch1_attachments.void(
+        uploaded.attachment_id,
+        reason="admin_cleanup",
+        actor_id="other-agent",
+        is_admin=True,
+    )
+    assert voided.status == "VOID"
+
+
+def test_void_allowed_for_complaint_creator_not_uploader(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-void-creator")
+    uploaded = batch1_attachments.upload(
+        data=b"by-officer",
+        filename="scan.pdf",
+        content_type="application/pdf",
+        classification="customer_evidence",
+        actor_id="uploader-only",
+        complaint_id=complaint_id,
+    )
+    # Complaint created_by is "actor" from _create_complaint helper.
+    voided = batch1_attachments.void(
+        uploaded.attachment_id,
+        reason="creator_cleanup",
+        actor_id="actor",
+    )
+    assert voided.status == "VOID"
+
+
+def test_void_rejects_empty_actor_and_empty_reason(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    from app.core.errors import PermissionDeniedError, ValidationAppError
+
+    complaint_id = _create_complaint(cm_service, "att-void-empty")
+    uploaded = batch1_attachments.upload(
+        data=b"x",
+        filename="a.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="actor",
+        complaint_id=complaint_id,
+    )
+    with pytest.raises(ValidationAppError):
+        batch1_attachments.void(uploaded.attachment_id, reason="  ", actor_id="actor")
+    with pytest.raises(PermissionDeniedError):
+        batch1_attachments.void(
+            uploaded.attachment_id, reason="needs actor", actor_id=None
+        )
+
+
+def test_attachment_get_list_and_try_helpers(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    from app.core.errors import NotFoundError
+
+    missing_complaint = str(uuid.uuid4())
+    with pytest.raises(NotFoundError):
+        batch1_attachments.list_for_complaint(missing_complaint)
+
+    complaint_id = _create_complaint(cm_service, "att-try-get")
+    assert batch1_attachments.list_for_complaint(complaint_id) == []
+    with pytest.raises(NotFoundError):
+        batch1_attachments.get(str(uuid.uuid4()))
+    assert batch1_attachments.try_get(str(uuid.uuid4())) is None
+    assert (
+        batch1_attachments.try_get_by_platform_id(uuid.uuid4()) is None
+    )
+
+    uploaded = batch1_attachments.upload(
+        data=b"payload",
+        filename="doc.txt",
+        content_type="text/plain",
+        classification="internal_evidence",
+        actor_id="actor",
+        complaint_id=complaint_id,
+    )
+    got = batch1_attachments.get(uploaded.attachment_id)
+    assert got.attachment_id == uploaded.attachment_id
+    assert batch1_attachments.try_get(uploaded.attachment_id) is not None
+    platform_id = uuid.UUID(uploaded.platform_attachment_id)
+    assert batch1_attachments.try_get_by_platform_id(platform_id) is not None
+    assert (
+        batch1_attachments.resolve_platform_attachment_id(platform_id) == platform_id
+    )
+    assert batch1_attachments.resolve_platform_attachment_id(
+        uuid.UUID(uploaded.attachment_id)
+    ) == platform_id
+    orphan = uuid.uuid4()
+    assert batch1_attachments.resolve_platform_attachment_id(orphan) == orphan
 
 
 def test_tc_cm_fr004_05_supersede(
@@ -283,10 +492,33 @@ def test_tc_cm_fr004_08_transfer_d06_no_discard(
     assert len(listed) == 1
 
 
-def test_tc_cm_fr004_09_case_id_rejected(
+def test_transfer_unknown_staging_token_is_noop(
     batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
 ) -> None:
-    complaint_id = _create_complaint(cm_service, "att-9")
+    """Client-minted STG-* without upload must not 404 on link_existing transfer."""
+    surviving = _create_complaint(cm_service, "att-phantom-stg")
+    transferred = batch1_attachments.transfer(
+        TransferAttachmentsRequest(
+            stagingToken="STG-never-uploaded",
+            survivingComplaintId=surviving,
+        ),
+        actor_id="a1",
+    )
+    assert transferred.discarded is False
+    assert transferred.transferred_count == 0
+    assert transferred.attachments == []
+
+
+def test_tc_cm_fr004_09_foreign_case_id_rejected(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-9a")
+    other = _create_complaint(cm_service, "att-9b")
+    foreign_case = _insert_case(
+        db_session, complaint_id=other, case_number="TAB-2608-0091"
+    )
     with pytest.raises(ValidationAppError) as exc:
         batch1_attachments.upload(
             data=b"x",
@@ -295,6 +527,63 @@ def test_tc_cm_fr004_09_case_id_rejected(
             classification="customer_evidence",
             actor_id="a1",
             complaint_id=complaint_id,
+            case_id=foreign_case,
+        )
+    assert "CaseId" in exc.value.message
+
+
+def test_tc_cm_fr004_09_unknown_case_id_rejected(
+    batch1_attachments: CmBatch1AttachmentService, cm_service: CmBatch1Service
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-9c")
+    with pytest.raises(ValidationAppError) as exc:
+        batch1_attachments.upload(
+            data=b"x",
+            filename="a.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            complaint_id=complaint_id,
+            case_id=str(uuid.uuid4()),
+        )
+    assert "CaseId" in exc.value.message
+
+
+def test_case_pin_accepted_when_case_belongs_to_complaint(
+    batch1_attachments: CmBatch1AttachmentService,
+    cm_service: CmBatch1Service,
+    db_session: Session,
+) -> None:
+    complaint_id = _create_complaint(cm_service, "att-9d")
+    case_id = _insert_case(
+        db_session, complaint_id=complaint_id, case_number="TAB-2608-0092"
+    )
+    result = batch1_attachments.upload(
+        data=b"pinned-bytes",
+        filename="case1.pdf",
+        content_type="application/pdf",
+        classification="customer_evidence",
+        actor_id="a1",
+        complaint_id=complaint_id,
+        case_id=case_id,
+    )
+    assert result.status == "ACTIVE"
+    assert result.case_id == case_id
+    listed = batch1_attachments.list_for_complaint(complaint_id)
+    assert listed[0].case_id == case_id
+
+
+def test_case_pin_rejected_on_staging(
+    batch1_attachments: CmBatch1AttachmentService,
+) -> None:
+    with pytest.raises(ValidationAppError) as exc:
+        batch1_attachments.upload(
+            data=b"staged",
+            filename="a.txt",
+            content_type="text/plain",
+            classification="customer_evidence",
+            actor_id="a1",
+            staging_token="STG-pin-not-allowed",
             case_id=str(uuid.uuid4()),
         )
     assert "CaseId" in exc.value.message
@@ -605,12 +894,24 @@ def test_api_507_508_509_512_roundtrip(
                 "category": "BILLING",
                 "channel": "BRANCH",
                 "subject": "api att",
-                "description": "d",
+                "description": "d\n\n---\nCatatan:\nCatatan lab",
             },
         )
         assert created.status_code == 201, created.text
         _complaint_id = created.json()["data"]["complaintId"]
         assert _complaint_id
+
+        listed = client.get(
+            f"/api/v1/cm/complaints/{_complaint_id}/attachments",
+        )
+        assert listed.status_code == 200, listed.text
+        assert listed.json()["data"] == []
+        assert listed.json()["meta"]["totalItems"] == 0
+
+        missing = client.get(
+            f"/api/v1/cm/complaints/{uuid.uuid4()}/attachments",
+        )
+        assert missing.status_code == 404
 
         staged = client.post(
             "/api/v1/attachments",

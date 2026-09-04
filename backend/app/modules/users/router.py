@@ -26,6 +26,10 @@ from app.core.local_credential_auth import (
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.models import Branch
+from app.modules.users.org_scope import (
+    assert_declared_branch_in_same_unit,
+    assert_target_user_in_same_unit,
+)
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
     AdminResetPasswordResponse,
@@ -136,7 +140,6 @@ def list_users(
 ) -> ListResponse[UserResponse]:
     # UM-SEC-001 TASK 1/2 — same scope predicate as users:create (OrgUnitGuard,
     # SECMIG-P4), applied as a list filter instead of a single-resource raise.
-    # No-op unless ECMP_AUTH_MODE=jwt (org_scope_enforcement_enabled).
     if org_scope_enforcement_enabled(settings):
         principal_org = OrgUnitResolver.normalize(principal.org_unit_id)
         if principal_org is not None:
@@ -165,6 +168,28 @@ def list_users(
         # change introduces — it is the endpoint's pre-existing behavior,
         # preserved because blocking it would 403 every head-office
         # administrator out of the only membership list ECMP has.
+    elif branch_id is None:
+        # UM-BUG-005 — Mode A (ECMP_AUTH_MODE=dev) issues no orgUnitId claim,
+        # so the JWT-mode narrowing above never fires locally and a branch
+        # supervisor saw every branch's users in the lab. The domain rule
+        # ("see only your own unit") must hold in both modes (CLAUDE.md §2);
+        # only the org-unit source differs — DB membership here instead of
+        # an SSO claim.
+        principal_org = OrgUnitResolver(session).resolve_principal_membership(
+            principal.user_id
+        )
+        if principal_org is not None:
+            branch_id = session.scalar(
+                select(Branch.id).where(Branch.code == principal_org)
+            )
+    else:
+        # G4-4 — the other half of UM-BUG-005: an explicit cross-unit
+        # ?branchId= was still answered in Mode A because only the jwt path
+        # above compared it. Same comparator as users:create / PUT /users/{id};
+        # an actor whose own unit cannot be resolved (head-office membership)
+        # stays unrestricted, exactly like the no-filter branch above.
+        if OrgUnitResolver(session).resolve_principal(principal) is not None:
+            assert_declared_branch_in_same_unit(principal, branch_id, session)
     items, total = service.list(
         page=page,
         page_size=page_size,
@@ -210,11 +235,17 @@ def update_user(
     payload: UserUpdateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_permissions("users:update"))],
+    session: Annotated[Session, Depends(get_db_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
     # Password field is Mode A local credential surface (K-3); profile-only updates stay open.
     if payload.password is not None:
         assert_local_credential_auth_enabled(settings)
+    # UM-SEC-P0-1 — a branch-scoped administrator must not edit another unit's
+    # member; same comparison PATCH /{id}/status already enforces.
+    assert_target_user_in_same_unit(principal, id, session)
+    if payload.branch_id is not None:
+        assert_declared_branch_in_same_unit(principal, payload.branch_id, session)
     updated = service.update(
         id,
         payload,
@@ -235,7 +266,13 @@ def update_user_status(
     payload: UserStatusUpdateRequest,
     service: Annotated[UserService, Depends(get_user_service)],
     principal: Annotated[Principal, Depends(require_user_status_update)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[UserResponse]:
+    # UM-BUG-007 — Manager (BC-8.4) is branch-scoped, unlike Head Office
+    # Admin/Administrator/Super Admin (unrestricted, unchanged). Behavior
+    # unchanged; the comparison now lives in the shared helper above.
+    assert_target_user_in_same_unit(principal, id, session)
     updated = service.update_status(id, payload, actor_user_id=principal.user_id)
     return DataResponse(data=updated)
 
@@ -253,8 +290,12 @@ def admin_reset_password(
     principal: Annotated[
         Principal, Depends(require_permissions("users:reset_password"))
     ],
+    session: Annotated[Session, Depends(get_db_session)],
     _: LocalCredentialAuth,
 ) -> DataResponse[AdminResetPasswordResponse]:
+    # UM-SEC-P0-2 — endpoint stays available (SEC-PWD-001, Mode A local
+    # credential surface); it is only narrowed to the actor's own unit.
+    assert_target_user_in_same_unit(principal, id, session)
     result = service.admin_reset_password(
         id, actor_user_id=principal.user_id, request=request
     )

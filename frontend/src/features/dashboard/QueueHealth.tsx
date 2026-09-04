@@ -2,48 +2,110 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type {
-  DashboardHeader,
-  DashboardSlaSummary,
-  StatusCount,
-} from "@/lib/api/types";
+import { useAuth } from "@/auth/AuthProvider";
+import {
+  CM_BATCH1_ESCALATION_APPROVED_HREF,
+  CM_BATCH1_ESCALATION_PENDING_HREF,
+  CM_BATCH1_HQ_SCHEDULE_PAGE_HREF,
+  CM_BATCH1_HQ_SCHEDULED_HREF,
+  CM_BATCH1_IN_PROGRESS_HREF,
+  CM_BATCH1_PUSAT_UNHANDLED_HREF,
+  CM_BATCH1_RETURNED_TO_BRANCH_HREF,
+  CM_BATCH1_WAITING_ASSIGNMENT_HREF,
+} from "@/features/complaints/cmBatch1ListFilters";
+import type { DashboardHeader, StatusCount } from "@/lib/api/types";
+import { IconCheck, IconEmpty } from "@/shared/icons";
 import { Empty, Skeleton } from "@/shared/ui";
 import { AnimatedCount } from "./AnimatedCount";
 import {
-  countByStatus,
+  buildQueueHealthRows,
+  dashboardEmptyWorkCta,
   DASHBOARD_CAPTION,
+  DASHBOARD_COMMAND_LABEL,
   DASHBOARD_HOVER_ROW,
-  DASHBOARD_SECTION_TITLE,
-  DASHBOARD_SURFACE_MAIN,
+  DASHBOARD_TILE,
   OPS_TONE_BAR,
   OPS_TONE_DOT,
   OPS_TONE_TEXT,
   proportionalPct,
   type OpsTone,
+  type PusatDashboardWork,
 } from "./dashboardUtils";
-
-type QueueRow = {
-  id: string;
-  label: string;
-  count: number;
-  tone: OpsTone;
-  href: string;
-};
 
 function QueueBar({
   label,
   count,
   max,
   tone,
+  showMeter,
   onActivate,
 }: {
   label: string;
   count: number;
   max: number;
   tone: OpsTone;
-  onActivate: () => void;
+  /** Cabang keeps proportional meters; Pusat uses count-only rows. */
+  showMeter: boolean;
+  onActivate?: () => void;
 }) {
   const pct = proportionalPct(count, max);
+
+  const meter = showMeter ? (
+    <>
+      <span className="flex w-40 shrink-0 items-center gap-2 sm:w-48">
+        <span
+          className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
+          aria-hidden
+        />
+        <span className="truncate text-[13px] text-ecmp-text-primary">
+          {label}
+        </span>
+      </span>
+      <span
+        className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-ecmp-secondary-muted/50"
+        role="meter"
+        aria-valuenow={count}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-label={label}
+      >
+        <span
+          className={`block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${OPS_TONE_BAR[tone]}`}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span
+        className={`w-12 shrink-0 text-right font-mono text-[16px] font-medium tabular-nums ${OPS_TONE_TEXT[tone]}`}
+      >
+        <AnimatedCount value={count} />
+      </span>
+    </>
+  ) : (
+    <>
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span
+          className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
+          aria-hidden
+        />
+        <span className="truncate text-[13px] text-ecmp-text-primary">
+          {label}
+        </span>
+      </span>
+      <span
+        className={`w-12 shrink-0 text-right font-mono text-[16px] font-medium tabular-nums ${OPS_TONE_TEXT[tone]}`}
+      >
+        <AnimatedCount value={count} />
+      </span>
+    </>
+  );
+
+  if (!onActivate) {
+    return (
+      <li>
+        <div className="flex w-full items-center gap-4 px-2 py-2.5">{meter}</div>
+      </li>
+    );
+  }
 
   return (
     <li>
@@ -52,33 +114,7 @@ function QueueBar({
         onClick={onActivate}
         className={`${DASHBOARD_HOVER_ROW} group flex w-full items-center gap-4 rounded-[var(--ecmp-radius-md)] px-2 py-2.5 text-left`}
       >
-        <span className="flex w-40 shrink-0 items-center gap-2 sm:w-48">
-          <span
-            className={`size-1.5 shrink-0 rounded-full ${OPS_TONE_DOT[tone]}`}
-            aria-hidden
-          />
-          <span className="truncate text-[13px] text-ecmp-text-primary">
-            {label}
-          </span>
-        </span>
-        <span
-          className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-ecmp-secondary-muted/50"
-          role="meter"
-          aria-valuenow={count}
-          aria-valuemin={0}
-          aria-valuemax={max}
-          aria-label={label}
-        >
-          <span
-            className={`block h-full rounded-full motion-safe:transition-[width] motion-safe:duration-500 ${OPS_TONE_BAR[tone]}`}
-            style={{ width: `${pct}%` }}
-          />
-        </span>
-        <span
-          className={`w-12 shrink-0 text-right text-[16px] font-medium tabular-nums ${OPS_TONE_TEXT[tone]}`}
-        >
-          <AnimatedCount value={count} />
-        </span>
+        {meter}
       </button>
     </li>
   );
@@ -86,121 +122,141 @@ function QueueBar({
 
 export function QueueHealth({
   header,
-  sla,
   byStatus,
   loading,
-  onRefresh,
+  pusatWork = null,
+  returnedToBranch = 0,
 }: {
   header: DashboardHeader | null;
-  sla: DashboardSlaSummary | null;
   byStatus: StatusCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
+  pusatWork?: PusatDashboardWork | null;
+  returnedToBranch?: number;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
+  const { hasPermission } = useAuth();
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
+  const audience = pusatWork ? "pusat" : "cabang";
+  const showMeter = audience === "cabang";
 
   if (loading) {
     return (
       <section
         data-testid="dashboard-queue-health"
         aria-label={t("queueHealth")}
-        className={`${DASHBOARD_SURFACE_MAIN} flex h-full min-h-[320px] flex-col p-5`}
+        className={`${DASHBOARD_TILE} flex h-full ${showMeter ? "min-h-[320px]" : ""} flex-col p-5`}
       >
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("queueHealth")}</h2>
+        <h2 className={DASHBOARD_COMMAND_LABEL}>{t("queueHealth")}</h2>
         <div className="mt-5" aria-busy="true">
-          <Skeleton rows={5} />
+          <Skeleton rows={showMeter ? 4 : 3} />
         </div>
       </section>
     );
   }
 
-  const waitingAssignment = countByStatus(byStatus, "NEW") ?? 0;
-  const waitingReview = countByStatus(byStatus, "PENDING") ?? 0;
-  const inProgress = countByStatus(byStatus, "IN_PROGRESS") ?? 0;
-  const overSla = sla?.overall.breached ?? 0;
-  const escalated = countByStatus(byStatus, "ESCALATED") ?? 0;
+  const waitingAssignmentHref = canOpenComplaintList
+    ? CM_BATCH1_WAITING_ASSIGNMENT_HREF
+    : null;
+  const escalationHref = canOpenComplaintList
+    ? CM_BATCH1_ESCALATION_PENDING_HREF
+    : null;
+  const hqEscalationHref = canOpenComplaintList
+    ? CM_BATCH1_ESCALATION_APPROVED_HREF
+    : null;
+  const hqScheduledHref = canOpenComplaintList
+    ? CM_BATCH1_HQ_SCHEDULED_HREF
+    : null;
 
-  const rows: QueueRow[] = [
-    {
-      id: "waiting-assignment",
-      label: t("waitingAssignment"),
-      count: waitingAssignment,
-      tone: waitingAssignment > 0 ? "attention" : "healthy",
-      href: "/assignments",
-    },
-    {
-      id: "waiting-review",
-      label: t("waitingReview"),
-      count: waitingReview,
-      tone: waitingReview > 0 ? "attention" : "healthy",
-      href: "/queue",
-    },
-    {
-      id: "in-progress",
-      label: t("queueInProgress"),
-      count: inProgress,
-      tone: "neutral",
-      href: "/queue",
-    },
-    {
-      id: "over-sla",
-      label: t("overSla"),
-      count: overSla,
-      tone: overSla > 0 ? "critical" : "healthy",
-      href: "/queue",
-    },
-    {
-      id: "escalated",
-      label: t("escalationsPending"),
-      count: escalated,
-      tone: escalated > 0 ? "critical" : "healthy",
-      href: "/resolutions",
-    },
-  ];
+  const rows = buildQueueHealthRows({
+    byStatus,
+    waitingAssignmentHref,
+    escalationHref,
+    hqEscalationHref,
+    hqScheduledHref,
+    audience,
+    pusatQueue: pusatWork?.queue ?? 0,
+    hqScheduleToday: pusatWork?.hqScheduleToday ?? 0,
+    pusatQueueHref: canOpenComplaintList ? CM_BATCH1_PUSAT_UNHANDLED_HREF : null,
+    hqScheduleTodayHref: canOpenComplaintList
+      ? CM_BATCH1_HQ_SCHEDULE_PAGE_HREF
+      : null,
+    returnedToBranch,
+    inProgressHref: canOpenComplaintList ? CM_BATCH1_IN_PROGRESS_HREF : null,
+    returnedToBranchHref: canOpenComplaintList
+      ? CM_BATCH1_RETURNED_TO_BRANCH_HREF
+      : null,
+  });
 
   const max = Math.max(...rows.map((row) => row.count), 1);
-  const emptyPortfolio = !header || header.totalComplaints === 0;
+  const emptyPortfolio =
+    audience !== "pusat" && (!header || header.totalComplaints === 0);
+  const emptyWork = rows.length === 0;
+  const emptyWorkCta = dashboardEmptyWorkCta(audience);
 
   return (
     <section
       data-testid="dashboard-queue-health"
       aria-label={t("queueHealth")}
-      className={`${DASHBOARD_SURFACE_MAIN} flex h-full min-h-[320px] flex-col p-5`}
+      className={`${DASHBOARD_TILE} flex h-full ${showMeter ? "min-h-[320px]" : ""} flex-col p-5`}
     >
       <div>
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("queueHealth")}</h2>
+        <h2 className={DASHBOARD_COMMAND_LABEL}>{t("queueHealth")}</h2>
         <p className={`mt-1 ${DASHBOARD_CAPTION}`}>
-          {t("queueHealthOpsDescription")}
+          {t(
+            audience === "pusat"
+              ? "queueHealthPusatDescription"
+              : "queueHealthOpsDescription",
+          )}
         </p>
       </div>
 
       {emptyPortfolio ? (
         <div className="mt-5 flex-1">
           <Empty
+            className="py-8"
+            icon={<IconEmpty className="size-8 text-ecmp-muted" aria-hidden />}
             title={t("noSummaryYet")}
             description={t("noSummaryDescription")}
-            primaryAction={{
-              label: t("refreshDashboard"),
-              onClick: onRefresh,
-            }}
-            secondaryAction={{
-              label: tCommon("goToQueue"),
-              onClick: () => router.push("/queue"),
-            }}
+            primaryAction={
+              canOpenComplaintList
+                ? {
+                    label: tCommon(emptyWorkCta.ctaKey),
+                    onClick: () => router.push(emptyWorkCta.href),
+                  }
+                : undefined
+            }
           />
+        </div>
+      ) : emptyWork ? (
+        <div className="mt-5 flex-1">
+          <div className="flex items-center gap-2.5 py-4">
+            <IconCheck
+              className="size-4 shrink-0 text-ecmp-success-text"
+              aria-hidden
+            />
+            <p className="text-[13px] text-ecmp-text-primary">
+              {t(
+                audience === "pusat"
+                  ? "queueHealthPusatClear"
+                  : "queueHealthCabangClear",
+              )}
+            </p>
+          </div>
         </div>
       ) : (
         <ul className="mt-5 flex-1 space-y-1">
           {rows.map((row) => (
             <QueueBar
               key={row.id}
-              label={row.label}
+              label={t(row.queueKey)}
               count={row.count}
               max={max}
               tone={row.tone}
-              onActivate={() => router.push(row.href)}
+              showMeter={showMeter}
+              onActivate={row.href ? () => router.push(row.href!) : undefined}
             />
           ))}
         </ul>

@@ -34,6 +34,22 @@ def test_create_available_attachment() -> None:
     assert entity.uploaded_at.tzinfo is not None
 
 
+def test_create_internal_complaint_aggregate() -> None:
+    entity = Attachment.create(
+        aggregate_type=AggregateType.INTERNAL_COMPLAINT.value,
+        aggregate_id=uuid.uuid4(),
+        file_name=f"{uuid.uuid4().hex}.zip",
+        original_name="bukti.zip",
+        mime_type="application/zip",
+        extension=".zip",
+        size_bytes=12,
+        storage_provider="local",
+        storage_path="2026/08/abc.zip",
+        checksum_sha256=_checksum(),
+    )
+    assert entity.aggregate_type == AggregateType.INTERNAL_COMPLAINT.value
+
+
 def test_rejects_unknown_aggregate() -> None:
     with pytest.raises(ValidationAppError):
         Attachment.create(

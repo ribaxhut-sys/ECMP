@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,10 @@ class CreateCaseCommand:
     assigned_user_id: str | None = None
     sla_policy_version_id: str | None = None
     actor_id: str = "system"
+    # F4 history rule — acting unit, recorded on the CaseCreated event.
+    actor_unit_id: str | None = None
+    note: str | None = None
+    intake_action: str | None = None
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,7 @@ class AddCaseCommand:
     assigned_user_id: str | None = None
     sla_policy_version_id: str | None = None
     actor_id: str = "system"
+    actor_unit_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,10 @@ class UpdateStatusCommand:
     cancel_reason: str | None = None
     reason: str | None = None
     assigned_user_id: str | None = None
+    actor_unit_id: str | None = None
+    handling_claimed_by: str | None = None
+    actor_can_reassign: bool = False
+    actor_is_pusat: bool = False
 
 
 @dataclass(frozen=True)
@@ -57,6 +66,8 @@ class ResolveCaseCommand:
     customer_impact: str | None = None
     attachment_ids: list[str] = field(default_factory=list)
     rejection_reason: str | None = None
+    actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,6 +75,55 @@ class CloseCaseCommand:
     case_id: str
     actor_id: str
     note: str | None = None
+    actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
+
+
+@dataclass(frozen=True)
+class RecordAcceptanceCommand:
+    """F4 closure rule — Handling Unit / Owner accept or reject a resolution."""
+
+    case_id: str
+    party: str
+    decision: str
+    actor_id: str
+    actor_unit_id: str | None = None
+    note: str | None = None
+    actor_is_pusat: bool = False
+
+
+@dataclass(frozen=True)
+class EscalateToPusatCommand:
+    """DEC-029 / API-520 lab — escalate this Case to Pusat (not parent intake)."""
+
+    case_id: str
+    reason: str
+    actor_id: str
+    actor_unit_id: str | None = None
+    proposed_arrival_date: date | None = None
+    proposed_arrival_time: str | None = None
+
+
+@dataclass(frozen=True)
+class CancelEscalationToPusatCommand:
+    """Mode A lab — branch cancels API-520 before Pusat claims the Case."""
+
+    case_id: str
+    reason: str
+    actor_id: str
+    actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
+
+
+@dataclass(frozen=True)
+class ReturnEscalationCommand:
+    """API-521 lab — Pusat returns this Case; free-text reason/note only."""
+
+    case_id: str
+    return_note: str
+    actor_id: str
+    actor_unit_id: str | None = None
+    actor_is_pusat: bool = False
 
 
 @dataclass
@@ -84,6 +144,17 @@ class ResolutionDTO:
 
 
 @dataclass
+class AcceptanceDTO:
+    acceptance_id: str
+    party: str
+    decision: str
+    actor_id: str
+    actor_unit_id: str | None
+    decided_at: datetime
+    note: str | None = None
+
+
+@dataclass
 class CaseSummaryDTO:
     case_id: str
     case_number: str
@@ -94,9 +165,21 @@ class CaseSummaryDTO:
     priority: str
     created_at: datetime
     created_by: str
+    handling_claimed_by: str | None = None
     category: str | None = None
     owning_unit_id: str | None = None
+    owner_unit_id: str | None = None
     customer_id: str | None = None
+    complaint_number: str | None = None
+    escalated_to_pusat: bool = False
+    owning_unit: str = "BRANCH"
+    escalation_reason: str | None = None
+    is_read: bool | None = None
+    unread_reason: str | None = None
+    #: Resolved by ``application.current_handler`` — id only; the router adds
+    #: the display name.
+    current_handler_id: str | None = None
+    current_handler_scope: str = "BRANCH"
 
 
 @dataclass
@@ -112,8 +195,10 @@ class CaseDTO:
     priority: str
     created_at: datetime
     created_by: str
+    handling_claimed_by: str | None = None
     category: str | None = None
     owning_unit_id: str | None = None
+    owner_unit_id: str | None = None
     assigned_user_id: str | None = None
     sla_policy_version_id: str | None = None
     sla_countdown_active: bool = False
@@ -124,3 +209,10 @@ class CaseDTO:
     resolution: ResolutionDTO | None = None
     resolution_history: list[ResolutionDTO] = field(default_factory=list)
     complaint_status_after_create: str | None = None
+    handling_unit_acceptance: AcceptanceDTO | None = None
+    owner_acceptance: AcceptanceDTO | None = None
+    acceptance_history: list[AcceptanceDTO] = field(default_factory=list)
+    escalated_to_pusat: bool = False
+    owning_unit: str = "BRANCH"
+    escalation_reason: str | None = None
+    escalated_at: datetime | None = None

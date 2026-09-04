@@ -6,6 +6,7 @@ from app.core.rbac import permissions_for_role
 def test_agent_permissions() -> None:
     perms = permissions_for_role("AGENT")
     assert "complaints:create" in perms
+    assert "complaints:close" in perms
     assert "complaints:assign" not in perms
 
 
@@ -16,9 +17,49 @@ def test_supervisor_permissions() -> None:
     assert "users:create" in perms
 
 
+def test_admin_cannot_create_or_close_complaints() -> None:
+    """Owner: Admin may do everything except register or close a complaint."""
+    for role in ("ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"):
+        perms = permissions_for_role(role)
+        assert "complaints:create" not in perms
+        assert "complaints:close" not in perms
+        assert "complaints:read" in perms
+        assert "complaints:escalate" in perms
+        assert "*" in perms
+
+
+def test_manager_f4_complaint_permissions() -> None:
+    """F4: Manager has create/read/update/assign/escalate/close (no wildcard)."""
+    perms = permissions_for_role("MANAGER")
+    for code in (
+        "complaints:create",
+        "complaints:read",
+        "complaints:update",
+        "complaints:assign",
+        "complaints:escalate",
+        "complaints:close",
+    ):
+        assert code in perms
+    assert "*" not in perms
+
+
 def test_unknown_role_empty() -> None:
     assert permissions_for_role("UNKNOWN") == []
     assert permissions_for_role(None) == []
+
+
+def test_viewer_is_read_only_for_complaint_mutations() -> None:
+    """DEC-027: Viewer may read complaints but must not mutate them."""
+    perms = permissions_for_role("VIEWER")
+    assert "complaints:read" in perms
+    for code in (
+        "complaints:create",
+        "complaints:update",
+        "complaints:assign",
+        "complaints:escalate",
+        "complaints:close",
+    ):
+        assert code not in perms
 
 
 def test_ho_engineer_can_complete_appointments() -> None:
@@ -56,12 +97,14 @@ def test_ho_engineer_can_submit_final_resolution() -> None:
     assert "appointments:complete" not in permissions_for_role("HO_SCHEDULER")
 
 
-def test_branch_supervisor_can_close_complaint() -> None:
-    """API-312 write gate: complaints:close (Branch Supervisor / Admin)."""
+def test_operational_roles_can_close_complaint() -> None:
+    """API-312: CRO / Staff KaSatPel / KaSatPel; Admin must not close."""
+    assert "complaints:close" in permissions_for_role("AGENT")
+    assert "complaints:close" in permissions_for_role("BRANCH_OFFICER")
     assert "complaints:close" in permissions_for_role("BRANCH_SUPERVISOR")
     assert "complaints:close" in permissions_for_role("SUPERVISOR")
-    assert "complaints:close" in permissions_for_role("ADMIN")
-    assert "complaints:close" not in permissions_for_role("BRANCH_OFFICER")
+    assert "complaints:close" in permissions_for_role("MANAGER")
+    assert "complaints:close" not in permissions_for_role("ADMIN")
     assert "complaints:close" not in permissions_for_role("HO_ENGINEER")
     assert "complaints:close" not in permissions_for_role("HO_SCHEDULER")
 

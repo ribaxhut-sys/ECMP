@@ -1,0 +1,213 @@
+"""HQ arrival schedule API contracts (camelCase)."""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+ClosedReasonLiteral = Literal["WEEKEND", "HOLIDAY"]
+HolidayKindLiteral = Literal["LIBUR_NASIONAL", "CUTI_BERSAMA"]
+
+SOURCE_MANUAL = "manual"
+
+
+class HolidayCreateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    holiday_date: date = Field(alias="holidayDate")
+    label: str = Field(min_length=1, max_length=200)
+    kind: HolidayKindLiteral | None = None
+
+
+class HolidayResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+    holiday_date: date = Field(alias="holidayDate")
+    label: str
+    kind: HolidayKindLiteral | None = None
+    source: str | None = None
+    imported_at: datetime | None = Field(default=None, alias="importedAt")
+    created_by: str | None = Field(default=None, alias="createdBy")
+    created_at: datetime = Field(alias="createdAt")
+
+
+class HolidayCatalogEntry(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    holiday_date: date = Field(alias="holidayDate")
+    label: str
+    kind: HolidayKindLiteral
+    default_selected: bool = Field(alias="defaultSelected")
+    already_exists: bool = Field(alias="alreadyExists")
+    existing_label: str | None = Field(default=None, alias="existingLabel")
+
+
+class HolidayCatalogResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    year: int
+    source: str
+    source_name: str = Field(alias="sourceName")
+    source_url: str | None = Field(default=None, alias="sourceUrl")
+    last_updated: str | None = Field(default=None, alias="lastUpdated")
+    notes: str | None = None
+    available_years: list[int] = Field(alias="availableYears")
+    entries: list[HolidayCatalogEntry]
+
+
+class HolidayImportRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    year: int = Field(ge=2000, le=2100)
+    dates: list[date] = Field(min_length=1)
+
+
+class HolidayImportResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    year: int
+    imported_count: int = Field(alias="importedCount")
+    holidays: list[HolidayResponse]
+
+
+class CaseRefResponse(BaseModel):
+    """A Case tracking the escalation — id lets the board link straight to the Case."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    case_id: str = Field(alias="caseId")
+    case_number: str = Field(alias="caseNumber")
+
+
+class ProposalSummary(BaseModel):
+    """One scheduled or branch-proposed slot occupant (Pusat detail view only)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    complaint_id: str = Field(alias="complaintId")
+    complaint_number: str = Field(alias="complaintNumber")
+    owning_unit_id: str | None = Field(default=None, alias="owningUnitId")
+    unit_code: str = Field(alias="unitCode")
+    # Case(s) tracking this complaint's escalation — scheduled cases only.
+    cases: list[CaseRefResponse] = Field(default_factory=list)
+    proposed_by: str | None = Field(default=None, alias="proposedBy")
+    proposed_at: datetime | None = Field(default=None, alias="proposedAt")
+    completed: bool = Field(
+        default=False,
+        description="HQ visit completed (HQ_CLOSED) — still counted in the slot's occupied ratio",
+    )
+    destination_unit_code: str | None = Field(
+        default=None,
+        alias="destinationUnitCode",
+        description=(
+            "Pusat unit the taxpayer reports to (CRO / Sekretariat / Suban). "
+            "Empty on pending proposals — Pusat sets it when accepting."
+        ),
+    )
+    customer_display_name: str | None = Field(
+        default=None,
+        alias="customerDisplayName",
+        description=(
+            "Taxpayer display name from Master Customer (read-only). "
+            "Pusat detail: all occupants. Branch aggregate: caller's own unit only."
+        ),
+    )
+
+
+class SlotUnitAvailability(BaseModel):
+    """Per-destination occupancy inside one slot — each Pusat unit has its own quota."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    unit_code: str = Field(alias="unitCode")
+    unit_name: str = Field(default="", alias="unitName")
+    capacity: int = Field(description="0 on a break block; pro-rated on a partial slot.")
+    scheduled_count: int = Field(alias="scheduledCount")
+    completed_count: int = Field(default=0, alias="completedCount")
+    available_count: int = Field(alias="availableCount")
+    bookable: bool = Field(default=False)
+
+
+class SlotAvailability(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    start_time: str = Field(alias="startTime")
+    end_time: str = Field(alias="endTime")
+    capacity: int
+    is_break: bool = Field(default=False, alias="isBreak")
+    partial: bool = Field(
+        default=False,
+        description=(
+            "Slot shortened by a break that does not fall on a grid boundary "
+            "(e.g. Jumat 11:00-11:30) — capacity is pro-rated, not the nominal one."
+        ),
+    )
+    scheduled_count: int = Field(
+        alias="scheduledCount",
+        description="Total occupants (live + completed) — the slot's booked ratio.",
+    )
+    completed_count: int = Field(
+        default=0,
+        alias="completedCount",
+        description="Subset of scheduled_count whose HQ visit is already closed.",
+    )
+    proposed_count: int = Field(alias="proposedCount")
+    available_count: int = Field(
+        alias="availableCount",
+        description="Raw capacity left (capacity - scheduled_count); not time-aware.",
+    )
+    bookable: bool = Field(
+        default=False,
+        description="Open day, not a break, slot start still in the future, capacity left.",
+    )
+    bookable_count: int = Field(
+        default=0,
+        alias="bookableCount",
+        description="available_count when bookable else 0 — what a picker should offer.",
+    )
+    # Pusat detail only — empty for the branch-facing aggregate view.
+    pending_proposals: list[ProposalSummary] = Field(
+        default_factory=list, alias="pendingProposals"
+    )
+    scheduled_cases: list[ProposalSummary] = Field(
+        default_factory=list, alias="scheduledCases"
+    )
+    units: list[SlotUnitAvailability] = Field(
+        default_factory=list,
+        description=(
+            "Occupancy per Pusat destination unit. Slot-level capacity/"
+            "availableCount are the sums; arrivals with no destination unit "
+            "yet are counted in scheduledCount but in no unit's quota."
+        ),
+    )
+
+
+class DayAvailability(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    date: date
+    weekday: int = Field(description="ISO weekday, 1=Mon..7=Sun")
+    closed: bool
+    closed_reason: ClosedReasonLiteral | None = Field(
+        default=None, alias="closedReason"
+    )
+    holiday_label: str | None = Field(default=None, alias="holidayLabel")
+    slots: list[SlotAvailability] = Field(default_factory=list)
+
+
+class AvailabilityResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    start_time: str = Field(alias="startTime")
+    end_time: str = Field(alias="endTime")
+    slot_minutes: int = Field(alias="slotMinutes")
+    capacity_per_slot: int = Field(
+        alias="capacityPerSlot",
+        description=(
+            "Nominal capacity of a full-length slot; shortened slots carry their "
+            "own pro-rated capacity — read slots[].capacity for ratios."
+        ),
+    )
+    days: list[DayAvailability] = Field(default_factory=list)

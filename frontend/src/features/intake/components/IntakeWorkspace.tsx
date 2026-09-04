@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Alert,
   Badge,
@@ -47,11 +47,12 @@ const EMPTY_FORM: FormState = {
 /**
  * SCR-WS-01 — Workspace — New Intake (Batch B3).
  * Forward / Register when complete · Hold to complete · stay on workspace.
- * R2-B2: closed-only customer → SCR-WS-03 reopen routing.
+ * R2-B2: closed-only taxpayer → SCR-WS-03 reopen routing.
  */
 export function IntakeWorkspace() {
   const t = useTranslations("intake");
   const tShell = useTranslations("shell");
+  const locale = useLocale();
   const router = useRouter();
   const {
     registerIntake,
@@ -250,7 +251,7 @@ export function IntakeWorkspace() {
                         {draft.customerName} · {draft.subject || t("heldNoSubject")}
                       </p>
                       <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-                        {new Date(draft.heldAt).toLocaleString()}
+                        {new Date(draft.heldAt).toLocaleString(locale)}
                       </p>
                     </div>
                     <Button

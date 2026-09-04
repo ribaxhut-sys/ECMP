@@ -20,6 +20,7 @@ _AGENT_PERMISSIONS: frozenset[str] = frozenset(
         "complaints:create",
         "complaints:read",
         "complaints:update",
+        "complaints:close",
         "escalations:read",
         "reports:read",
         "kpi:read",
@@ -39,6 +40,7 @@ _SUPERVISOR_PERMISSIONS: frozenset[str] = frozenset(
         "users:read",
         "users:create",
         "users:update",
+        "role:read",
     }
 )
 
@@ -75,7 +77,11 @@ _HO_ENGINEER_PERMISSIONS: frozenset[str] = frozenset(
 
 _ADMIN_PERMISSIONS: frozenset[str] = frozenset(
     {
-        *_SUPERVISOR_PERMISSIONS,
+        *(
+            p
+            for p in _SUPERVISOR_PERMISSIONS
+            if p not in ("complaints:create", "complaints:close")
+        ),
         "escalations:review",
         "escalations:close",
         "appointments:complete",
@@ -125,6 +131,24 @@ _VIEWER_PERMISSIONS: frozenset[str] = frozenset(
     }
 )
 
+# Distinct business persona (BC-8/BG-018, BC-8.4) — not a Supervisor alias.
+# Own-branch user membership + dashboard + F4 complaint ops parity with
+# Supervisor for create/read/update/assign/escalate/close. No wildcard;
+# unit/party/SoD/state AuthZ still applies at the endpoint layer.
+_MANAGER_PERMISSIONS: frozenset[str] = frozenset(
+    {
+        "users:read",
+        "users:update",
+        "dashboard:read",
+        "complaints:create",
+        "complaints:read",
+        "complaints:update",
+        "complaints:assign",
+        "complaints:escalate",
+        "complaints:close",
+    }
+)
+
 # Deprecated: seed/reference only. Authorization Engine must not use this map.
 _LEGACY_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "AGENT": _AGENT_PERMISSIONS,
@@ -133,6 +157,7 @@ _LEGACY_ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "BRANCH_OFFICER": _AGENT_PERMISSIONS,
     "SUPERVISOR": _SUPERVISOR_PERMISSIONS,
     "BRANCH_SUPERVISOR": _SUPERVISOR_PERMISSIONS,
+    "MANAGER": _MANAGER_PERMISSIONS,
     "HO_SCHEDULER": _HO_SCHEDULER_PERMISSIONS,
     "HEAD_OFFICE_SCHEDULER": _HO_SCHEDULER_PERMISSIONS,
     "SCHEDULER": _HO_SCHEDULER_PERMISSIONS,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { UserRef } from "@/lib/api";
 import { cn } from "@/shared/utils";
 import { Badge } from "@/shared/ui";
@@ -12,15 +12,18 @@ export function DirectoryPeopleList({
   rows,
   selectedId,
   unitLabelByBranchId,
+  initialsByUserId,
   onSelect,
 }: {
   rows: readonly UserRef[];
   selectedId: string | null;
   unitLabelByBranchId: ReadonlyMap<string, string>;
+  initialsByUserId?: ReadonlyMap<string, string>;
   onSelect: (user: UserRef) => void;
 }) {
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const locale = useLocale();
 
   return (
     <div
@@ -45,7 +48,7 @@ export function DirectoryPeopleList({
       <ul className="divide-y divide-ecmp-border">
         {rows.map((row) => {
           const selected = row.id === selectedId;
-          const updated = formatWhen(row.updatedAt);
+          const updated = formatWhen(row.updatedAt, locale);
 
           return (
             <li key={row.id} role="none">
@@ -74,6 +77,7 @@ export function DirectoryPeopleList({
                   <DirectoryAvatar
                     fullName={row.fullName}
                     username={row.username}
+                    initials={initialsByUserId?.get(row.id)}
                     size="md"
                   />
                   <div className="min-w-0">

@@ -2,43 +2,98 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
+from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi.responses import Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import (
     OrgUnitResolver,
     Principal,
     enforce_org_scope,
+    require_any_permission,
     require_permissions,
 )
+from app.core.authorization.case_acceptance import (
+    assert_case_acceptance_authorized,
+    assert_case_resolve_accept_authorized,
+)
+from app.core.authorization.org_unit_guard import enforce_org_scope_any
+from app.core.authorization.visibility import VisibilityClass, resolve_case_visibility
 from app.core.config import Settings, get_settings
+from app.core.enums import AuditAction
+from app.core.errors import PermissionDeniedError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
+from app.integrations.customer import build_customer_provider
+from app.integrations.customer.types import CustomerLookupStatus
+from app.integrations.directory.local_adapter import LocalUserDirectory
+from app.models import Branch, Customer
+from app.modules.audit.hooks import resolve_actor_name, write_audit
+from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 from app.modules.cm_case.api.schemas import (
     AddCaseRequest,
+    CancelEscalationToPusatRequest,
+    CaseAcceptanceResponse,
+    CaseHistoryEntry,
     CaseResolutionResponse,
     CaseResponse,
     CaseSummaryResponse,
     CloseCaseRequest,
     CreateCaseRequest,
+    EscalateToPusatRequest,
+    RecordAcceptanceRequest,
     ResolveCaseRequest,
+    ReturnEscalationRequest,
     UpdateCaseStatusRequest,
+    WorkBadgeCountsResponse,
+)
+from app.modules.cm_case.application.authorization import assert_cm_case_visible
+from app.modules.cm_case.application.case_pdf import (
+    CasePdfAttachment,
+    CasePdfSnapshot,
+    case_pdf_filename,
+    render_case_snapshot_pdf,
+)
+from app.modules.cm_case.application.case_work_card import intake_note_from_description
+from app.modules.cm_case.application.current_handler import (
+    CurrentHandler,
+    resolve_current_handler,
 )
 from app.modules.cm_case.application.dto import (
     AddCaseCommand,
+    CancelEscalationToPusatCommand,
     CaseDTO,
     CloseCaseCommand,
     CreateCaseCommand,
+    EscalateToPusatCommand,
+    RecordAcceptanceCommand,
     ResolveCaseCommand,
+    ReturnEscalationCommand,
     UpdateStatusCommand,
 )
+from app.modules.cm_case.application.history import CaseHistoryService
 from app.modules.cm_case.application.services import (
     AuditTimelineSideEffects,
     CaseApplicationService,
 )
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    safe_mark_hq_schedule_seen,
+    safe_mark_pusat_queue_seen,
+    safe_mark_read,
+    safe_work_badge_counts,
+)
 from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
+from app.modules.timeline.repository import TimelineRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["CM-Case-ModeA"])
 
@@ -52,7 +107,238 @@ def get_case_service(
     )
 
 
-def _to_response(dto: CaseDTO) -> CaseResponse:
+def get_case_history_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> CaseHistoryService:
+    return CaseHistoryService(
+        TimelineRepository(session),
+        user_directory=LocalUserDirectory(session),
+    )
+
+
+def _history_list_response(
+    items: list[CaseHistoryEntry],
+) -> ListResponse[CaseHistoryEntry]:
+    """API-537 envelope: one page, ``pageSize`` capped at PageMeta maximum 100."""
+    total = len(items)
+    page_items = items[:100]
+    return ListResponse(
+        data=page_items,
+        meta=PageMeta(
+            page=1,
+            pageSize=max(1, len(page_items)),
+            totalItems=total,
+        ),
+    )
+
+
+def _actor_unit(principal: Principal, session: Session) -> str | None:
+    """Acting unit for F4 history (\"unit mana yang melakukan\").
+
+    Mirrors ``cm_batch1.router._effective_org_unit`` — claim first, ECMP
+    membership fallback fail-open (Mode A / offline lab; dev-mode JWTs carry
+    no orgUnitId claim at all).
+    """
+    resolver = OrgUnitResolver(session)
+    claimed = resolver.normalize(principal.org_unit_id)
+    if claimed:
+        return claimed
+    try:
+        return resolver.resolve_principal_membership(principal.user_id)
+    except Exception:
+        return None
+
+
+def _complaint_creator_id(session: Session, complaint_id: str | None) -> str | None:
+    """F4 SoD — creator is the user who created the parent Complaint."""
+    key = (complaint_id or "").strip()
+    if not key:
+        return None
+    row: CmBatch1ComplaintORM | None = None
+    try:
+        row = session.get(CmBatch1ComplaintORM, uuid.UUID(key))
+    except ValueError:
+        row = None
+    if row is None:
+        return None
+    return (row.created_by or "").strip() or None
+
+
+def _parent_complaint(
+    session: Session, complaint_id: str | None
+) -> CmBatch1ComplaintORM | None:
+    key = (complaint_id or "").strip()
+    if not key:
+        return None
+    try:
+        return session.get(CmBatch1ComplaintORM, uuid.UUID(key))
+    except ValueError:
+        return None
+
+
+def _created_unit_display_name(session: Session, dto: CaseDTO) -> str | None:
+    """Display name of the unit that created the Case (F4 owner, not handling)."""
+    unit_id = (dto.owner_unit_id or "").strip()
+    if not unit_id:
+        return None
+    try:
+        try:
+            branch_uuid = uuid.UUID(unit_id)
+        except ValueError:
+            branch = session.scalar(
+                select(Branch).where(
+                    func.upper(Branch.code) == unit_id.upper(),
+                    Branch.deleted_at.is_(None),
+                )
+            )
+        else:
+            branch = session.get(Branch, branch_uuid)
+            if branch is not None and branch.deleted_at is not None:
+                branch = None
+    except Exception:
+        logger.exception("case pdf created-unit name lookup failed")
+        return unit_id
+    if branch is None:
+        return unit_id
+    return (branch.name or "").strip() or unit_id
+
+
+def _human_name(value: str | None) -> str | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        uuid.UUID(text)
+    except ValueError:
+        return text
+    return None
+
+
+def _customer_display_name(
+    session: Session, settings: Settings, customer_id: str | None
+) -> str | None:
+    """WP display name from the lab customer cache / Master Customer. Never a UUID."""
+    key = (customer_id or "").strip()
+    if not key:
+        return None
+    try:
+        uid = uuid.UUID(key)
+    except ValueError:
+        uid = None
+    if uid is not None:
+        try:
+            row = session.get(Customer, uid)
+        except Exception:
+            row = None
+        if row is not None and row.deleted_at is None:
+            name = _human_name(row.full_name)
+            if name:
+                return name
+    try:
+        lookup = build_customer_provider(
+            settings.customer_provider,
+            enterprise_base_url=settings.customer_provider_enterprise_base_url,
+            session=session,
+        ).get_minimal_customer(key)
+    except Exception:
+        logger.exception("case pdf customer name lookup failed")
+        return None
+    if lookup.status != CustomerLookupStatus.FOUND or lookup.customer is None:
+        return None
+    return _human_name(lookup.customer.display_name)
+
+
+def _case_attachment_manifest(
+    session: Session, dto: CaseDTO
+) -> list[CasePdfAttachment]:
+    try:
+        rows = CmBatch1AttachmentRepository(session).list_by_complaint(dto.complaint_id)
+    except Exception:
+        logger.exception("case pdf attachment list failed")
+        return []
+    wanted = (dto.case_id or "").strip()
+    items: list[CasePdfAttachment] = []
+    for row in rows:
+        pin = (row.case_id or "").strip()
+        if pin and pin != wanted:
+            continue
+        items.append(
+            CasePdfAttachment(
+                original_name=row.original_name or "",
+                mime_type=row.mime_type or "",
+                size_bytes=int(row.size_bytes or 0),
+                checksum_sha256=row.checksum_sha256 or "",
+                status=row.status or "",
+                classification=row.classification or "",
+                case_id=row.case_id,
+            )
+        )
+    return items
+
+
+def _audit_case_export(
+    session: Session,
+    *,
+    request: Request,
+    principal: Principal,
+    case_id: str,
+    case_number: str,
+    filename: str,
+) -> None:
+    try:
+        entity_uuid: uuid.UUID | None
+        try:
+            entity_uuid = uuid.UUID(case_id)
+        except ValueError:
+            entity_uuid = None
+        write_audit(
+            session,
+            request=request,
+            principal=principal,
+            event_type="cm_case.exported",
+            entity_type="Case",
+            action=AuditAction.EXPORT,
+            entity_id=entity_uuid,
+            metadata={"caseNumber": case_number, "filename": filename},
+        )
+    except Exception:
+        logger.exception("case pdf export audit failed")
+
+
+def _officer_labels(session: Session, *raw_ids: str | None) -> dict[str, str]:
+    wanted = {str(i).strip() for i in raw_ids if i and str(i).strip()}
+    if not wanted:
+        return {}
+    try:
+        return LocalUserDirectory(session).display_names(wanted)
+    except Exception:
+        return {}
+
+
+def _current_handler(dto: CaseDTO, session: Session | None) -> CurrentHandler:
+    """Same rule as the Case list — one parent read, no timeline replay."""
+    parent = None
+    if session is not None:
+        handoffs = SqlAlchemyCaseRepository(session).parent_handoffs_by_ids(
+            [dto.complaint_id]
+        )
+        parent = handoffs.get(str(dto.complaint_id))
+    return resolve_current_handler(
+        handling_claimed_by=dto.handling_claimed_by,
+        created_by=dto.created_by,
+        escalated_to_pusat=bool(dto.escalated_to_pusat),
+        parent=parent,
+    )
+
+
+def _to_response(dto: CaseDTO, *, session: Session | None = None) -> CaseResponse:
+    handler = _current_handler(dto, session)
+    handler_names = (
+        _officer_labels(session, dto.handling_claimed_by, handler.actor_id)
+        if session
+        else {}
+    )
+
     def res(r):
         if r is None:
             return None
@@ -72,6 +358,19 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
             rejectionReason=r.rejection_reason,
         )
 
+    def acc(a):
+        if a is None:
+            return None
+        return CaseAcceptanceResponse(
+            acceptanceId=a.acceptance_id,
+            party=a.party,
+            decision=a.decision,
+            actorId=a.actor_id,
+            actorUnitId=a.actor_unit_id,
+            decidedAt=a.decided_at,
+            note=a.note,
+        )
+
     return CaseResponse(
         caseId=dto.case_id,
         caseNumber=dto.case_number,
@@ -84,6 +383,7 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
         description=dto.description,
         priority=dto.priority,
         owningUnitId=dto.owning_unit_id,
+        ownerUnitId=dto.owner_unit_id,
         assignedUserId=None,
         slaPolicyVersionId=dto.sla_policy_version_id,
         slaCountdownActive=False,
@@ -94,8 +394,26 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
         closedAt=dto.closed_at,
         createdAt=dto.created_at,
         createdBy=dto.created_by,
+        handlingClaimedBy=dto.handling_claimed_by,
+        handlingClaimedByName=(
+            handler_names.get((dto.handling_claimed_by or "").strip())
+            if dto.handling_claimed_by
+            else None
+        ),
+        currentHandlerId=handler.actor_id,
+        currentHandlerName=(
+            handler_names.get(handler.actor_id) if handler.actor_id else None
+        ),
+        currentHandlerScope=handler.scope,
         updatedAt=dto.updated_at,
         complaintStatusAfterCreate=dto.complaint_status_after_create,
+        handlingUnitAcceptance=acc(dto.handling_unit_acceptance),
+        ownerAcceptance=acc(dto.owner_acceptance),
+        acceptanceHistory=[acc(a) for a in dto.acceptance_history],
+        escalatedToPusat=dto.escalated_to_pusat,
+        owningUnit=dto.owning_unit,
+        escalationReason=dto.escalation_reason,
+        escalatedAt=dto.escalated_at,
     )
 
 
@@ -103,18 +421,32 @@ def _to_response(dto: CaseDTO) -> CaseResponse:
 def list_cases(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
     status: Annotated[str | None, Query()] = None,
+    keyword: Annotated[str | None, Query(max_length=200)] = None,
 ) -> ListResponse[CaseSummaryResponse]:
-    """API-536 / DEC-024 — visibility-scoped Case list."""
+    """API-536 / DEC-024 — visibility-scoped Case list.
+
+    Mode A JWTs have no ``orgUnitId`` claim. Patch the principal with the
+    same membership fallback as Aggregate ``list_complaints`` so SUPERVISOR
+    UNIT visibility is not empty (UM-BUG-005).
+    """
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
     items, total = service.list_cases(
-        principal,
+        vis_principal,
         page=page,
         page_size=page_size,
         complaint_id=complaint_id,
         status=status,
+        keyword=keyword,
+    )
+    names = _officer_labels(
+        session,
+        *[i.handling_claimed_by for i in items],
+        *[i.current_handler_id for i in items],
     )
     return ListResponse(
         data=[
@@ -122,15 +454,35 @@ def list_cases(
                 caseId=i.case_id,
                 caseNumber=i.case_number,
                 complaintId=i.complaint_id,
+                complaintNumber=i.complaint_number,
                 status=i.status,
                 caseType=i.case_type,
                 category=i.category,
                 priority=i.priority,
                 subject=i.subject,
                 owningUnitId=i.owning_unit_id,
+                ownerUnitId=i.owner_unit_id,
                 customerId=i.customer_id,
                 createdAt=i.created_at,
                 createdBy=i.created_by,
+                handlingClaimedBy=i.handling_claimed_by,
+                handlingClaimedByName=(
+                    names.get(i.handling_claimed_by)
+                    if i.handling_claimed_by
+                    else None
+                ),
+                currentHandlerId=i.current_handler_id,
+                currentHandlerName=(
+                    names.get(i.current_handler_id)
+                    if i.current_handler_id
+                    else None
+                ),
+                currentHandlerScope=i.current_handler_scope,
+                escalatedToPusat=i.escalated_to_pusat,
+                owningUnit=i.owning_unit,
+                escalationReason=i.escalation_reason,
+                isRead=i.is_read,
+                unreadReason=i.unread_reason,
             )
             for i in items
         ],
@@ -143,6 +495,7 @@ def create_case(
     body: CreateCaseRequest,
     principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
     _ = idempotency_key  # optional — FRD NOT SPECIFIED as mandatory for Mode A
@@ -158,9 +511,12 @@ def create_case(
             assigned_user_id=body.assigned_user_id,
             sla_policy_version_id=body.sla_policy_version_id,
             actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+            note=body.note,
+            intake_action=body.intake_action,
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/complaints/{complaint_id}/cases", status_code=201)
@@ -169,6 +525,7 @@ def add_case(
     body: AddCaseRequest,
     principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
     service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
     _ = idempotency_key
@@ -184,9 +541,135 @@ def add_case(
             assigned_user_id=body.assigned_user_id,
             sla_policy_version_id=body.sla_policy_version_id,
             actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+def _pusat_may_read_escalated(principal: Principal, escalated: bool) -> bool:
+    """DEC-029: Pusat handlers read Cases flagged to Pusat without rewriting unit."""
+    if not escalated:
+        return False
+    vis = resolve_case_visibility(principal)
+    return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
+
+
+def _actor_is_pusat(principal: Principal, session: Session) -> bool:
+    vis_principal = replace(principal, org_unit_id=_actor_unit(principal, session))
+    vis = resolve_case_visibility(vis_principal)
+    return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
+
+
+def _assert_case_visible_for_actor(
+    principal: Principal,
+    session: Session,
+    settings: Settings,
+    service: CaseApplicationService,
+    case_id: str,
+) -> CaseDTO:
+    """Load the Case and apply the domain visibility rule (404 when unseen)."""
+    dto = service.get_case(case_id)
+    assert_cm_case_visible(
+        principal,
+        dto,
+        settings=settings,
+        actor_unit_id=_actor_unit(principal, session),
+        complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+    )
+    return dto
+
+
+def _enforce_case_mutation_scope(
+    *,
+    principal: Principal,
+    session: Session,
+    settings: Settings,
+    service: CaseApplicationService,
+    case_id: str,
+    branch_org: str | None,
+    branch_orgs: tuple[str | None, ...] | None = None,
+) -> CaseDTO:
+    """Pusat may mutate an escalated Case; otherwise enforce branch org-scope."""
+    dto = service.get_case(case_id)
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
+    if dto.escalated_to_pusat and _pusat_may_read_escalated(
+        vis_principal, True
+    ):
+        return dto
+    if branch_orgs is not None:
+        enforce_org_scope_any(principal, branch_orgs, settings)
+    else:
+        enforce_org_scope(principal, branch_org, settings)
+    # P0-3 domain floor, below the jwt-only guard above: in Mode A that guard
+    # is a no-op, so without this any branch could mutate any Case by id.
+    assert_cm_case_visible(
+        principal,
+        dto,
+        settings=settings,
+        actor_unit_id=actor_unit_id,
+        complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+    )
+    return dto
+
+
+def _work_badge_counts(
+    session: Session, principal: Principal
+) -> WorkBadgeCountsResponse:
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    unread, queue, follow_up, hq_schedule = safe_work_badge_counts(
+        session,
+        actor_id=str(principal.user_id),
+        actor_is_pusat=actor_is_pusat,
+        owner_unit_id=_actor_unit(principal, session),
+    )
+    return WorkBadgeCountsResponse(
+        unreadCases=unread,
+        pusatQueue=queue,
+        pusatFollowUp=follow_up,
+        hqScheduleUnread=hq_schedule,
+    )
+
+
+@router.get("/api/v1/cm/work-badges")
+def get_work_badges(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[WorkBadgeCountsResponse]:
+    """Mode A sidebar counts: Cabang unread Cases + Pusat Pengaduan / Tindak lanjut.
+
+    Fail-open: repository errors return zeros so navigation stays up.
+    Not CAP-005 email/SMS. Not a Mode B unlock.
+    """
+    return DataResponse(data=_work_badge_counts(session, principal))
+
+
+@router.post("/api/v1/cm/work-badges/hq-schedule-seen")
+def mark_hq_schedule_seen(
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[WorkBadgeCountsResponse]:
+    """Cabang opened Jadwal Eskalasi — ack HQ_SCHEDULED receipts for this unit.
+
+    RETURNED inbox receipts are unchanged. Pusat is a no-op. Fail-open.
+    """
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    safe_mark_hq_schedule_seen(
+        session,
+        user_id=str(principal.user_id),
+        owner_unit_id=_actor_unit(principal, session),
+        actor_is_pusat=actor_is_pusat,
+    )
+    try:
+        session.commit()
+    except Exception:
+        logger.exception("hq schedule seen commit failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return DataResponse(data=_work_badge_counts(session, principal))
 
 
 @router.get("/api/v1/cm/cases/{case_id}")
@@ -198,11 +681,170 @@ def get_case(
     settings: Annotated[Settings, Depends(get_settings)],
     complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
 ) -> DataResponse[CaseResponse]:
-    """SECMIG-P4 parity: org scope on approved read (after permission)."""
-    resource_org = OrgUnitResolver(session).resolve_case(case_id)
-    enforce_org_scope(principal, resource_org, settings)
+    """SECMIG-P4 parity: org scope on approved read (after permission).
+
+    F4: Owner unit retains visibility after Handling Unit transfer.
+    DEC-029: Pusat may read a Case flagged ``escalatedToPusat`` even though
+    originating ``owningUnitId`` stays the branch (DEC-028).
+    """
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
     dto = service.get_case(case_id, complaint_id_context=complaint_id)
-    return DataResponse(data=_to_response(dto))
+    if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
+        enforce_org_scope_any(
+            principal,
+            (units.handling_unit_id, units.owner_unit_id),
+            settings,
+        )
+        # Domain floor (Mode A included) — 404 so a by-id probe is not an
+        # existence oracle; the jwt guard above keeps its 403 where it fires.
+        assert_cm_case_visible(
+            principal,
+            dto,
+            settings=settings,
+            actor_unit_id=actor_unit_id,
+            complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+        )
+    body = _to_response(dto, session=session)
+    # get_db_session does not auto-commit; persist mark-read before close.
+    safe_mark_read(session, case_id=case_id, user_id=str(principal.user_id))
+    # Opening a Case also clears the parent from this Pusat user's queue badge.
+    safe_mark_pusat_queue_seen(
+        session,
+        complaint_id=dto.complaint_id,
+        user_id=str(principal.user_id),
+        actor_is_pusat=_actor_is_pusat(principal, session),
+    )
+    try:
+        session.commit()
+    except Exception:
+        logger.exception("case inbox mark-read commit failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return DataResponse(data=body)
+
+
+@router.get("/api/v1/cm/cases/{case_id}/history")
+def get_case_history(
+    case_id: str,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    history: Annotated[CaseHistoryService, Depends(get_case_history_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
+) -> ListResponse[CaseHistoryEntry]:
+    """API-537 / UC-CAP02-07 — this Case, plus parent HQ-path events."""
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
+    dto = service.get_case(case_id, complaint_id_context=complaint_id)
+    if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
+        enforce_org_scope_any(
+            principal,
+            (units.handling_unit_id, units.owner_unit_id),
+            settings,
+        )
+        assert_cm_case_visible(
+            principal,
+            dto,
+            settings=settings,
+            actor_unit_id=actor_unit_id,
+            complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+        )
+    items = history.list_for_case(dto)
+    return _history_list_response(items)
+
+
+@router.get("/api/v1/cm/cases/{case_id}/export")
+def export_case_pdf(
+    case_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    history: Annotated[CaseHistoryService, Depends(get_case_history_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    complaint_id: Annotated[str | None, Query(alias="complaintId")] = None,
+) -> Response:
+    """API-539 — internal Case snapshot PDF (FR-003 companion)."""
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    actor_unit_id = _actor_unit(principal, session)
+    vis_principal = replace(principal, org_unit_id=actor_unit_id)
+    dto = service.get_case(case_id, complaint_id_context=complaint_id)
+    if not _pusat_may_read_escalated(vis_principal, dto.escalated_to_pusat):
+        enforce_org_scope_any(
+            principal,
+            (units.handling_unit_id, units.owner_unit_id),
+            settings,
+        )
+        assert_cm_case_visible(
+            principal,
+            dto,
+            settings=settings,
+            actor_unit_id=actor_unit_id,
+            complaint_creator_id=_complaint_creator_id(session, dto.complaint_id),
+        )
+
+    handler = _current_handler(dto, session)
+    names = _officer_labels(
+        session,
+        dto.created_by,
+        dto.handling_claimed_by,
+        dto.assigned_user_id,
+        handler.actor_id,
+        str(principal.user_id),
+    )
+    parent = _parent_complaint(session, dto.complaint_id)
+    exported_at = datetime.now(UTC)
+    actor_name: str | None = names.get(str(principal.user_id))
+    if not actor_name:
+        try:
+            actor_name = resolve_actor_name(session, principal.user_id)
+        except Exception:
+            actor_name = None
+    exporter = actor_name or str(principal.user_id)
+    snapshot = CasePdfSnapshot(
+        case=dto,
+        complaint_number=(parent.complaint_number if parent else None),
+        customer_label=_customer_display_name(session, settings, dto.customer_id),
+        created_by_name=names.get(dto.created_by or ""),
+        handler_name=names.get(handler.actor_id or "")
+        or names.get(dto.handling_claimed_by or ""),
+        assigned_name=names.get(dto.assigned_user_id or ""),
+        hq_arrival_date=parent.hq_arrival_date if parent else None,
+        hq_arrival_time=parent.hq_arrival_time if parent else None,
+        hq_destination_unit_id=parent.hq_destination_unit_id if parent else None,
+        history=history.list_for_case(dto),
+        attachments=_case_attachment_manifest(session, dto),
+        parent_intake_note=(
+            intake_note_from_description(parent.description) if parent else None
+        ),
+        created_unit_name=_created_unit_display_name(session, dto),
+        exported_by=exporter,
+        exported_at=exported_at,
+    )
+    payload = render_case_snapshot_pdf(snapshot)
+    filename = case_pdf_filename(dto.case_number, exported_at)
+    _audit_case_export(
+        session,
+        request=request,
+        principal=principal,
+        case_id=dto.case_id,
+        case_number=dto.case_number,
+        filename=filename,
+    )
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.patch("/api/v1/cm/cases/{case_id}/status")
@@ -217,8 +859,17 @@ def update_case_status(
 ) -> DataResponse[CaseResponse]:
     """SECMIG-P4 parity: org scope after permission check, before mutation."""
     _ = idempotency_key
+    actor_unit = _actor_unit(principal, session)
+    actor_is_pusat = _actor_is_pusat(principal, session)
     resource_org = OrgUnitResolver(session).resolve_case(case_id)
-    enforce_org_scope(principal, resource_org, settings)
+    _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=resource_org,
+    )
     dto = service.update_status(
         UpdateStatusCommand(
             case_id=case_id,
@@ -228,9 +879,15 @@ def update_case_status(
             cancel_reason=body.cancel_reason,
             reason=body.reason,
             assigned_user_id=body.assigned_user_id,
+            actor_unit_id=actor_unit,
+            handling_claimed_by=body.handling_claimed_by,
+            actor_can_reassign=principal.has_any_role(
+                "SUPERVISOR", "BRANCH_SUPERVISOR", "MANAGER"
+            ),
+            actor_is_pusat=actor_is_pusat,
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/cases/{case_id}/resolve")
@@ -243,10 +900,36 @@ def resolve_case(
     settings: Annotated[Settings, Depends(get_settings)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
-    """SECMIG-P4 parity: org scope after permission check, before mutation."""
+    """SECMIG-P4 parity: org scope after permission check, before mutation.
+
+    F4: action=ACCEPT stamps Handling Unit acceptance. Mode A: Officer may ACCEPT
+    on their own Handling Unit; cross-unit ACCEPT remains Supervisor/Manager/
+    Admin (creator SoD for approver roles).
+    """
     _ = idempotency_key
-    resource_org = OrgUnitResolver(session).resolve_case(case_id)
-    enforce_org_scope(principal, resource_org, settings)
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    actor_unit = _actor_unit(principal, session)
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    dto = _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=units.handling_unit_id,
+    )
+    handling_for_accept = (
+        actor_unit
+        if dto.escalated_to_pusat and actor_is_pusat
+        else units.handling_unit_id
+    )
+    if (body.action or "").strip().upper() == "ACCEPT":
+        assert_case_resolve_accept_authorized(
+            principal,
+            handling_unit_id=handling_for_accept,
+            actor_unit_id=actor_unit,
+            complaint_creator_id=_complaint_creator_id(session, units.complaint_id),
+        )
     dto = service.resolve(
         ResolveCaseCommand(
             case_id=case_id,
@@ -259,9 +942,169 @@ def resolve_case(
             customer_impact=body.customer_impact,
             attachment_ids=list(body.attachment_ids or []),
             rejection_reason=body.rejection_reason,
+            actor_unit_id=actor_unit,
+            actor_is_pusat=actor_is_pusat,
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/cm/cases/{case_id}/escalate-to-pusat")
+def escalate_case_to_pusat(
+    case_id: str,
+    body: EscalateToPusatRequest,
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:create", "complaints:escalate")),
+    ],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """DEC-029 / API-520 lab — escalate this Case to Pusat (BQ-009: no ESCALATED)."""
+    _ = idempotency_key
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    enforce_org_scope_any(
+        principal,
+        (units.handling_unit_id, units.owner_unit_id),
+        settings,
+    )
+    _assert_case_visible_for_actor(principal, session, settings, service, case_id)
+    dto = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=case_id,
+            reason=body.reason,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+            proposed_arrival_date=body.proposed_arrival_date,
+            proposed_arrival_time=(body.proposed_arrival_time or "").strip()
+            or None,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/cm/cases/{case_id}/cancel-escalation-to-pusat")
+def cancel_escalation_to_pusat(
+    case_id: str,
+    body: CancelEscalationToPusatRequest,
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:create", "complaints:escalate")),
+    ],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """Mode A lab — branch cancels DEC-029 escalate before Pusat claims handling."""
+    _ = idempotency_key
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    enforce_org_scope_any(
+        principal,
+        (units.handling_unit_id, units.owner_unit_id),
+        settings,
+    )
+    _assert_case_visible_for_actor(principal, session, settings, service, case_id)
+    dto = service.cancel_escalation_to_pusat(
+        CancelEscalationToPusatCommand(
+            case_id=case_id,
+            reason=body.reason,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+            actor_is_pusat=_actor_is_pusat(principal, session),
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/cm/cases/{case_id}/return-escalation")
+def return_case_escalation(
+    case_id: str,
+    body: ReturnEscalationRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """API-521 lab — Pusat returns this Case to the originating branch."""
+    _ = idempotency_key
+    if not _actor_is_pusat(principal, session):
+        raise PermissionDeniedError(
+            "Only Pusat may return an escalated Case to the branch."
+        )
+    # Pusat, yes — but only for a Case that is actually theirs to return.
+    _assert_case_visible_for_actor(principal, session, settings, service, case_id)
+    dto = service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=case_id,
+            return_note=body.return_note,
+            actor_id=str(principal.user_id),
+            actor_unit_id=_actor_unit(principal, session),
+            actor_is_pusat=True,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
+
+
+@router.post("/api/v1/cm/cases/{case_id}/acceptance")
+def record_case_acceptance(
+    case_id: str,
+    body: RecordAcceptanceRequest,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:update"))],
+    service: Annotated[CaseApplicationService, Depends(get_case_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> DataResponse[CaseResponse]:
+    """F4 closure rule — Handling Unit / Owner accept or reject a resolution.
+
+    Authorization: ``complaints:update`` plus party / role / unit / creator SoD
+    (not org-scope against Handling Unit alone).
+    """
+    _ = idempotency_key
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    actor_unit = _actor_unit(principal, session)
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    party = (body.party or "").strip().upper()
+    party_org = (
+        units.owner_unit_id if party == "OWNER" else units.handling_unit_id
+    )
+    dto_case = _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=party_org,
+    )
+    handling_for_assert = (
+        actor_unit
+        if dto_case.escalated_to_pusat and actor_is_pusat and party == "HANDLING_UNIT"
+        else units.handling_unit_id
+    )
+    assert_case_acceptance_authorized(
+        principal,
+        party=party,
+        owner_unit_id=units.owner_unit_id,
+        handling_unit_id=handling_for_assert,
+        actor_unit_id=actor_unit,
+        complaint_creator_id=_complaint_creator_id(session, units.complaint_id),
+    )
+    dto = service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=case_id,
+            party=body.party,
+            decision=body.decision,
+            actor_id=str(principal.user_id),
+            actor_unit_id=actor_unit,
+            note=body.note,
+            actor_is_pusat=actor_is_pusat,
+        )
+    )
+    return DataResponse(data=_to_response(dto, session=session))
 
 
 @router.post("/api/v1/cm/cases/{case_id}/close")
@@ -274,14 +1117,29 @@ def close_case(
     body: CloseCaseRequest | None = None,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> DataResponse[CaseResponse]:
-    """SECMIG-P4 parity: org scope after permission check, before mutation."""
+    """SECMIG-P4 parity: org scope after permission check, before mutation.
+
+    F4: Owner or Handling Unit may close once both acceptances are present.
+    """
     _ = idempotency_key
-    resource_org = OrgUnitResolver(session).resolve_case(case_id)
-    enforce_org_scope(principal, resource_org, settings)
+    units = OrgUnitResolver(session).resolve_case_units(case_id)
+    _enforce_case_mutation_scope(
+        principal=principal,
+        session=session,
+        settings=settings,
+        service=service,
+        case_id=case_id,
+        branch_org=None,
+        branch_orgs=(units.handling_unit_id, units.owner_unit_id),
+    )
     note = body.note if body else None
     dto = service.close(
         CloseCaseCommand(
-            case_id=case_id, actor_id=str(principal.user_id), note=note
+            case_id=case_id,
+            actor_id=str(principal.user_id),
+            note=note,
+            actor_unit_id=_actor_unit(principal, session),
+            actor_is_pusat=_actor_is_pusat(principal, session),
         )
     )
-    return DataResponse(data=_to_response(dto))
+    return DataResponse(data=_to_response(dto, session=session))

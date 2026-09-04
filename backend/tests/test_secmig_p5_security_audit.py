@@ -160,12 +160,16 @@ def test_write_security_event_never_raises() -> None:
 # --- Secret redaction in audit ------------------------------------------------
 
 
-def test_audit_redaction_uses_p5_002_library() -> None:
+def test_audit_redaction_uses_p5_002_library(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PGADMIN_DEFAULT_PASSWORD", raising=False)
     settings = Settings(
         _env_file=None,
         environment="development",
         jwt_secret_key="super-secret-jwt-key-32chars!!",
         postgres_password="DbPass-Should-Scrub",
+        pgadmin_default_password=None,
     )
     try:
         register_runtime_secrets(settings)

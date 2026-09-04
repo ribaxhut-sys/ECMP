@@ -1,13 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
+import { FOUNDATION_RETIRED_LIST_HREF } from "@/features/complaints/foundationRetiredRedirect";
 
-import { use } from "react";
-import { EditComplaintView } from "@/features/complaints";
-
-export default function EditComplaintPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-  return <EditComplaintView complaintId={id} />;
+/** DEC-026 M-026-1 — Foundation edit is not a product door. */
+export default function EditComplaintPage() {
+  redirect(FOUNDATION_RETIRED_LIST_HREF);
 }

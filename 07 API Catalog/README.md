@@ -50,7 +50,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### complaint-service v1 — [`openapi/complaint-service.v1.yaml`](./openapi/complaint-service.v1.yaml) **1.0.0** — foundation stack (Production)
 
-> **DEC-020:** Canonical foundation / Sprint delivery lifecycle namespace (`/api/v1/complaints`). Controlled coexistence with Aggregate `/api/v1/cm` — not interchangeable. Retirement requires a separate Cutover DEC.
+> **DEC-026 M-026-2:** Foundation `/api/v1/complaints` lifecycle **unmounted**. Catalog rows below are **historical**. Canonical complaint HTTP = `/api/v1/cm`. CA BC ticket-nested not retired.
 | API ID | Method & Endpoint | Description | Auth | Status |
 |---|---|---|---|---|
 | API-201 | POST /api/v1/complaints | Create complaint (status NEW; multi-source/target via DEC-018; legacy customerId→CUSTOMER/BRANCH; audit `complaint.create`) | bearerAuth, permission `complaints:create` | 🟢 Implemented |
@@ -96,8 +96,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-324 | GET /api/v1/attachments/{id} | Attachment metadata | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-325 | GET /api/v1/attachments/{id}/download | Download file bytes | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-326 | DELETE /api/v1/attachments/{id} | Logical delete attachment (status=DELETED) | bearerAuth, permission `attachment:delete` | 🟢 Implemented |
-| API-386 | GET /api/v1/attachments | List attachments (optional aggregateType/aggregateId) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
-| API-387 | GET /api/v1/complaints/{id}/attachments | List attachments for a complaint | bearerAuth, permission `attachment:read` | 🟢 Implemented |
+| API-386 | GET /api/v1/attachments | List attachments (aggregateType+aggregateId required unless the caller already has cross-unit row visibility; Complaint aggregate is unit-scoped) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
+| API-387 | GET /api/v1/complaints/{id}/attachments | List attachments for a complaint (unit-scoped: caller must be able to see the complaint) | bearerAuth, permission `attachment:read` | 🟢 Implemented |
 | API-388 | GET /api/v1/complaints/search | Search & filter complaints (CAPABILITY-012) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-327 | GET /api/v1/notification/templates | List notification templates (optional activeOnly) | bearerAuth, permission `notification:read` | 🟢 Implemented |
 | API-328 | POST /api/v1/notification/templates | Create notification template | bearerAuth, permission `notification:create` | 🟢 Implemented |
@@ -192,7 +192,7 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 ### complaint-management-batch1 v1 — [`openapi/complaint-management-batch1.v1.yaml`](./openapi/complaint-management-batch1.v1.yaml) **1.0.0-planned** — FRD-CM-001 Batch 1 (FR-001…FR-004)
 
-> **DEC-020 (Accepted):** Aggregate SoT namespace (`/api/v1/cm/...`). **No Case create.** Distinct from Sprint case-service and foundation complaint-domain IDs. Dual SoT coexistence with `/api/v1/complaints`.
+> **DEC-026:** Aggregate SoT namespace (`/api/v1/cm/...`) is canonical after Foundation HTTP retirement. **No Case create** in Batch-1 catalog (Case = CAP-008 / `cm-case-management`). Distinct from Sprint case-service.
 > Collision `API-390`/`API-392` (dashboard vs domain) is **not** reused here — Batch 1 uses **API-500…513**. Prefer **path+method** anchors until ID collisions are remediated.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
@@ -204,17 +204,32 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-504 | API-CM-B1-005 | GET /api/v1/cm/customers/{customerId}/batch1-360 | FR-002 | 🟢 Implemented (lab) |
 | API-505 | API-CM-B1-006 | POST /api/v1/cm/duplicates/check | FR-003 | 🟢 Implemented (lab) |
 | API-506 | API-CM-B1-007 | POST /api/v1/cm/duplicates/decisions | FR-003 | 🟢 Implemented (lab) |
-| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟢 Implemented (lab; shared attachment CAP + Batch 1 fields) |
+| API-507 | API-CM-B1-008 | POST /api/v1/attachments (align API-323) | FR-004 | 🟢 Implemented (lab; optional `caseId` pin when Case belongs to Complaint) |
 | API-508 | API-CM-B1-009 | POST /api/v1/cm/attachments/transfer | FR-004 | 🟢 Implemented (lab) |
-| API-509 | API-CM-B1-010 | GET /api/v1/complaints/{id}/attachments (align API-387) | FR-004 | 🟢 Implemented (lab; shared listing semantics) |
+| API-509 | API-CM-B1-010 | GET /api/v1/cm/complaints/{complaintId}/attachments (align API-387) | FR-004 | 🟢 Implemented (lab; empty list is 200) |
 | API-510 | API-CM-B1-011 | GET /api/v1/attachments/{id} (align API-324) | FR-004 | 🟢 Implemented (lab; shared) |
 | API-511 | API-CM-B1-012 | GET /api/v1/attachments/{id}/download (align API-325) | FR-004 | 🟢 Implemented (lab; shared) |
 | API-512 | API-CM-B1-013 | DELETE /api/v1/attachments/{id} void-with-reason (align API-326) | FR-004 | 🟢 Implemented (lab; shared void semantics) |
 | API-513 | API-CM-B1-014 | GET /api/v1/cm/supervisor/queue | FR-001 | 🟢 Implemented (lab; later-review + no-Case aging visibility) |
+| — | API-CM-B1-025 | POST /api/v1/cm/complaints/{complaintId}/hq-complete | FR-001 | 🟢 Implemented (lab; HQ visit complete → CLOSED / HQ_CLOSED; visit stays listed that day with completed tag; live occupancy freed) |
+
+### hq-schedule v1 — [`openapi/hq-schedule.v1.yaml`](./openapi/hq-schedule.v1.yaml) **1.0.0-lab** — Advisory HQ arrival slot availability + holiday calendar
+
+> Read-mostly grid over CM Batch 1 Aggregate arrival data (`hqArrivalDate/Time`, `proposedArrivalDate/Time`). Pusat stays the sole SoT for the schedule itself — this module never writes a complaint's `hqArrivalDate`/`hqArrivalTime` (see API-500…513 accept-and-schedule / schedule). Branch-proposed slots are advisory only and never reduce `availableCount`. `/availability/detail` is gated by the existing Mode A `require_hq_intake_action` lab gate (mirrors `principal_may_perform_hq_intake_action`) — not a new permission, not SSO/OIDC, not a Mode B unlock. Holiday calendar is CRUD plus vendored SKB import (API-548/549) — no live third-party fetch.
+
+| API ID | Logical ID | Method & Endpoint | Auth | Status |
+|---|---|---|---|---|
+| API-540 | API-CM-HQ-001 | GET /api/v1/hq-schedule/availability | bearerAuth, permission `complaints:read` | 🟢 Implemented (lab) |
+| API-541 | API-CM-HQ-002 | GET /api/v1/hq-schedule/availability/detail | bearerAuth, gate `require_hq_intake_action` (Mode A) | 🟢 Implemented (lab) |
+| API-542 | API-CM-HQ-003 | GET /api/v1/hq-schedule/holidays | bearerAuth, permission `settings:read` | 🟢 Implemented (lab) |
+| API-543 | API-CM-HQ-004 | POST /api/v1/hq-schedule/holidays | bearerAuth, permission `settings:update` | 🟢 Implemented (lab; upsert by holidayDate, always 200) |
+| API-544 | API-CM-HQ-005 | DELETE /api/v1/hq-schedule/holidays/{holidayDate} | bearerAuth, permission `settings:update` | 🟢 Implemented (lab) |
+| API-548 | API-CM-HQ-006 | GET /api/v1/hq-schedule/holidays/catalog | bearerAuth, permission `settings:read` | 🟢 Implemented (lab; vendored SKB JSON) |
+| API-549 | API-CM-HQ-007 | POST /api/v1/hq-schedule/holidays/import | bearerAuth, permission `settings:update` | 🟢 Implemented (lab; selected dates, idempotent) |
 
 ### cm-case-management v1 — [`openapi/cm-case-management.v1.yaml`](./openapi/cm-case-management.v1.yaml) **1.0.0** — FRD-CM-B2-001 🔒 LOCKED / CAP-008 Mode A
 
-> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…536** (logical **API-CM-B2-001…007**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. API-536 = DEC-024 visibility list (not API-526 F4 unlock). SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.
+> Aggregate `/api/v1/cm` Case Management Batch-2 Mode A. OpenAPI **3.1**. Catalog IDs **API-530…537, API-538, API-539** (logical **API-CM-B2-001…011**). **Implemented (lab)** — root `backend/app/modules/cm_case/`; REL-RC-001 PASS; annotated tag `v1.2.0-rc.1` @ `6890f50`. Dual SoT: not interchangeable with Sprint `case-service` `/v1/cases`. Path coexistence with API-523/525 (FRD-CM-002 / DEC-F4 Planned) — Mode A CAP-008 contract is authoritative for FR-001…FR-006; DEC-F4 `result_visibility` OUT / NOT SPECIFIED for Mode A. API-536 = DEC-024 visibility list (not API-526 F4 unlock). API-537 = Case-scoped Timeline (UC-CAP02-07; not API-006). API-539 = internal Case snapshot PDF (FR-003 companion; not reporting). SoT Closure: `../deploy/evidence/CAP-008_SoT_Closure_20260801.md`.
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
@@ -224,7 +239,35 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-533 | API-CM-B2-004 | PATCH /api/v1/cm/cases/{caseId}/status | FR-004 Update Case Status | 🟢 Implemented (lab) |
 | API-534 | API-CM-B2-005 | POST /api/v1/cm/cases/{caseId}/resolve | FR-005 Resolve Case | 🟢 Implemented (lab) |
 | API-535 | API-CM-B2-006 | POST /api/v1/cm/cases/{caseId}/close | FR-006 Close Case | 🟢 Implemented (lab) |
-| API-536 | API-CM-B2-007 | GET /api/v1/cm/cases | DEC-024 Case list (visibility) | 🟢 Implemented (lab) |
+| API-536 | API-CM-B2-007 | GET /api/v1/cm/cases | DEC-024 Case list (visibility; optional keyword) | 🟢 Implemented (lab) |
+| API-537 | API-CM-B2-009 | GET /api/v1/cm/cases/{caseId}/history | FR-003 / UC-CAP02-07 Case Timeline (this Case + parent HQ path) | 🟢 Implemented (lab) |
+| API-538 | API-CM-B2-010 | POST /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat | FR-CM-010 companion — branch cancel API-520 before Pusat claims | 🟢 Implemented (lab) |
+| API-539 | API-CM-B2-011 | GET /api/v1/cm/cases/{caseId}/export | FR-003 companion — internal Case snapshot PDF (not customer-safe; not reporting) | 🟢 Implemented (lab) |
+
+### internal-complaints v1 — [`openapi/internal-complaints.v1.yaml`](./openapi/internal-complaints.v1.yaml) **1.3.0** — ECMP-MODEA-INT-001
+
+> Domain Pengaduan Internal (`/api/v1/internal/complaints`). **Bukan** Dual-SoT WP / Case Aggregate. Satu tiket = satu aggregate.
+
+| API ID | Logical ID | Method & Endpoint | Description | Status |
+|---|---|---|---|---|
+| API-550 | API-INT-001 | GET /api/v1/internal/complaints/{complaintId}/export | Snapshot PDF satu tiket Internal (bukan API-539; bukan laporan) | 🟢 Implemented (lab) |
+| API-551 | API-INT-002 | GET /api/v1/internal/complaints/inbox/pending-count | Badge sidebar perlu tindakan unit pemanggil (antrian masuk, usulan, minta batal, gerbang tutup) | 🟢 Implemented (lab) |
+| API-553 | API-INT-003 | GET /api/v1/internal/complaints/export | Laporan PDF daftar Pengaduan Internal untuk /internal/reports (bukan API-550; bukan KPI) | 🟢 Implemented (lab) |
+| API-554 | API-INT-004 | GET /api/v1/internal/complaints/summary | Angka distribusi (total, status, prioritas, unit penanganan) untuk kartu /internal/reports | 🟢 Implemented (lab) |
+
+> **2026-09-02 (Pengaduan Internal snapshot PDF):** API-550 — visibilitas sama GET; Cabang & Pusat yang boleh lihat boleh unduh.
+
+> **2026-09-04 (Internal action-needed sidebar badge):** API-551 — hitungan “perlu tindakan” per unit, bukan hanya antrian Terima. **Login Cabang:** kembalikan berkas / transfer masuk, usulan **terbaru** `PENDING_APPROVAL` (bukan riwayat PENDING setelah diterima), gerbang tutup `RESOLVED`. **Login Pusat:** create/resend masuk Pusat, rebound setelah tolak usulan / kembalikan ke pengerjaan, permintaan batal PENDING, gerbang tutup `RESOLVED`. Filter daftar: `needsAction=1`. Bukan CAP-005. Bukan unread receipt. Bukan bel Pengumuman.
+
+> **2026-09-02 (Internal inbox sidebar badge):** API-551 — Cabang = tiket menunggu Terima di cabang (kembalikan berkas / transfer masuk); Pusat = tiket menunggu Terima di Pusat (create/resend Cabang, tiket lokal belum diterima). Bukan CAP-005. Bukan unread receipt.
+
+> **2026-09-02 (Laporan Pengaduan Internal):** API-553 & API-554 — visibilitas sama dengan daftar (operator hanya bisa mencetak/menghitung yang boleh ia baca). Filter sama: status, kategori, prioritas, periode `dateFrom`/`dateTo` (hari kalender Asia/Jakarta, inklusif), dan `q`. API-553 dibatasi 500 baris dan menyatakannya di dalam PDF; API-554 menghitung di database supaya kartu distribusi tetap benar meski peramban hanya memuat sebagian baris. Ekspor API-553 tercatat di audit (`internal_complaint.report_exported`).
+
+> **2026-09-02 (Handling kanonik PUSAT):** Cabang create/transfer ke Pusat selalu `PUSAT` (bukan `PUSAT-CRO`). `/receive` diizinkan untuk semua login Pusat. Jadwal kedatangan WP tetap CRO.
+
+> **2026-09-02 (Klaim otomatis usulan):** `POST .../resolve` action=PROPOSE dari CREATED/ASSIGNED mengklaim otomatis. UI Internal tidak menampilkan `/receive`.
+
+> **2026-09-02 (Tanpa tombol Ambil tiket):** Langkah antrian Pusat = kembalikan atau usulkan. `/receive` lab/API only.
 
 ### complaint-management-esc-res v1 — [`openapi/complaint-management-esc-res.v1.yaml`](./openapi/complaint-management-esc-res.v1.yaml) **1.0.0-planned** — FRD-CM-002 / DEC-F4
 
@@ -232,8 +275,8 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 
 | API ID | Logical ID | Method & Endpoint | FR | Status |
 |---|---|---|---|---|
-| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟡 Planned |
-| API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟡 Planned |
+| API-520 | API-CM-F4-001 | POST /api/v1/cm/cases/{caseId}/escalate-to-pusat | FR-CM-010 | 🟢 Implemented (lab, DEC-029) — API-522…526 remain Planned |
+| API-521 | API-CM-F4-002 | POST /api/v1/cm/cases/{caseId}/return-escalation | FR-CM-011 | 🟢 Implemented (lab) — free-text note ≥10 |
 | API-522 | API-CM-F4-003 | GET /api/v1/cm/pusat/escalated-queue | FR-CM-012 | 🟡 Planned |
 | API-523 | API-CM-F4-004 | POST /api/v1/cm/cases/{caseId}/resolve | FR-CM-013 | 🟡 Planned |
 | API-524 | API-CM-F4-005 | PATCH /api/v1/cm/cases/{caseId}/result-visibility | FR-CM-014 | 🟡 Planned |
@@ -254,10 +297,13 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 > **2026-07-29 (S0 / FRD-CM-001):** Planned Batch 1 Aggregate contracts published. RTM-CM-B1-001 LOCKED. Events `EVT-CM-*` Planned in Event Catalog. TC-CM-* authored (38). Implementation starts S1 (FR-002 → FR-001).
 
 | API-209 | GET /api/v1/complaints/{id}/timeline | Immutable timeline from `complaint_timelines` (includes SLA `sla.*.completed` / `sla.*.breached` SYSTEM events) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
-| API-210 | GET /api/v1/reports/summary | Report summary (COUNT; optional branchId/dateFrom/dateTo) | bearerAuth, permission `reports:read` | 🟢 Implemented |
-| API-211 | GET /api/v1/reports/by-status | Counts by ComplaintStatus (GROUP BY) | bearerAuth, permission `reports:read` | 🟢 Implemented |
-| API-212 | GET /api/v1/reports/by-branch | Counts by branch (GROUP BY; total DESC) | bearerAuth, permission `reports:read` | 🟢 Implemented |
-| API-213 | POST /api/v1/users | Create user (unique username/email; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
+| API-210 | GET /api/v1/reports/summary | Report summary (COUNT per `REGISTERED\|IN_PROGRESS\|CLOSED`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-211 | GET /api/v1/reports/by-status | Counts by Aggregate status (`REGISTERED\|IN_PROGRESS\|CLOSED`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-212 | GET /api/v1/reports/by-branch | Counts by branch (pengaduan + case; urut % selesai; semua unit) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-545 | GET /api/v1/reports/cycle-time | Umur penyelesaian kasus tertutup (rata-rata/median/p90 + sebaran; window pada `closedAt`) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-546 | GET /api/v1/reports/print | Export PDF laporan `/reports` (server-side; kategori all/created/resolved/escalated) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-547 | GET /api/v1/reports/by-user | Aktivitas operasional per petugas (dibuat / diputus / ditutup / peristiwa riwayat) | bearerAuth, permission `reports:read` | 🟢 Implemented |
+| API-213 | POST /api/v1/users | Create user (unique username/email/initials; bcrypt password; default isActive=true) | bearerAuth, permission `users:create` | 🟢 Implemented |
 | API-214 | GET /api/v1/users | List users (paginated) | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-215 | GET /api/v1/users/{id} | Get user by id | bearerAuth, permission `users:read` | 🟢 Implemented |
 | API-216 | PUT /api/v1/users/{id} | Update user (password re-hashed when provided; hash never exposed) | bearerAuth, permission `users:update` | 🟢 Implemented |
@@ -272,6 +318,43 @@ Approved (baseline) — case-service v1 terkatalog (create/get + lifecycle actio
 | API-413 | POST /api/v1/users/{id}/reset-password | Admin/supervisor reset + force change | bearerAuth, permission `users:reset_password` | 🟢 Implemented |
 | API-222 | GET /api/v1/customers | List local customer references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
 | API-223 | GET /api/v1/branches | List active branch references (paginated; optional `q`) | bearerAuth, permission `complaints:read` | 🟢 Implemented |
+
+> **2026-08-18 (Laporan kosakata Aggregate):** API-210/211 `byStatus.status`
+> memakai `REGISTERED | IN_PROGRESS | CLOSED` (DEC-025 §3.3). Label Foundation
+> `NEW` / `ASSIGNED` / `PENDING` / `ESCALATED` / `RESOLVED` tidak lagi di kawat
+> laporan. Irisan operasional (menunggu, eskalasi, jadwal Pusat) tetap di
+> `GET /api/v1/dashboard/aggregate-kpis`.
+
+> **2026-08-28 (Laporan aktivitas petugas):** API-547
+> `GET /api/v1/reports/by-user` — satu baris per aktor yang mendaftar
+> pengaduan, memutus eskalasi, menutup kasus, atau menulis riwayat pada
+> jendela laporan. Scope unit sama dengan API-210 (cabang terkunci; Pusat
+> boleh semua unit atau satu). Bukan audit login / directory identitas.
+
+> **2026-08-28 (Laporan briefing + PDF dwibahasa):** API-546 menerima
+> `lang` (`id`|`en`) dan `compareDateFrom`/`compareDateTo` untuk selisih
+> vs periode sebelumnya. Kop memakai lockup tipografi UPPPD (bukan lambang
+> resmi). Halaman `/reports` menampilkan bacaan singkat dan delta kartu.
+
+> **2026-08-28 (Laporan per unit):** API-210…212, API-545, API-546 —
+> pemanggil cabang dikunci ke unit sendiri; Pusat / Head Office boleh
+> mengosongkan `branchId` (semua unit) atau memilih satu. Kunci ini
+> ditegakkan di server, bukan hanya di UI `/reports`.
+
+> **2026-08-28 (Unduh Laporan PDF):** complaint-service — API-546
+> `GET /api/v1/reports/print` (PDF server-side untuk `/reports`; filter
+> cabang/tanggal sama dengan API-210; `category` memilih irisan). Stempel
+> waktu operator Asia/Jakarta; `Content-Disposition: attachment`.
+
+> **2026-08-18 (Laporan periode + umur penyelesaian):** complaint-service —
+> API-545 `GET /api/v1/reports/cycle-time` (rata-rata/median/p90 + sebaran umur
+> kasus tertutup; window difilter pada `closedAt`, bukan `createdAt`).
+> `GET /api/v1/dashboard/aggregate-kpis` menerima `dateFrom`/`dateTo` sehingga
+> `/reports` bisa melaporkan per periode dari SoT Aggregate yang sama (DEC-026).
+> Irisan donut menambah `escalateScheduled` (HQ_SCHEDULED) agar `/reports` tidak
+> menampilkan "0 dieskalasi" untuk pengaduan yang sudah dijadwalkan ke Pusat.
+> Tidak ada perubahan perilaku domain; panel "Performa Cabang" di `/reports`
+> dihapus (duplikat Kesehatan Cabang di dasbor) — API-212 tetap utuh.
 
 > **2026-07-24 (CAPABILITY-008 Complaint SLA Foundation):**
 > complaint-domain-service v1.4 — API-409…412 start/complete/recalculate/get SLA.

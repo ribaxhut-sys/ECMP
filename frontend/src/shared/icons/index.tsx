@@ -168,6 +168,27 @@ export function IconSettings(props: IconProps) {
   );
 }
 
+export function IconAdjustments(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 6h6M14 6h6M4 12h10M18 12h2M4 18h2M10 18h10" />
+      <circle cx="12" cy="6" r="2" />
+      <circle cx="16" cy="12" r="2" />
+      <circle cx="8" cy="18" r="2" />
+    </IconBase>
+  );
+}
+
+export function IconMegaphone(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </IconBase>
+  );
+}
+
 export function IconTheme(props: IconProps) {
   return (
     <IconBase {...props}>
@@ -256,6 +277,15 @@ export function IconDownload(props: IconProps) {
   );
 }
 
+/** Filled when pinned, outline when not — pass fill="currentColor" from the caller. */
+export function IconPin(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M9 4h6l-.5 5.5L18 12v2h-5.5L12 21l-.5-6.5H6v-2l3.5-2.5L9 4z" />
+    </IconBase>
+  );
+}
+
 export function IconExternalLink(props: IconProps) {
   return (
     <IconBase {...props}>
@@ -327,6 +357,19 @@ export function IconPaperclip(props: IconProps) {
   return (
     <IconBase {...props}>
       <path d="M21.4 11.6 12 21a5 5 0 0 1-7-7l9.9-9.9a3.2 3.2 0 0 1 4.5 4.5L9.7 18.3a1.4 1.4 0 0 1-2-2l8.5-8.5" />
+    </IconBase>
+  );
+}
+
+export function IconCalendarEscalate(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="5" width="14" height="14" rx="2" />
+      <path d="M3 10h14" />
+      <path d="M7 3v4" />
+      <path d="M13 3v4" />
+      <path d="M19 21v-8" />
+      <path d="M16 16l3-3 3 3" />
     </IconBase>
   );
 }

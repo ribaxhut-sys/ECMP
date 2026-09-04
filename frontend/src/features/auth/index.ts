@@ -4,5 +4,8 @@ export {
   formatIdentityBranch,
   formatIdentityWhen,
   identityInitials,
+  isOwnModuleActivity,
+  moduleRoleDisplayLabels,
   primaryRoleLabel,
+  resolveIdentityUnitLabel,
 } from "./identityHelpers";

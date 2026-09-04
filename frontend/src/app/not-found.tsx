@@ -7,7 +7,7 @@ export default function NotFound() {
   const t = useTranslations("common");
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-[var(--ecmp-panel-gap)] bg-ecmp-background px-[var(--ecmp-page-gutter)] text-center">
+    <main className="flex h-dvh flex-col items-center justify-center gap-[var(--ecmp-panel-gap)] overflow-y-auto bg-ecmp-background px-[var(--ecmp-page-gutter)] text-center">
       <h1 className="text-[length:var(--ecmp-font-page-title-size)] font-[number:var(--ecmp-font-page-title-weight)] leading-[var(--ecmp-font-page-title-line)] tracking-tight text-ecmp-text-primary">
         {t("notFoundTitle")}
       </h1>

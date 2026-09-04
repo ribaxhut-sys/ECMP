@@ -49,6 +49,7 @@ server {
 
     # HSTS — proxy-owned
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    client_max_body_size 55m;
 
     # Backend API + probes
     location ~ ^/(api/|live$|ready$|health$|version$|openapi\.json$|docs|redoc) {

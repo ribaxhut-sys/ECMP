@@ -23,11 +23,14 @@ import {
   filterRolesForHomeUnit,
   filterRolesForUserForm,
   HEAD_OFFICE_SCOPED_ROLE_CODES,
-  roleDisplayName,
+  canonicalUserFormRoleLabels,
+  userFormRoleLabel,
 } from "./directoryHelpers";
 import {
+  emailLocalPart,
   highlightMatchSegments,
   isHeadOfficeCandidate,
+  labIdentityAliases,
   searchModuleUserCandidates,
   type ModuleUserCandidate,
 } from "./moduleUserCandidates";
@@ -92,7 +95,7 @@ const emptyForm = (): FormState => ({
  * Lab hedge: one shared temporary password so operators can login with ID+pass
  * while testing — replace/retire when Enterprise SSO is unlocked.
  */
-export const MODE_A_LAB_TEMP_PASSWORD = "LabTemp!2026";
+export const MODE_A_LAB_TEMP_PASSWORD = "asd12345";
 
 function opaqueModeAPassword(): string {
   return MODE_A_LAB_TEMP_PASSWORD;
@@ -140,9 +143,13 @@ export function CreateUserModal({
             let page = 1;
             for (;;) {
               const res = await fetchUsers({ page, pageSize: 100 });
-              for (const row of res.data) names.add(row.username);
+              for (const row of res.data) {
+                for (const key of labIdentityAliases(row.username, row.email)) {
+                  names.add(key);
+                }
+              }
               const total = res.meta?.totalItems ?? res.data.length;
-              if (names.size >= total || res.data.length === 0) break;
+              if (page * 100 >= total || res.data.length === 0) break;
               page += 1;
               if (page > 50) break;
             }
@@ -359,6 +366,11 @@ export function CreateUserModal({
                     <span className="text-xs text-ecmp-text-secondary">
                       <HighlightedText text={row.username} query={searchQuery} />
                       {" · "}
+                      <HighlightedText
+                        text={emailLocalPart(row.email)}
+                        query={searchQuery}
+                      />
+                      {" · "}
                       {row.homeBranchName}
                     </span>
                   </button>
@@ -420,7 +432,11 @@ export function CreateUserModal({
             { value: "", label: t("selectRole") },
             ...availableRoles.map((row) => ({
               value: row.id,
-              label: `${roleDisplayName(row, t("roleBranchManager"))} (${row.code})`,
+              label: userFormRoleLabel(
+                row.code,
+                canonicalUserFormRoleLabels(t),
+                row.name,
+              ),
             })),
           ]}
         />

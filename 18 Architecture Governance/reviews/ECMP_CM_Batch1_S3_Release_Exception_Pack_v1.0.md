@@ -11,6 +11,7 @@
 | Countersign date | 2026-07-29 |
 | Countersign channel | Architecture approval (Backend Master Roadmap mission) |
 | Expiry / Re-review | Before first **real-customer** production cutover, or 2026-08-29, whichever first |
+| Calendar re-review | **Triggered 2026-08-26** — `ECMP_CM_Batch1_EXC_Antivirus_Stub_Rereview_v1.0.md` (**GOV-EX-CM-B1-EXC-RR-001** / EX-20260826-01). EX-C extension **pending countersign**; until then this pack’s recorded expiry **2026-08-29** still stands. |
 
 ## Purpose
 

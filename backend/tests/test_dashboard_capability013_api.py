@@ -20,16 +20,19 @@ from app.main import create_app
 from app.models import User
 from app.modules.dashboard.domain.dto import TrendPeriod
 from app.modules.dashboard.router import (
+    get_dashboard_aggregate_kpis,
     get_dashboard_kpi,
     get_dashboard_notifications,
     get_dashboard_overview,
     get_dashboard_queue,
+    get_dashboard_recent_activity,
     get_dashboard_service,
     get_dashboard_sla,
     get_dashboard_summary,
     get_dashboard_trends,
 )
 from app.modules.dashboard.schemas import (
+    DashboardAggregateKpiResponse,
     DashboardComplaintSummaryResponse,
     DashboardKpiResponse,
     DashboardNotificationsResponse,
@@ -85,19 +88,32 @@ def test_router_handlers_forward_filters() -> None:
     branch = uuid.uuid4()
     df = datetime(2026, 7, 1, tzinfo=UTC)
     dt = datetime(2026, 7, 25, tzinfo=UTC)
+    session = MagicMock()
+    session.scalar.return_value = None  # own_branch_id lookup -> Head Office
 
     get_dashboard_summary(
         service=svc,
         principal=principal,
+        session=session,
         branch_id=branch,
         date_from=df,
         date_to=dt,
     )
     get_dashboard_queue(
-        service=svc, principal=principal, branch_id=branch, date_from=df, date_to=dt
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=branch,
+        date_from=df,
+        date_to=dt,
     )
     get_dashboard_sla(
-        service=svc, principal=principal, branch_id=branch, date_from=df, date_to=dt
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=branch,
+        date_from=df,
+        date_to=dt,
     )
     get_dashboard_notifications(
         service=svc, principal=principal, date_from=df, date_to=dt
@@ -105,13 +121,19 @@ def test_router_handlers_forward_filters() -> None:
     get_dashboard_trends(
         service=svc,
         principal=principal,
+        session=session,
         period=TrendPeriod.SEVEN_D,
         branch_id=branch,
         date_from=df,
         date_to=dt,
     )
     get_dashboard_kpi(
-        service=svc, principal=principal, branch_id=branch, date_from=df, date_to=dt
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=branch,
+        date_from=df,
+        date_to=dt,
     )
     assert svc.summary.called
     assert svc.queue.called
@@ -119,6 +141,162 @@ def test_router_handlers_forward_filters() -> None:
     assert svc.notifications.called
     assert svc.trends.called
     assert svc.kpi.called
+
+
+def test_recent_activity_head_office_uses_requested_branch() -> None:
+    """UM-BUG-009 — a Head Office principal (no own branch) may pick any branch."""
+    svc = MagicMock()
+    svc.recent_activity.return_value = []
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+    session = MagicMock()
+    session.scalar.return_value = None  # own_branch_id lookup -> Head Office
+    requested_branch = uuid.uuid4()
+
+    get_dashboard_recent_activity(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=requested_branch,
+        limit=10,
+    )
+
+    svc.recent_activity.assert_called_once_with(limit=10, branch_id=requested_branch)
+
+
+def test_recent_activity_head_office_defaults_to_all_branches() -> None:
+    svc = MagicMock()
+    svc.recent_activity.return_value = []
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+    session = MagicMock()
+    session.scalar.return_value = None
+
+    get_dashboard_recent_activity(
+        service=svc, principal=principal, session=session, branch_id=None, limit=10
+    )
+
+    svc.recent_activity.assert_called_once_with(limit=10, branch_id=None)
+
+
+def test_recent_activity_branch_scoped_principal_locked_to_own_branch() -> None:
+    """A branch-scoped principal cannot use branchId to view another branch."""
+    svc = MagicMock()
+    svc.recent_activity.return_value = []
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+    own_branch = uuid.uuid4()
+    other_branch = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.return_value = own_branch
+
+    get_dashboard_recent_activity(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=other_branch,
+        limit=10,
+    )
+
+    svc.recent_activity.assert_called_once_with(limit=10, branch_id=own_branch)
+
+
+def test_summary_branch_scoped_principal_locked_to_own_branch() -> None:
+    """A branch-scoped principal (e.g. Manager, BC-8.4) cannot use branchId
+    to view another branch's dashboard summary."""
+    svc = MagicMock()
+    svc.summary.return_value = DashboardComplaintSummaryResponse(
+        totalComplaints=0,
+        openComplaints=0,
+        closedComplaints=0,
+        pendingComplaints=0,
+        overdueComplaints=0,
+        escalatedComplaints=0,
+        todayComplaints=0,
+        thisMonthComplaints=0,
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+    own_branch = uuid.uuid4()
+    other_branch = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.return_value = own_branch
+
+    get_dashboard_summary(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=other_branch,
+        date_from=None,
+        date_to=None,
+    )
+
+    called_filters = svc.summary.call_args.args[0]
+    assert called_filters.branch_id == own_branch
+
+
+def test_aggregate_kpis_branch_scoped_principal_locked_to_own_branch() -> None:
+    """MANAGER Aggregate KPI cannot be widened via branchId query param."""
+    svc = MagicMock()
+    svc.aggregate_kpis.return_value = DashboardAggregateKpiResponse(
+        total=1, open=1, closed=0, escalatePending=1
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("MANAGER",))
+    own_branch = uuid.uuid4()
+    other_branch = uuid.uuid4()
+    session = MagicMock()
+    session.scalar.return_value = own_branch
+
+    get_dashboard_aggregate_kpis(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=other_branch,
+    )
+
+    svc.aggregate_kpis.assert_called_once_with(
+        branch_id=own_branch, date_from=None, date_to=None
+    )
+
+
+def test_aggregate_kpis_head_office_defaults_to_all_branches() -> None:
+    svc = MagicMock()
+    svc.aggregate_kpis.return_value = DashboardAggregateKpiResponse(
+        total=0, open=0, closed=0, escalatePending=0
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+    session = MagicMock()
+    session.scalar.return_value = None
+
+    get_dashboard_aggregate_kpis(
+        service=svc, principal=principal, session=session, branch_id=None
+    )
+
+    svc.aggregate_kpis.assert_called_once_with(
+        branch_id=None, date_from=None, date_to=None
+    )
+
+
+def test_aggregate_kpis_forwards_period_window() -> None:
+    """/reports sends a period; the router passes it through untouched."""
+    svc = MagicMock()
+    svc.aggregate_kpis.return_value = DashboardAggregateKpiResponse(
+        total=0, open=0, closed=0, escalatePending=0
+    )
+    principal = Principal(user_id=uuid.uuid4(), roles=("ADMIN",))
+    session = MagicMock()
+    session.scalar.return_value = None
+    date_from = datetime(2026, 8, 1, tzinfo=UTC)
+    date_to = datetime(2026, 8, 31, tzinfo=UTC)
+
+    get_dashboard_aggregate_kpis(
+        service=svc,
+        principal=principal,
+        session=session,
+        branch_id=None,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    svc.aggregate_kpis.assert_called_once_with(
+        branch_id=None, date_from=date_from, date_to=date_to
+    )
 
 
 def test_overview_router_handler() -> None:
@@ -236,10 +414,29 @@ def test_capability013_endpoints_shape(
         "/api/v1/dashboard/trends?period=7d",
         "/api/v1/dashboard/kpi",
         "/api/v1/dashboard/overview",
+        "/api/v1/dashboard/aggregate-kpis",
     ):
         resp = client.get(path, headers=auth_header)
         assert resp.status_code == 200, path
         assert "data" in resp.json()
+
+    aggregate = client.get(
+        "/api/v1/dashboard/aggregate-kpis", headers=auth_header
+    ).json()["data"]
+    for key in (
+        "total",
+        "open",
+        "closed",
+        "escalatePending",
+        "waitingAssignment",
+        "escalateApproved",
+        "escalateScheduled",
+        "hqAcceptedOpen",
+        "returnedToBranch",
+        "inProgress",
+    ):
+        assert key in aggregate
+        assert isinstance(aggregate[key], int)
 
     summary = client.get(
         "/api/v1/dashboard/summary", headers=auth_header

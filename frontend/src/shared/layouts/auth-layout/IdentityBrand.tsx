@@ -15,14 +15,9 @@ export function IdentityBrand({
 
   return (
     <header className="space-y-3 text-center">
-      <div className="space-y-1">
-        <p className="text-[length:var(--ecmp-font-display-size)] font-[number:var(--ecmp-font-page-title-weight)] tracking-tight text-ecmp-text-primary">
-          {t("brandName")}
-        </p>
-        <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
-          {t("brandProduct")}
-        </p>
-      </div>
+      <p className="text-[length:var(--ecmp-font-body-small-size)] text-ecmp-text-secondary">
+        {t("brandProduct")}
+      </p>
       {eyebrow ? (
         <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-primary">
           {eyebrow}

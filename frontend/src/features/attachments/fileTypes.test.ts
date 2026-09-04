@@ -3,6 +3,7 @@ import {
   fileTypeLabel,
   formatFileSize,
   getPreviewKind,
+  isAllowedInternalComplaintFile,
   normalizeExtension,
 } from "./fileTypes";
 
@@ -24,6 +25,37 @@ describe("getPreviewKind", () => {
     expect(getPreviewKind("image/png", null, "a.bin")).toBe("image");
     expect(getPreviewKind("text/plain", ".png", "a.txt")).toBe("image");
     expect(getPreviewKind("text/plain", null, "a.txt")).toBe("unsupported");
+    expect(getPreviewKind("application/zip", ".zip", "bukti.zip")).toBe(
+      "unsupported",
+    );
+  });
+
+  it("classifies .docx by mime or extension but keeps legacy .doc unsupported", () => {
+    expect(
+      getPreviewKind(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        null,
+        "surat.bin",
+      ),
+    ).toBe("docx");
+    expect(getPreviewKind("application/octet-stream", ".docx", "surat.docx")).toBe(
+      "docx",
+    );
+    expect(getPreviewKind("", null, "Surat Keluhan.DOCX")).toBe("docx");
+    expect(getPreviewKind("application/msword", ".doc", "surat.doc")).toBe(
+      "unsupported",
+    );
+  });
+});
+
+describe("isAllowedInternalComplaintFile", () => {
+  it("allows images and zip, rejects pdf", () => {
+    const png = new File(["x"], "a.png", { type: "image/png" });
+    const zip = new File(["PK"], "a.zip", { type: "application/zip" });
+    const pdf = new File(["%PDF"], "a.pdf", { type: "application/pdf" });
+    expect(isAllowedInternalComplaintFile(png)).toBe(true);
+    expect(isAllowedInternalComplaintFile(zip)).toBe(true);
+    expect(isAllowedInternalComplaintFile(pdf)).toBe(false);
   });
 });
 

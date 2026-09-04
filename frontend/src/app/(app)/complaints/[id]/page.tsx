@@ -1,38 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
+import { FOUNDATION_RETIRED_LIST_HREF } from "@/features/complaints/foundationRetiredRedirect";
 
-import { Suspense, use } from "react";
-import { useTranslations } from "next-intl";
-import { ComplaintDetailView } from "@/features/complaints";
-import { PageContainer, PageHeader, Skeleton } from "@/shared/ui";
-
-function DetailFallback() {
-  const t = useTranslations("complaints");
-  const tCommon = useTranslations("common");
-
-  return (
-    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
-      <PageHeader
-        title={t("title")}
-        breadcrumbs={[
-          { label: tCommon("home"), href: "/dashboard" },
-          { label: t("title"), href: "/complaints" },
-          { label: t("detailTitle") },
-        ]}
-      />
-      <Skeleton rows={6} />
-    </PageContainer>
-  );
-}
-
-export default function ComplaintDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-  return (
-    <Suspense fallback={<DetailFallback />}>
-      <ComplaintDetailView complaintId={id} />
-    </Suspense>
-  );
+/** DEC-026 M-026-1 — Foundation detail is not mapped to CM (H1). */
+export default function ComplaintDetailPage() {
+  redirect(FOUNDATION_RETIRED_LIST_HREF);
 }

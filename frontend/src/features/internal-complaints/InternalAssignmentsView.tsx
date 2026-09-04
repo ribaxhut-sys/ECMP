@@ -1,0 +1,173 @@
+"use client";
+
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import {
+  Alert,
+  Empty,
+  ErrorState,
+  PageContainer,
+  PageHeader,
+  Skeleton,
+  Table,
+  type TableColumn,
+} from "@/shared/ui";
+import { useInternalComplaints } from "./mock/useInternalComplaints";
+import { sortByMostRecent } from "./internalComplaintsFilters";
+import {
+  INTERNAL_ASSIGNMENT_STATUSES,
+  INTERNAL_FOLLOW_UP_STATUSES,
+  INTERNAL_VERIFICATION_STATUSES,
+  resolveQueueEmptyHint,
+  siblingQueueCounts,
+  type InternalQueueKind,
+} from "./internalQueues";
+import type { InternalComplaint } from "./types";
+import {
+  InternalStatusBadge,
+  InternalTransferRequestBadge,
+  InternalWithdrawRequestBadge,
+} from "./components/InternalBadges";
+import { displayInternalUnitCode } from "./transferDirection";
+
+function FilteredList({
+  title,
+  description,
+  statuses,
+  queue,
+}: {
+  title: string;
+  description: string;
+  statuses: readonly string[];
+  queue: InternalQueueKind;
+}) {
+  const router = useRouter();
+  const t = useTranslations("internalComplaints");
+  const tCommon = useTranslations("common");
+  const { rows, total, truncated, loading, error, reload } = useInternalComplaints();
+  const filtered = useMemo(
+    () =>
+      sortByMostRecent(rows.filter((r) => statuses.includes(String(r.status)))),
+    [rows, statuses],
+  );
+  const emptyHint = useMemo(
+    () => resolveQueueEmptyHint(queue, siblingQueueCounts(rows)),
+    [queue, rows],
+  );
+
+  const columns: TableColumn<InternalComplaint>[] = [
+    {
+      key: "number",
+      header: t("number"),
+      cell: (row) => (
+        <button
+          type="button"
+          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
+          onClick={() =>
+            router.push(`/internal/complaints/${encodeURIComponent(row.id)}`)
+          }
+        >
+          {row.number}
+        </button>
+      ),
+    },
+    { key: "title", header: t("titleField"), cell: (row) => row.title },
+    { key: "handling", header: t("handlingUnit"), cell: (row) => displayInternalUnitCode(row.handlingUnitId) },
+    {
+      key: "status",
+      header: t("status"),
+      cell: (row) => (
+        <div className="flex flex-wrap gap-1">
+          <InternalStatusBadge status={row.status} />
+          <InternalTransferRequestBadge status={row.transferRequestStatus} />
+          <InternalWithdrawRequestBadge status={row.withdrawRequestStatus} />
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <PageContainer className="space-y-[var(--ecmp-section-gap)]">
+      <PageHeader
+        title={title}
+        description={description}
+        breadcrumbs={[
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: t("title"), href: "/internal" },
+          { label: title },
+        ]}
+      />
+      {error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : truncated ? (
+        <Alert
+          tone="warning"
+          title={t("partialDataWarning", { loaded: rows.length, total })}
+        />
+      ) : null}
+      {loading ? (
+        <Skeleton rows={6} />
+      ) : filtered.length === 0 ? (
+        <Empty
+          title={t(emptyHint.titleKey)}
+          description={t(emptyHint.descriptionKey, emptyHint.descriptionValues)}
+          primaryAction={
+            emptyHint.primaryHref && emptyHint.primaryLabelKey
+              ? {
+                  label: t(emptyHint.primaryLabelKey),
+                  onClick: () => router.push(emptyHint.primaryHref!),
+                }
+              : undefined
+          }
+          secondaryAction={
+            emptyHint.secondaryHref && emptyHint.secondaryLabelKey
+              ? {
+                  label: t(emptyHint.secondaryLabelKey),
+                  onClick: () => router.push(emptyHint.secondaryHref!),
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <Table columns={columns} rows={filtered} getRowKey={(row) => row.id} />
+      )}
+    </PageContainer>
+  );
+}
+
+export function InternalAssignmentsView() {
+  const t = useTranslations("internalComplaints");
+  return (
+    <FilteredList
+      title={t("assignmentsTitle")}
+      description={t("assignmentsDescription")}
+      statuses={INTERNAL_ASSIGNMENT_STATUSES}
+      queue="assignments"
+    />
+  );
+}
+
+export function InternalFollowUpListView() {
+  const t = useTranslations("internalComplaints");
+  return (
+    <FilteredList
+      title={t("followUpTitle")}
+      description={t("followUpDescription")}
+      statuses={INTERNAL_FOLLOW_UP_STATUSES}
+      queue="followUp"
+    />
+  );
+}
+
+export function InternalVerificationListView() {
+  const t = useTranslations("internalComplaints");
+  return (
+    <FilteredList
+      title={t("verificationTitle")}
+      description={t("verificationDescription")}
+      statuses={INTERNAL_VERIFICATION_STATUSES}
+      queue="verification"
+    />
+  );
+}

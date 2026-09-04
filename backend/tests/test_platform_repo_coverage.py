@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime, time
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.modules.appointments import repository as appt_mod
@@ -14,27 +15,53 @@ from app.modules.resolutions.repository import ResolutionRepository
 
 
 def test_report_repository_aggregations() -> None:
+    """``_base_filters`` resolves ``branch_id`` (UUID) → ``Branch.code`` via
+    ``owning_unit_for_branch`` (DEC-024 pattern, wired into reports as part of
+    DEC-026 M-026-3). A bare MagicMock session makes ``session.get(...)``
+    return a truthy mock whose ``deleted_at`` is itself a truthy mock, so the
+    branch reads as soft-deleted and every aggregate silently comes back
+    empty — session.get must return a real not-deleted branch shape.
+    """
     session = MagicMock()
     repo = ReportRepository(session)
     bid = uuid.uuid4()
     now = datetime.now(UTC)
+    session.get.return_value = SimpleNamespace(deleted_at=None, code="PUSAT")
 
     session.scalar.return_value = 3
     assert (
         repo.count_total(branch_id=bid, date_from=now, date_to=now) == 3
     )
 
-    session.execute.return_value.all.return_value = [("OPEN", 2), ("CLOSED", 1)]
+    session.execute.return_value.all.side_effect = [
+        [("OPEN", 2), ("CLOSED", 1)],
+        [(bid, "B1", "Branch 1", 5, 4, 2), (None, None, None, 1, 0, 0)],
+        # _case_counts_by_unit selects four columns — unit, total, all_closed,
+        # branch_resolved — since "Selesai di cabang" stopped counting cases
+        # that were escalated to Pusat. Here: 4 cases, all closed, 3 of them
+        # resolved at the branch.
+        [("B1", 4, 4, 3)],
+        [],
+    ]
     assert repo.count_by_status(branch_id=bid) == [("OPEN", 2), ("CLOSED", 1)]
 
-    session.execute.return_value.all.return_value = [
-        (bid, "B1", "Branch 1", 5),
-        (None, None, None, 1),
-    ]
     rows = repo.count_by_branch(date_from=now, date_to=now)
     assert rows[0][0] == bid
     assert rows[0][3] == 5
+    assert rows[0][4] == 1
+    assert rows[0][5] == 4
+    assert rows[0][6] == 2
+    assert rows[0][7] == 4  # caseTotal
+    assert rows[0][8] == 0  # caseOpen — total minus every closed case
+    assert rows[0][9] == 3  # caseClosed — branch-resolved only
     assert rows[1][0] is None
+
+    # Unresolvable branch (soft-deleted / unknown) is a known-empty scope —
+    # every aggregate returns its empty shape, not an error.
+    session.get.return_value = SimpleNamespace(deleted_at=now, code="PUSAT")
+    assert repo.count_total(branch_id=bid) == 0
+    assert repo.count_by_status(branch_id=bid) == []
+    assert repo.count_by_branch(branch_id=bid) == []
 
 
 def test_appointment_repository_query_paths() -> None:

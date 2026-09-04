@@ -9,7 +9,7 @@ info:
     **Capability:** CAP-008
     **FRD:** FRD-CM-B2-001 (`ECMP_FRD_Case_Management_Batch2_v1.0.md`) 🔒 LOCKED
     **BR SoT:** BR-CM-CAT-001 (LOCKED) — Case Aggregate Transition Matrix
-    **Decisions:** DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; CTO D-02 / BQ-011
+    **Decisions:** DEC-BQ001 O3; DEC-MODEA-B2-001; DEC-020; DEC-028 (BQ-004 format); DEC-029 (API-520 lab); CTO D-02 / BQ-011
     **Implementation:** root `backend/app/modules/cm_case/` — Implemented (lab); REL-RC-001 PASS; tag `v1.2.0-rc.1`
     **SoT Closure:** `deploy/evidence/CAP-008_SoT_Closure_20260801.md` (2026-08-01)
 
@@ -29,11 +29,15 @@ info:
     **Path coexistence note:** GET/POST resolve on `/api/v1/cm/cases/{caseId}` also appear
     in `complaint-management-esc-res.v1.yaml` (API-523/525, FRD-CM-002 / DEC-F4 Planned).
     This document is the Mode A CAP-008 contract (FR-003/FR-005). DEC-F4
-    `result_visibility` / Escalate paths are OUT OF SCOPE for Mode A delivery
-    (FRD: NOT SPECIFIED as Mode A requirement).
+    `result_visibility` remains OUT OF SCOPE. API-520 lab (DEC-029) is
+    implemented here: escalate **this Case** to Pusat without exposing
+    status `ESCALATED`. API-538 (cancel while Pusat has not claimed) and
+    API-521 lab (Pusat return with reason code + note) are implemented here.
+    API-539 is the internal Case snapshot PDF (FR-003 companion; not reporting).
+    API-522…526 remain Planned.
 
     **Out of scope:** Notification Engine · Assignment Engine · SLA Engine · Identity
-    redesign · Mode B · Customer Merge · Dashboard · Reporting · AI.
+    redesign · Mode B · Customer Merge · Dashboard · Reporting (KPI/Excel/bulk) · AI.
 
     **AuthZ permission codes for CAP-008:** NOT SPECIFIED in repository beyond
     ECMP-internal authorization and FRD actor matrix. Security scheme reuses
@@ -68,12 +72,20 @@ tags:
     description: FR-002 Add Case to Existing Complaint
   - name: CM-Case-View
     description: FR-003 View Case
+  - name: CM-Case-History
+    description: FR-003 / UC-CAP02-07 Case Timeline (this Case + parent HQ path)
+  - name: CM-Case-Export
+    description: FR-003 companion — internal Case snapshot PDF (API-539)
   - name: CM-Case-Status
     description: FR-004 Update Case Status (Mode A Delivery Transition Subset)
   - name: CM-Case-Resolve
     description: FR-005 Resolve Case
+  - name: CM-Case-Acceptance
+    description: F4 dual-party closure acceptance (Handling Unit / Owner)
   - name: CM-Case-Close
-    description: FR-006 Close Case
+    description: FR-006 Close Case (compatibility; dual-acceptance gate)
+  - name: CM-Case-Escalate
+    description: DEC-029 / API-520 lab — escalate this Case to Pusat; API-538 cancel before Pusat claims
 
 paths:
   /api/v1/cm/cases:
@@ -84,13 +96,19 @@ paths:
 
         Visibility classes:
         - SELF (Agent): `createdBy = principal` (Mode A interim; BQ-006 has no assigned user column)
-        - UNIT (Supervisor/Manager cabang): `owningUnitId = principal.orgUnitId` only
-        - PUSAT: `owningUnitId` in Pusat unit codes (escalation filter when API-520 ships)
+        - UNIT (Supervisor/Manager cabang): `owningUnitId` **or** `ownerUnitId` = principal.orgUnitId (F4 Owner retains visibility after Handling Unit transfer)
+        - PUSAT: `owningUnitId` **or** `ownerUnitId` in Pusat unit codes, **or** `escalatedToPusat=true` (DEC-029 / API-520 lab; originating branch unit is kept)
         - ALL (Admin): no row filter
 
         Permission gate: `complaints:read` (DEC-024 OQ-4).
         Optional `complaintId` narrows to one parent after visibility filter.
-        Not interchangeable with foundation complaint lists. Not API-526 F4 unlock.
+        Optional `keyword` (max 200) is a case-insensitive substring match on
+        case number, subject, description, customerId, parent complaint
+        number, or local customer cache name / external id (ADR-002; not
+        Customer Master SoR). Applied **after** visibility — cannot leak rows
+        outside DEC-024.
+        Not full-text / search-engine (no Elasticsearch). Not API-526 F4 unlock.
+        Not interchangeable with foundation complaint lists.
       operationId: cmB2ListCases
       x-ear-id: API-536
       x-ecmp-logical-id: API-CM-B2-007
@@ -128,6 +146,17 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/CaseStatus"
+        - name: keyword
+          in: query
+          required: false
+          description: |
+            Case-insensitive substring on caseNumber, subject, description,
+            customerId, parent complaint number, or local customer cache
+            fullName / externalCustomerId (ADR-002 reference cache — not
+            Customer Master SoR). Max 200. Visibility still applies (DEC-024).
+          schema:
+            type: string
+            maxLength: 200
       responses:
         "200":
           description: Visibility-scoped Case page
@@ -152,7 +181,7 @@ paths:
       description: |
         Creates an operational Case under a parent Complaint (FR-001 / BR-004).
 
-        - Case Number format: `CASE-YYYY-NNNNNN` (BQ-004), independent of Complaint Number.
+        - Case Number format: `UNIT-YYMM-NNNN` (BQ-004 / DEC-028), independent of Complaint Number `CM{UNIT}-YYMM-NNNN`.
         - Initial status: `CREATED`, or `ASSIGNED` when `destinationUnitId` is supplied
           for Unit assignment in the same business action (BQ-006).
         - Assigned User MUST NOT be accepted (BQ-006) → `ASSIGNED_USER_NOT_ALLOWED_MODE_A`.
@@ -346,6 +375,72 @@ paths:
                     code: MAX_CASES_EXCEEDED
                     detail: Maximum 5 Cases per Complaint reached (BQ-003).
 
+  /api/v1/cm/work-badges:
+    get:
+      summary: Mode A work badges (Cabang unread + Pusat queues)
+      description: |
+        Sidebar counts for Complaint work signals (Mode A, in-app only).
+
+        Cabang (`actorIsPusat=false`): `unreadCases` = unread return / HQ-schedule
+        receipts for the caller. `hqScheduleUnread` = the HQ_SCHEDULED subset
+        whose Cases are owned by the caller's unit. `pusatQueue` and
+        `pusatFollowUp` are 0.
+
+        Pusat: `pusatQueue` = Pengaduan intake rows the caller has not opened
+        yet — the same rows `GET /api/v1/cm/complaints?needsPusatHandling=1`
+        returns (never accepted and never claimed). `pusatFollowUp` = Tindak
+        lanjut parents already handled by Pusat (accepted, claimed, or
+        HQ_SCHEDULED) that the caller has not opened since the last
+        movement. A complaint cannot count in both. Per-user: opening the complaint
+        (or one of its Cases) records a read receipt. `unreadCases` is 0.
+
+        Fail-open: errors return zeros so navigation stays up.
+        Not CAP-005 email/SMS. Not a Mode B unlock. Lab UX for API-536 / API-514.
+
+        `hqScheduleUnread` (Cabang only): HQ_SCHEDULED Case-inbox receipts for
+        Cases owned by the caller's unit that the caller has not acked. Opening
+        `/complaints/cm/hq-schedule` posts `hq-schedule-seen`. Pusat is 0 —
+        the sidebar uses today's arrival count instead.
+      operationId: cmB2GetWorkBadges
+      tags: [CM-Case-List]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/WorkBadgeCounts"
+
+  /api/v1/cm/work-badges/hq-schedule-seen:
+    post:
+      summary: Ack Cabang Jadwal Eskalasi sidebar badge
+      description: |
+        Marks the caller's HQ_SCHEDULED Case-inbox receipts as read for Cases
+        owned by the caller's unit. RETURNED receipts are unchanged.
+        Pusat callers are a no-op. Returns the same WorkBadgeCounts as GET.
+        Fail-open. Not CAP-005. Not a Mode B unlock.
+      operationId: cmB2AckHqScheduleSeen
+      tags: [CM-Case-List]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/WorkBadgeCounts"
+
   /api/v1/cm/cases/{caseId}:
     get:
       summary: View Case
@@ -356,9 +451,10 @@ paths:
         priority/type when present (AC-06). Membership checks apply when
         `complaintId` query context is supplied (AC-07).
 
-        Timeline projection endpoint is NOT SPECIFIED as a separate Mode A path
-        in this contract set; Timeline read semantics remain in FRD UC-CAP02-07.
-        Sensitive-read Audit on every View: NOT SPECIFIED beyond BR-016 general.
+        Case-scoped Timeline is GET `/api/v1/cm/cases/{caseId}/history` (API-537 /
+        UC-CAP02-07). Complaint intake history remains API-517. Not interchangeable
+        with Sprint API-006. Sensitive-read Audit on every View: NOT SPECIFIED
+        beyond BR-016 general.
 
         Coexistence: path also listed as API-525 (FRD-CM-002 visibility). Mode A
         response does not require DEC-F4 `resultVisibility`.
@@ -425,6 +521,171 @@ paths:
                     status: 409
                     code: CASE_COMPLAINT_MEMBERSHIP_MISMATCH
                     detail: CaseId is not a member of the supplied Complaint context.
+
+  /api/v1/cm/cases/{caseId}/history:
+    get:
+      summary: View Case history (this Case, plus parent HQ path)
+      description: |
+        Chronological projection of Timeline events that belong to **this Case**
+        (BR-017 / UC-CAP02-07 / AC-08).
+
+        Source stream is the parent Complaint Timeline (append-only). Filter is
+        `metadata.caseId` (fallback `metadata.caseNumber`). Events of sibling
+        Cases and Complaint-level intake (REGISTERED, BRANCH_CLOSED, …) are
+        excluded.
+
+        Exception: complaint-scoped HQ-path events without `caseId`
+        (`HqAccepted`, `HqArrivalScheduled`, `HqReturned`) **are** included —
+        they bind every open Case of this parent (same grouping as Penanganan
+        HQ path). `HQ_ARRIVAL_SCHEDULED` carries `arrivalDate` / `arrivalTime`
+        (taxpayer-visit slot, not `occurredAt`).
+
+        Unlike API-517, operational Case events that are hidden on the complaint
+        narrative (work started, unit/owner accept-reject) **are** returned here.
+        Append-only: clients MUST NOT reorder entries.
+
+        Not interchangeable with Sprint `GET /v1/cases/{caseId}/timeline` (API-006).
+      operationId: cmB2GetCaseHistory
+      x-ear-id: API-537
+      x-ecmp-logical-id: API-CM-B2-009
+      x-ecmp-fr: FR-003
+      x-ecmp-br:
+        - BR-017
+        - BR-016
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-07
+      x-ecmp-dec:
+        - DEC-BQ001
+        - DEC-020
+        - DEC-MODEA-B2-001
+      tags: [CM-Case-History]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: complaintId
+          in: query
+          required: false
+          description: Optional Complaint context for Aggregate membership validation (AC-07).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chronological Case history (oldest first)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CaseHistoryEntry"
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    code: CASE_NOT_FOUND
+                    detail: Case does not exist.
+        "409":
+          description: Membership mismatch with complaintId context
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/export:
+    get:
+      summary: Download Case snapshot PDF (internal)
+      description: |
+        Server-rendered internal snapshot of **this Case** (FR-003 companion).
+
+        Same authorization and org-scope as View Case (API-532). Does **not**
+        mutate Case status. Attachment **bytes are not embedded** — the PDF
+        lists a manifest (name, type, size, checksum). History is the full
+        API-537 projection (this Case + parent HQ path), not the UI page of 10.
+
+        **Not** customer-safe timeline export. **Not** KPI/reporting (DEC-015).
+        **Not** a dump of the parent Complaint's other Cases.
+      operationId: cmB2ExportCasePdf
+      x-ear-id: API-539
+      x-ecmp-logical-id: API-CM-B2-011
+      x-ecmp-fr: FR-003
+      x-ecmp-br:
+        - BR-017
+        - BR-016
+        - BR-012
+      x-ecmp-cap: CAP-008
+      x-ecmp-uc: UC-CAP02-03
+      x-ecmp-dec:
+        - DEC-BQ001
+        - DEC-020
+        - DEC-MODEA-B2-001
+      tags: [CM-Case-Export]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - name: complaintId
+          in: query
+          required: false
+          description: Optional Complaint context for Aggregate membership validation (AC-07).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Internal Case snapshot PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="{caseNumber}_{YYYYMMDD}.pdf"
+                (YYYYMMDD in Asia/Jakarta)
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              examples:
+                notFound:
+                  value:
+                    type: about:blank
+                    title: Not Found
+                    status: 404
+                    code: CASE_NOT_FOUND
+                    detail: Case does not exist.
+        "409":
+          description: Membership mismatch with complaintId context
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 
   /api/v1/cm/cases/{caseId}/status:
     patch:
@@ -546,6 +807,8 @@ paths:
         - Case status MUST be `IN_PROGRESS`.
         - Comment MUST be present (BQ-010).
         - Attachment optional; Complaint Attachment MAY be reused (attachmentIds).
+        - `resolutionCode` / `summary` OPTIONAL on ACCEPT/PROPOSE (DEC-021). When omitted,
+          server persists sentinel `resolutionCode=BRANCH_DONE` and `summary=<comment>`.
         - Case → `RESOLVED` only after Resolution Accepted (Supervisor Approval path BQ-008).
         - MUST NOT auto-close Complaint (BQ-007).
 
@@ -556,6 +819,7 @@ paths:
         Request may represent propose and/or accept depending on actor rights:
         - Case Handler proposes (`action=PROPOSE` default)
         - Supervisor accepts (`action=ACCEPT`) or rejects (`action=REJECT`)
+        - HQ escalation is NOT an action on this API (use parent Complaint Aggregate).
       operationId: cmB2ResolveCase
       x-ear-id: API-534
       x-ecmp-logical-id: API-CM-B2-005
@@ -570,6 +834,7 @@ paths:
       x-ecmp-uc: UC-CAP02-05
       x-ecmp-dec:
         - DEC-MODEA-B2-001
+        - DEC-021
       x-ecmp-bq:
         - BQ-008
         - BQ-010
@@ -596,15 +861,21 @@ paths:
                   detail: "Adjustment diterapkan pada periode Juli."
                   comment: "Bukti koreksi dikirim ke pelanggan."
                   attachmentIds: ["ATT-001"]
+              acceptBranchClose:
+                summary: Branch Tutup — comment only (DEC-021)
+                value:
+                  action: ACCEPT
+                  comment: "Selesai ditangani di cabang; pelanggan setuju."
+                  attachmentIds: ["ATT-002"]
               accept:
-                summary: Supervisor accepts → Case RESOLVED
+                summary: Supervisor accepts with explicit resolution fields
                 value:
                   action: ACCEPT
                   resolutionCode: "FIXED"
                   summary: "Tagihan dikoreksi"
                   comment: "Disetujui Supervisor."
               reject:
-                summary: Supervisor rejects
+                summary: Reject
                 value:
                   action: REJECT
                   rejectionReason: "Evidence kurang lengkap"
@@ -660,24 +931,258 @@ paths:
                     code: INVALID_STATE
                     detail: Mode A Resolve requires Case status IN_PROGRESS.
 
+  /api/v1/cm/cases/{caseId}/acceptance:
+    post:
+      summary: Record Handling Unit / Owner closure acceptance
+      description: |
+        F4 closure rule — Handling Unit and Owner each ACCEPT or REJECT the
+        resolution independently while Case status is `RESOLVED`.
+
+        - `party=HANDLING_UNIT` — actor must be Supervisor/Manager on the
+          current handling unit (`owningUnitId`).
+        - `party=OWNER` — actor must be Supervisor/Manager on `ownerUnitId`.
+        - Creator SoD applies (creator cannot be the sole approver).
+        - Agent may not submit final acceptance.
+        - REJECT returns the Case to `IN_PROGRESS` (existing state machine).
+        - When both parties have ACCEPT, Case becomes `CLOSED` as a
+          consequence of the second acceptance (no third approval step).
+
+        Permission gate: `complaints:update` plus party/role/unit/SoD AuthZ.
+        Does not invent acceptances for Cases closed before F4.
+      operationId: cmB2RecordCaseAcceptance
+      x-ecmp-logical-id: API-CM-B2-008
+      x-ecmp-fr: FR-006
+      x-ecmp-cap: CAP-008
+      x-ecmp-dec:
+        - DEC-MODEA-B2-001
+      tags: [CM-Case-Acceptance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordAcceptanceRequest"
+            examples:
+              ownerAccept:
+                summary: Owner accepts resolution
+                value:
+                  party: OWNER
+                  decision: ACCEPT
+              handlingUnitReject:
+                summary: Handling Unit rejects with note
+                value:
+                  party: HANDLING_UNIT
+                  decision: REJECT
+                  note: Perlu perbaikan data bukti.
+      responses:
+        "200":
+          description: |
+            Acceptance recorded. Status remains RESOLVED until both parties
+            ACCEPT, then CLOSED. REJECT → IN_PROGRESS.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Case not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Case not RESOLVED / invalid acceptance state
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/escalate-to-pusat:
+    post:
+      summary: Escalate this Case to Pusat
+      description: |
+        DEC-029 / API-520 lab (FR-CM-010 slice). Escalates **this Case only**.
+        Does not set status `ESCALATED` (BQ-009). Does not overwrite originating
+        `owningUnitId` (DEC-028). Does not escalate sibling Cases. Opens the
+        parent HQ schedule door (`intakeDisposition=ESCALATE_APPROVED`) so Pusat
+        can **Terima & jadwalkan**. Optional `proposedArrivalDate` /
+        `proposedArrivalTime` are advisory; Pusat still decides the slot.
+
+        Reason minimum 20 characters after trim.
+      operationId: cmB2EscalateToPusat
+      x-ear-id: API-520
+      x-ecmp-logical-id: API-CM-F4-001
+      x-ecmp-fr: FR-CM-010
+      x-ecmp-dec:
+        - DEC-029
+        - DEC-028
+      x-ecmp-bq:
+        - BQ-009
+      x-ecmp-cap: CAP-008
+      tags: [CM-Case-Escalate]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EscalateToPusatRequest"
+      responses:
+        "200":
+          description: Case flagged to Pusat (`escalatedToPusat`, `owningUnit=PUSAT`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Already with Pusat / Case not open
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/cancel-escalation-to-pusat:
+    post:
+      summary: Cancel this Case's escalation to Pusat
+      description: |
+        Mode A lab companion to API-520 (DEC-029). Originating branch recalls
+        **this Case only** while Pusat has not claimed handling.
+
+        Does not unlock API-521 (Pusat return). Reason minimum 20 characters
+        after trim.
+      operationId: cmB2CancelEscalationToPusat
+      x-ear-id: API-538
+      x-ecmp-logical-id: API-CM-B2-010
+      x-ecmp-fr: FR-CM-010
+      x-ecmp-dec:
+        - DEC-029
+      x-ecmp-bq:
+        - BQ-009
+      x-ecmp-cap: CAP-008
+      tags: [CM-Case-Escalate]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelEscalationToPusatRequest"
+      responses:
+        "200":
+          description: Escalation flag cleared (`escalatedToPusat=false`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Not with Pusat / Pusat already claimed handling
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/v1/cm/cases/{caseId}/return-escalation:
+    post:
+      summary: Return this Case's escalation to the originating branch
+      description: |
+        API-521 lab (FR-CM-011 slice). Pusat returns **this Case only** with a
+        free-text reason/note (≥10 chars). No reason-code catalog on this Mode A
+        surface.
+
+        Clears `escalatedToPusat` and handling claim so the branch can work
+        again. Does not unlock API-522…526.
+      operationId: cmB2ReturnEscalation
+      x-ear-id: API-521
+      x-ecmp-logical-id: API-CM-F4-002
+      x-ecmp-fr: FR-CM-011
+      x-ecmp-dec:
+        - DEC-F4
+        - DEC-029
+      x-ecmp-cap: CAP-008
+      tags: [CM-Case-Escalate]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnEscalationRequest"
+      responses:
+        "200":
+          description: Escalation returned (`escalatedToPusat=false`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Not with Pusat / Case finished
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /api/v1/cm/cases/{caseId}/close:
     post:
       summary: Close Case
       description: |
-        Closes a Case after Resolution Accepted / status `RESOLVED` and Supervisor
-        Approval completed (FR-006 / BQ-008 / BR-CM-CAT `RESOLVED→CLOSED`).
+        Compatibility close endpoint (FR-006 / API-535).
+
+        F4: `CLOSED` is the consequence of dual acceptance
+        (Handling Unit ACCEPT **and** Owner ACCEPT). Prefer recording the
+        second acceptance via `POST .../acceptance`, which triggers CLOSED
+        when both parties have accepted.
+
+        This endpoint **cannot bypass** dual acceptance:
+        - missing Handling Unit ACCEPT → `HANDLING_UNIT_ACCEPTANCE_REQUIRED`
+        - missing Owner ACCEPT → `OWNER_ACCEPTANCE_REQUIRED`
+        - already CLOSED (e.g. via dual-acceptance trigger) → idempotent 200
 
         Close Case Checklist minimum (LOCKED Operational Spec):
-        1. Case status = RESOLVED
+        1. Case status = RESOLVED (or already CLOSED for idempotent replay)
         2. Final Resolution Accepted still valid
         3. Supervisor Approval after RESOLVED completed
-        4. Closer authorized — Supervisor Unit (primary)
-
-        NOT SPECIFIED (MUST NOT invent as mandatory gates):
-        - Case Handler closer activation in Mode A
-        - Comment / Attachment required at Close moment
-        - Category evidence required at Close moment
-        - Checklist items beyond #1–#4
+        4. Both F4 party acceptances = ACCEPT
+        5. Closer authorized — Supervisor/Manager Unit (primary)
 
         MUST NOT auto-close Complaint Aggregate (BQ-007), including last open Case.
       operationId: cmB2CloseCase
@@ -732,7 +1237,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "409":
-          description: Checklist not met / not RESOLVED / approval missing
+          description: Checklist not met / dual acceptance missing / not RESOLVED
           content:
             application/problem+json:
               schema:
@@ -745,6 +1250,20 @@ paths:
                     status: 409
                     code: INVALID_STATE
                     detail: Close requires Case status RESOLVED.
+                ownerAcceptanceRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: OWNER_ACCEPTANCE_REQUIRED
+                    detail: Owner must accept the resolution before Close.
+                handlingUnitAcceptanceRequired:
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+                    code: HANDLING_UNIT_ACCEPTANCE_REQUIRED
+                    detail: Handling Unit must accept the resolution before Close.
                 approvalRequired:
                   value:
                     type: about:blank
@@ -898,6 +1417,65 @@ components:
         - ACCEPT
         - REJECT
 
+    CaseHistoryEntry:
+      type: object
+      description: |
+        One chronological Case Timeline event (API-537). Labels are client-side
+        via eventCode. Distinct from API-517 IntakeHistoryEntry except for
+        optional HQ-arrival fields on parent HQ-path rows.
+      required: [entryId, eventCode, eventType, occurredAt]
+      properties:
+        entryId:
+          type: string
+        eventCode:
+          type: string
+          description: >
+            Stable UI code (CASE_CREATED, CASE_WORK_STARTED, CASE_ASSIGNED,
+            CASE_STATUS_CHANGED, CASE_RESOLVED, CASE_CLOSED, CASE_CANCELLED,
+            HANDLING_CONTINUED, HANDLING_TAKEN_OVER, CASE_HANDLING_UNIT_ACCEPTED,
+            CASE_OWNER_ACCEPTED, CASE_HANDLING_UNIT_REJECTED, CASE_OWNER_REJECTED,
+            RESOLUTION_UPDATED, ATTACHMENT_BOUND, HQ_ACCEPTED,
+            HQ_ARRIVAL_SCHEDULED, HQ_RETURNED, …).
+        eventType:
+          type: string
+          description: Raw timeline event type, for codes the client does not know yet
+        occurredAt:
+          type: string
+          format: date-time
+        actorId:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+          description: Resolved via user directory — identity is not ECMP SoR
+        actorUnitId:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          nullable: true
+        caseNumber:
+          type: string
+          nullable: true
+        caseStatus:
+          type: string
+          nullable: true
+          description: Case status snapshot stored on the timeline row, when present
+        arrivalDate:
+          type: string
+          nullable: true
+          description: >
+            HQ taxpayer-visit calendar date (YYYY-MM-DD, Asia/Jakarta) when
+            eventCode is HQ_ARRIVAL_SCHEDULED; not occurredAt.
+        arrivalTime:
+          type: string
+          nullable: true
+          description: HQ taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta)
+
     CaseSummary:
       type: object
       description: Compact Case projection for lists / embeds
@@ -911,12 +1489,16 @@ components:
           type: string
         caseNumber:
           type: string
-          description: Format CASE-YYYY-NNNNNN (BQ-004)
-          pattern: "^CASE-[0-9]{4}-[0-9]{6}$"
+          description: Format UNIT-YYMM-NNNN (BQ-004 / DEC-028)
+          pattern: "^[A-Z]{3}-[0-9]{4}-[0-9]{4,}$"
           examples:
-            - CASE-2026-000001
+            - TAB-2608-0001
         complaintId:
           type: string
+        complaintNumber:
+          type: string
+          nullable: true
+          description: Parent Aggregate complaint number `CM{UNIT}-YYMM-NNNN` (DEC-028).
         status:
           $ref: "#/components/schemas/CaseStatus"
         caseType:
@@ -931,13 +1513,118 @@ components:
           type:
             - string
             - "null"
-          description: Unit ownership (Mode A). Null when status=CREATED without assign.
+          description: |
+            Current Handling Unit (mutable on transfer). Null when status=CREATED
+            without assign.
+        ownerUnitId:
+          type:
+            - string
+            - "null"
+          description: |
+            F4 Owner unit — unit that created the parent Complaint; immutable
+            for the Case lifecycle.
+        escalatedToPusat:
+          type: boolean
+          default: false
+          description: |
+            DEC-029 / API-520 lab. True when this Case was escalated to Pusat.
+            Status stays Mode A (not ESCALATED — BQ-009). originating
+            owningUnitId is not overwritten (DEC-028).
+        owningUnit:
+          type: string
+          enum: [BRANCH, PUSAT]
+          default: BRANCH
+          description: Presentation ownership — PUSAT iff escalatedToPusat.
+        escalationReason:
+          type:
+            - string
+            - "null"
         customerId:
           type: string
           description: From parent Complaint (CustomerId only)
         createdAt:
           type: string
           format: date-time
+        createdBy:
+          type: string
+        handlingClaimedBy:
+          type: string
+          nullable: true
+          description: Operational handling officer (Mode A claim; not BQ-006 Assigned User).
+        handlingClaimedByName:
+          type: string
+          nullable: true
+          description: Directory display name for handlingClaimedBy (never the user id).
+        isRead:
+          type: boolean
+          nullable: true
+          description: |
+            Cabang inbox: false when the caller has an unread return / HQ-schedule
+            receipt for this Case. null when not applicable.
+        unreadReason:
+          type: string
+          nullable: true
+          description: RETURNED or HQ_SCHEDULED when isRead is false.
+
+    WorkBadgeCounts:
+      type: object
+      required: [unreadCases, pusatQueue, pusatFollowUp, hqScheduleUnread]
+      properties:
+        unreadCases:
+          type: integer
+          minimum: 0
+        pusatQueue:
+          type: integer
+          minimum: 0
+          description: Pusat Pengaduan intake not yet opened by the caller.
+        pusatFollowUp:
+          type: integer
+          minimum: 0
+          description: >
+            Pusat Tindak lanjut parents not yet opened by the caller since the
+            last accept / schedule / status movement.
+        hqScheduleUnread:
+          type: integer
+          minimum: 0
+          description: >
+            Cabang: unread HQ_SCHEDULED receipts for Cases owned by the
+            caller's unit. Pusat: always 0.
+
+    CaseAcceptance:
+      type: object
+      description: F4 Handling Unit / Owner closure acceptance record
+      required:
+        - acceptanceId
+        - party
+        - decision
+        - actorId
+        - decidedAt
+      properties:
+        acceptanceId:
+          type: string
+        party:
+          type: string
+          enum:
+            - OWNER
+            - HANDLING_UNIT
+        decision:
+          type: string
+          enum:
+            - ACCEPT
+            - REJECT
+        actorId:
+          type: string
+        actorUnitId:
+          type:
+            - string
+            - "null"
+        decidedAt:
+          type: string
+          format: date-time
+        note:
+          type:
+            - string
+            - "null"
 
     CaseResolution:
       type: object
@@ -1011,9 +1698,9 @@ components:
           type: string
         caseNumber:
           type: string
-          pattern: "^CASE-[0-9]{4}-[0-9]{6}$"
+          pattern: "^[A-Z]{3}-[0-9]{4}-[0-9]{4,}$"
           examples:
-            - CASE-2026-000001
+            - TAB-2608-0001
         complaintId:
           type: string
         customerId:
@@ -1034,7 +1721,35 @@ components:
           type:
             - string
             - "null"
-          description: Mode A Unit ownership. Assigned User is outside Mode A.
+          description: |
+            Current Handling Unit (mutable on transfer). Assigned User is outside Mode A.
+        ownerUnitId:
+          type:
+            - string
+            - "null"
+          description: |
+            F4 Owner unit snapshotted from the parent Complaint at Case creation.
+            Never changes when Handling Unit transfers.
+        escalatedToPusat:
+          type: boolean
+          default: false
+          description: |
+            DEC-029 / API-520 lab. True when this Case was escalated to Pusat.
+            Status stays Mode A (not ESCALATED — BQ-009). originating
+            owningUnitId is not overwritten (DEC-028).
+        owningUnit:
+          type: string
+          enum: [BRANCH, PUSAT]
+          default: BRANCH
+        escalationReason:
+          type:
+            - string
+            - "null"
+        escalatedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
         assignedUserId:
           type:
             - string
@@ -1079,6 +1794,14 @@ components:
           format: date-time
         createdBy:
           type: string
+        handlingClaimedBy:
+          type: string
+          nullable: true
+          description: Operational handling officer (Mode A claim; not BQ-006 Assigned User).
+        handlingClaimedByName:
+          type: string
+          nullable: true
+          description: Directory display name for handlingClaimedBy (never the user id).
         updatedAt:
           oneOf:
             - type: string
@@ -1092,6 +1815,43 @@ components:
             Informational. When first Case created on REGISTERED Complaint,
             Complaint becomes IN_PROGRESS (BR-004). Close Case does not set
             Complaint CLOSED (BQ-007).
+        handlingUnitAcceptance:
+          oneOf:
+            - $ref: "#/components/schemas/CaseAcceptance"
+            - type: "null"
+          description: Current Handling Unit acceptance pointer (F4).
+        ownerAcceptance:
+          oneOf:
+            - $ref: "#/components/schemas/CaseAcceptance"
+            - type: "null"
+          description: Current Owner acceptance pointer (F4).
+        acceptanceHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CaseAcceptance"
+          description: Append-only F4 acceptance history (immutable).
+
+    RecordAcceptanceRequest:
+      type: object
+      required:
+        - party
+        - decision
+      properties:
+        party:
+          type: string
+          enum:
+            - OWNER
+            - HANDLING_UNIT
+        decision:
+          type: string
+          enum:
+            - ACCEPT
+            - REJECT
+        note:
+          type:
+            - string
+            - "null"
+          description: Required when decision=REJECT.
 
     CreateCaseRequest:
       type: object
@@ -1128,6 +1888,16 @@ components:
         slaPolicyVersionId:
           type: string
           description: Optional explicit bind; otherwise system selects active policy. Countdown NOT activated.
+        note:
+          type: string
+          nullable: true
+          description: Optional operator note stored on the CaseCreated timeline row.
+        intakeAction:
+          type: string
+          nullable: true
+          description: >
+            Optional intake putusan for history (register, close, escalate).
+            Ignored when omitted or unknown.
 
     AddCaseRequest:
       type: object
@@ -1175,7 +1945,13 @@ components:
           description: Required when toStatus=CANCELLED (BQ-014).
         reason:
           type: string
-          description: Free-text reason when guard requires (cancel / reassign policy).
+          description: >
+            Free-text, or HANDLE_CLAIM / HANDLE_REASSIGN for operational claim
+            (not BQ-006 Assigned User).
+        handlingClaimedBy:
+          type: string
+          description: >
+            Target officer user id when reason=HANDLE_REASSIGN (Supervisor/Manager).
         assignedUserId:
           type: string
           deprecated: true
@@ -1191,10 +1967,14 @@ components:
           $ref: "#/components/schemas/ResolveAction"
         resolutionCode:
           type: string
-          description: Required for PROPOSE and ACCEPT.
+          description: |
+            Optional for PROPOSE/ACCEPT (DEC-021). When omitted, server stores
+            sentinel `BRANCH_DONE`. Explicit catalogue codes remain valid when supplied.
         summary:
           type: string
-          description: Required for PROPOSE and ACCEPT.
+          description: |
+            Optional for PROPOSE/ACCEPT (DEC-021). When omitted, server stores the
+            Comment text as summary.
         detail:
           type: string
         customerImpact:
@@ -1228,6 +2008,52 @@ components:
         note:
           type: string
           description: Optional operational note. NOT a mandatory Close checklist item.
+
+    EscalateToPusatRequest:
+      type: object
+      description: >
+        DEC-029 / API-520 lab — escalate this Case to Pusat and open the parent
+        HQ schedule door (ESCALATE_APPROVED). Sibling Cases stay at the branch.
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 20
+          description: Free-text reason; minimum 20 characters after trim.
+        proposedArrivalDate:
+          type: string
+          format: date
+          nullable: true
+          description: >
+            Optional branch-proposed HQ visit date (YYYY-MM-DD). Advisory only.
+            Must be paired with proposedArrivalTime.
+        proposedArrivalTime:
+          type: string
+          nullable: true
+          description: Optional HH:MM (24h), paired with proposedArrivalDate.
+
+    CancelEscalationToPusatRequest:
+      type: object
+      description: Mode A lab — branch cancels API-520 before Pusat claims handling.
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 20
+          description: Free-text reason; minimum 20 characters after trim.
+
+    ReturnEscalationRequest:
+      type: object
+      description: API-521 lab — Pusat returns this Case; free-text reason/note only.
+      required:
+        - returnNote
+      properties:
+        returnNote:
+          type: string
+          minLength: 10
+          description: Free-text reason/note; minimum 10 characters after trim.
 
     ProblemDetails:
       type: object

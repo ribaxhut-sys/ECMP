@@ -216,6 +216,45 @@ class Settings(BaseSettings):
     )
     email_provider: str = Field(default="logging", alias="EMAIL_PROVIDER")
 
+    # Knowledge (Pengetahuan) post-publish edit window — DEC-030.
+    # Hours after ``published_at`` during which a manager may still correct a
+    # published record (every field, files included). Once elapsed the record
+    # is fully locked; a substantive change must create a replacement.
+    knowledge_edit_grace_hours: int = Field(
+        default=24,
+        alias="KNOWLEDGE_EDIT_GRACE_HOURS",
+        ge=0,
+        le=720,
+    )
+
+    # Complaint resolution SLA target — DEC-031.
+    # Calendar days (24x7, BR-ECMF-05 / DEC-004) from complaint registration to
+    # closure. Uniform across priority/category: DEC-031 supersedes the
+    # per-priority Resolution Target column of DEC-005 / SLA-MTX-001.
+    # Set to 0 to switch SLA measurement off entirely (rollback lever).
+    complaint_resolution_target_days: int = Field(
+        default=30,
+        alias="COMPLAINT_RESOLUTION_TARGET_DAYS",
+        ge=0,
+        le=3650,
+    )
+    # Percentage of the target after which a complaint is flagged "approaching
+    # breach" (DEC-031 §2.7, carried over from DEC-005 §(b)). 80% of 30 days =
+    # day 24. Display + in-app alert only; no proactive transport (CAP-005/006).
+    complaint_sla_warning_percent: int = Field(
+        default=80,
+        alias="COMPLAINT_SLA_WARNING_PERCENT",
+        ge=1,
+        le=99,
+    )
+    # FR-030 / OPS-CM-B1-SLA-001 — max open complaints evaluated per sweep tick.
+    complaint_sla_sweep_batch_limit: int = Field(
+        default=100,
+        alias="COMPLAINT_SLA_SWEEP_BATCH_LIMIT",
+        ge=1,
+        le=10_000,
+    )
+
     # Master Customer integration (ADR-002 read-only; CM Batch 1)
     # stub = in-memory seed (default / current behavior)
     # local = lab Postgres customers reference cache (ID / name / phone)

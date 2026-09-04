@@ -1,0 +1,761 @@
+openapi: 3.0.3
+info:
+  title: ECMP Pengaduan Internal API
+  version: 1.4.0
+  description: >
+    Domain Pengaduan Internal (Unit A ↔ Unit B). Terpisah dari F4 Case Aggregate
+    (API-520…536) dan Batch-1 (API-515…519). Owner immutable; Handling Unit
+    berubah saat transfer; CLOSED hanya setelah dual acceptance. Nomor:
+    `PI-{UNIT}-{YYMM}-{NNN}` (mis. `PI-TAB-2608-001`), counter per unit per
+    bulan; lebar seq melebar otomatis di atas 999. Cabang create selalu
+    mengirim Handling ke Pusat kanonik `PUSAT` (`ASSIGNED`) — bukan sub-unit
+    `PUSAT-CRO` (itu pintu jadwal kedatangan WP). Semua login Pusat (unit
+    keluarga Pusat atau Admin) boleh `/receive` (lab/tes; **UI Internal tidak
+    menampilkan tombol klaim**). Langkah kerja antrian Pusat: kembalikan ke
+    cabang atau usulkan penyelesaian (usulan mengklaim otomatis) — **kecuali**
+    ada permintaan batal PENDING: kerja dibekukan; semua login Pusat
+    (CRO / Staff KaSatPel / KaSatPel / Admin) memutus via
+    `/withdraw-request/decision`. Agent Pusat yang memilih cabang tetap memakai
+    permintaan (`requestReason` wajib), diputus oleh Supervisor/Manager/Admin
+    via `/transfer-request/decision`.
+    Cabang boleh membatalkan selama tiket masih antrian (`WITHDRAWN`, tanpa
+    notifikasi ke Pusat — tiket itu tidak tampil di daftar/GET Pusat kecuali
+    Pusat sudah pernah menangani); setelah usulan (`IN_PROGRESS`), cabang mengajukan pembatalan dan
+    Pusat memutus via `/withdraw-request/decision`. Pusat boleh mengembalikan
+    ke cabang jika berkas kurang (`/return-for-completion`, alasan wajib) —
+    dari antrian tanpa klaim; cabang mengirim ulang via `/resend-to-pusat`.
+    Diblokir saat withdraw request PENDING. Bukan Tolak/`WITHDRAWN`. Lampiran memakai mesin
+    bersama CAPABILITY-011 (`POST/GET /api/v1/attachments`) dengan
+    `aggregateType=InternalComplaint` — bukan staging Batch-1 / FR-004.
+    Tipe yang diizinkan untuk Internal: gambar (JPEG/PNG/GIF/WebP) dan ZIP
+    utuh (tidak diekstrak di server). Snapshot PDF per tiket: API-550
+    `GET /api/v1/internal/complaints/{complaintId}/export` (bukan API-539 Case,
+    bukan laporan agregat).
+servers:
+  - url: /
+paths:
+  /api/v1/internal/complaints:
+    get:
+      operationId: listInternalComplaints
+      tags: [Internal-Complaints]
+      summary: List Pengaduan Internal (visibility-scoped)
+      description: >
+        UNIT sees owner or handling unit. PUSAT sees owner/handling Pusat,
+        except `WITHDRAWN` which is visible to Pusat only after Pusat has
+        handled (receive, return-for-completion, or approved withdraw).
+        Unilateral branch withdraw before any Pusat handling is owner-only.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: pendingTransferRequest
+          in: query
+          schema: { type: boolean }
+          description: Filter to complaints with a PENDING Agent transfer request.
+        - name: pendingWithdrawRequest
+          in: query
+          schema: { type: boolean }
+          description: Filter to complaints with a PENDING branch withdraw request.
+        - name: needsReceive
+          in: query
+          schema: { type: boolean }
+          description: >
+            Incoming queue at the caller's handling unit (CREATED or ASSIGNED).
+            Cabang: handling unit is the branch. Pusat: handling unit is a Pusat
+            unit. Tickets sent away (handling elsewhere) are excluded.
+        - name: needsAction
+          in: query
+          schema: { type: boolean }
+          description: >
+            Work waiting on the caller's unit (API-551 population): incoming
+            CREATED/ASSIGNED at handling, owner-side live PENDING_APPROVAL
+            usulan, handling-side rebound after REJECTED usulan or return
+            from close-gate (latest ACCEPTED while IN_PROGRESS), handling-side
+            PENDING withdraw, and RESOLVED close-gate. Historical PENDING
+            rows after ACCEPT do not count on the owner side.
+      responses:
+        "200":
+          description: Paginated list
+    post:
+      operationId: createInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Create Pengaduan Internal (Owner = creator unit)
+      description: >
+        Cabang create always transfers Handling to canonical `PUSAT`
+        (`ASSIGNED`); `requestReason` is not used. Sub-unit codes such as
+        `PUSAT-CRO` are collapsed to `PUSAT`. Pusat create: Supervisor/Manager
+        with `complaints:assign` → direct initial transfer. Pusat Agent-family
+        (no `complaints:assign`) + `handlingUnitId` → PENDING transfer
+        request; `requestReason` is then required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInternalComplaintRequest"
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: requestReason missing when Pusat Agent-family sets handlingUnitId
+  /api/v1/internal/complaints/inbox/pending-count:
+    get:
+      operationId: getPendingInboxCount
+      x-ear-id: API-551
+      tags: [Internal-Complaints]
+      summary: Sidebar badge — work waiting on the caller's unit
+      description: >
+        Cabang: incoming ASSIGNED (return-for-completion / transfer in),
+        live (latest) PENDING_APPROVAL usulan on tickets they own, and
+        RESOLVED close-gate.
+        Pusat: incoming CREATED/ASSIGNED at Pusat (Cabang create/resend,
+        Pusat-local), rebound after owner REJECTED usulan or kembalikan ke
+        pengerjaan, PENDING withdraw they must decide, and RESOLVED
+        close-gate. Not CAP-005. Not unread receipts — queue count, not
+        per-user read receipts. Fail-open on the client.
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: integer }
+  /api/v1/internal/complaints/transfer-requests/pending-count:
+    get:
+      operationId: getPendingTransferRequestCount
+      tags: [Internal-Complaints]
+      summary: Sidebar badge — count of PENDING Agent transfer requests (visibility-scoped)
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: integer }
+  /api/v1/internal/complaints/withdraw-requests/pending-count:
+    get:
+      operationId: getPendingWithdrawRequestCount
+      tags: [Internal-Complaints]
+      summary: Sidebar badge — count of PENDING branch withdraw requests (visibility-scoped)
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: integer }
+  /api/v1/internal/complaints/{complaintId}:
+    get:
+      operationId: getInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Get Pengaduan Internal detail + history
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InternalComplaint"
+  /api/v1/internal/complaints/export:
+    get:
+      operationId: exportInternalComplaintsReportPdf
+      tags: [Internal-Complaints]
+      summary: Download Pengaduan Internal list report PDF
+      description: >
+        Server-rendered report behind `/internal/reports` (API-553): criteria,
+        status breakdown and one line per ticket, on the operator letterhead.
+        Same visibility as the list endpoint — an operator can only print what
+        they may already read. Read-only; no status is touched. Capped at 500
+        rows; when the cap trims the tail the PDF says so and asks for a
+        narrower filter. Not a per-ticket snapshot (API-550). Not KPI.
+      x-ear-id: API-553
+      x-ecmp-logical-id: API-INT-003
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: dateFrom
+          in: query
+          description: Inclusive `YYYY-MM-DD` Asia/Jakarta calendar day.
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          description: Inclusive `YYYY-MM-DD` Asia/Jakarta calendar day.
+          schema: { type: string, format: date }
+        - name: q
+          in: query
+          description: Matches number, subject, description, owner/handling unit.
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: Operator list report PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="laporan-pengaduan-internal_{YYYYMMDD}.pdf"
+                (YYYYMMDD in Asia/Jakarta)
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Malformed or inverted period
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+  /api/v1/internal/complaints/summary:
+    get:
+      operationId: getInternalComplaintsReportSummary
+      tags: [Internal-Complaints]
+      summary: Pengaduan Internal report breakdown (counts)
+      description: >
+        Counts behind the `/internal/reports` cards (API-554): total, by status,
+        by priority and by handling unit, over the same filtered and visible
+        population the list endpoint would return. Counted in the database, so
+        the cards stay correct when the client holds only a page of rows.
+      x-ear-id: API-554
+      x-ecmp-logical-id: API-INT-004
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          description: Report breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/InternalComplaintReportSummary"
+        "400":
+          description: Malformed or inverted period
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+  /api/v1/internal/complaints/{complaintId}/export:
+    get:
+      operationId: exportInternalComplaintPdf
+      tags: [Internal-Complaints]
+      summary: Download Pengaduan Internal snapshot PDF
+      description: >
+        Server-rendered snapshot of **this** Pengaduan Internal ticket (API-550).
+        Same authorization and visibility as GET detail. Does not mutate status.
+        Attachment bytes are not embedded — the PDF lists a filename manifest.
+        Cabang and Pusat callers who may view the ticket may download.
+        Not customer-safe. Not KPI/reporting. Not API-539 Case snapshot.
+      x-ear-id: API-550
+      x-ecmp-logical-id: API-INT-001
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Operator snapshot PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="{complaintNumber}_{YYYYMMDD}.pdf"
+                (YYYYMMDD in Asia/Jakarta)
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Not visible to caller (same floor as GET)
+  /api/v1/internal/complaints/{complaintId}/transfer:
+    post:
+      operationId: transferInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Transfer Handling Unit (Owner unchanged)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferRequest"
+      responses:
+        "200":
+          description: Transferred
+  /api/v1/internal/complaints/{complaintId}/transfer-request:
+    post:
+      operationId: requestInternalTransfer
+      tags: [Internal-Complaints]
+      summary: Agent-family — (re-)submit a transfer request (first submit, or after REJECTED)
+      description: >
+        Same permission as create (`complaints:create`, Agent-family). Reuses
+        the append-only history for REQUEST/APPROVE/REJECT events; a rejected
+        request may be re-submitted ("boleh ajukan ulang") after the reason
+        is addressed.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestTransferRequest"
+      responses:
+        "200":
+          description: Request submitted (status PENDING)
+  /api/v1/internal/complaints/{complaintId}/transfer-request/decision:
+    post:
+      operationId: decideInternalTransferRequest
+      tags: [Internal-Complaints]
+      summary: Supervisor / Manager / Admin decides a PENDING transfer request
+      description: >
+        Requires `internal:escalate-decide` (not held by Agent or by
+        `complaints:escalate`/`complaints:assign` alone). APPROVE performs the
+        transfer immediately (same XOR direction rule as `/transfer`). REJECT
+        requires `reason` and leaves the complaint local at CREATED.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecideTransferRequestRequest"
+      responses:
+        "200":
+          description: Decided
+        "403":
+          description: Missing internal:escalate-decide
+        "409":
+          description: No PENDING transfer request to decide
+  /api/v1/internal/complaints/{complaintId}/receive:
+    post:
+      operationId: receiveInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Lab/API claim (→ IN_PROGRESS); not shown in Mode A UI
+      description: >
+        Optional claim. Mode A UI does not expose this button. PROPOSE from
+        CREATED/ASSIGNED auto-claims; return-for-completion does not claim.
+        Cabang: only the handling branch. Pusat: any Pusat login (PUSAT family
+        or Admin). Canonical handling code is `PUSAT` (not `PUSAT-CRO`).
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Received
+  /api/v1/internal/complaints/{complaintId}/return-for-completion:
+    post:
+      operationId: returnInternalComplaintForCompletion
+      tags: [Internal-Complaints]
+      summary: Pusat returns ticket to branch — documents incomplete (not WITHDRAWN)
+      description: >
+        Handling Unit (Pusat) returns Handling to the owner branch because
+        attachments or information are incomplete. Allowed in ASSIGNED
+        (before a propose auto-claim) or IN_PROGRESS (after propose / lab
+        `/receive`). Reason required.
+        Status stays ASSIGNED at the owner unit; completionRequestStatus
+        becomes PENDING. Ticket remains alive. Branch then uses
+        `/resend-to-pusat`.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnForCompletionRequest"
+      responses:
+        "200":
+          description: Returned to owner unit (ASSIGNED, PENDING completion)
+        "409":
+          description: Not a branch→Pusat ticket, or already awaiting completion
+  /api/v1/internal/complaints/{complaintId}/resend-to-pusat:
+    post:
+      operationId: resendInternalComplaintToPusat
+      tags: [Internal-Complaints]
+      summary: Branch resends to Pusat after completing documents
+      description: >
+        Owner-unit actor only, while completionRequestStatus is PENDING
+        and Handling is back at the owner. `note` is required (what was
+        completed). Moves Handling to Pusat (ASSIGNED) so Pusat can Receive
+        again.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendToPusatRequest"
+      responses:
+        "200":
+          description: Resent to Pusat (ASSIGNED)
+        "409":
+          description: Not awaiting completion
+  /api/v1/internal/complaints/{complaintId}/withdraw:
+    post:
+      operationId: withdrawInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Branch cancels before Pusat receives (→ WITHDRAWN, no Pusat notify)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawRequest"
+      responses:
+        "200":
+          description: Withdrawn
+  /api/v1/internal/complaints/{complaintId}/withdraw-request:
+    post:
+      operationId: requestInternalWithdraw
+      tags: [Internal-Complaints]
+      summary: After Pusat received — branch asks Pusat to withdraw (work at HQ frozen)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawRequest"
+      responses:
+        "200":
+          description: Request submitted (status PENDING)
+  /api/v1/internal/complaints/{complaintId}/withdraw-request/decision:
+    post:
+      operationId: decideInternalWithdrawRequest
+      tags: [Internal-Complaints]
+      summary: Any Pusat login (CRO / Staff KaSatPel / KaSatPel / Admin) decides a PENDING withdraw request
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecideWithdrawRequestRequest"
+      responses:
+        "200":
+          description: Decided
+  /api/v1/internal/complaints/{complaintId}/status:
+    patch:
+      operationId: updateInternalComplaintStatus
+      tags: [Internal-Complaints]
+      summary: Status transition (ASSIGNED / IN_PROGRESS)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated
+  /api/v1/internal/complaints/{complaintId}/resolve:
+    post:
+      operationId: resolveInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Propose / accept / reject resolution
+      description: >
+        PROPOSE = handling unit only; CREATED/ASSIGNED auto-claims (receive)
+        then stays IN_PROGRESS with PENDING_APPROVAL. ACCEPT/REJECT = owner
+        unit only and require a pending proposal; the proposer cannot decide
+        their own proposal. ACCEPT without a pending proposal is rejected.
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveInternalComplaintRequest"
+      responses:
+        "200":
+          description: Resolved or proposal recorded
+        "409":
+          description: >
+            RESOLUTION_PROPOSAL_REQUIRED, RESOLUTION_SELF_DECISION_NOT_ALLOWED,
+            RESOLUTION_OWNER_UNIT_REQUIRED, or RESOLUTION_HANDLING_UNIT_REQUIRED
+  /api/v1/internal/complaints/{complaintId}/acceptance:
+    post:
+      operationId: recordInternalAcceptance
+      tags: [Internal-Complaints]
+      summary: Handling Unit / Owner acceptance (dual gate → CLOSED)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Acceptance recorded
+  /api/v1/internal/complaints/{complaintId}/close:
+    post:
+      operationId: closeInternalComplaint
+      tags: [Internal-Complaints]
+      summary: Compatibility close (still requires dual acceptance)
+      parameters:
+        - name: complaintId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Closed or conflict if dual acceptance incomplete
+components:
+  schemas:
+    InternalCountBucket:
+      type: object
+      required: [key, count]
+      properties:
+        key:
+          type: string
+          description: Status / priority / handling-unit code the count belongs to.
+        count: { type: integer }
+    InternalComplaintReportSummary:
+      type: object
+      required: [totalItems, byStatus, byPriority, byHandlingUnit]
+      properties:
+        totalItems: { type: integer }
+        byStatus:
+          type: array
+          items: { $ref: "#/components/schemas/InternalCountBucket" }
+        byPriority:
+          type: array
+          items: { $ref: "#/components/schemas/InternalCountBucket" }
+        byHandlingUnit:
+          type: array
+          items: { $ref: "#/components/schemas/InternalCountBucket" }
+    CreateInternalComplaintRequest:
+      type: object
+      required: [subject, description, category]
+      properties:
+        subject: { type: string }
+        description: { type: string }
+        category: { type: string }
+        priority: { type: string, default: MEDIUM }
+        subcategory: { type: string, nullable: true, description: Legacy free-text; ignored on create }
+        chronology: { type: string, nullable: true }
+        impact: { type: string, nullable: true }
+        relatedComplaintId:
+          type: string
+          nullable: true
+          description: Optional Batch-1 Aggregate id or number; server validates and snapshots number
+        relatedComplaintNumber:
+          type: string
+          nullable: true
+          description: Ignored on create — server snapshots from Aggregate DB
+        handlingUnitId:
+          type: string
+          nullable: true
+          description: >
+            Cabang create always goes to canonical PUSAT (not PUSAT-CRO).
+            Pusat create: direct transfer under complaints:assign; Pusat Agent
+            becomes a pending request.
+        requestReason:
+          type: string
+          nullable: true
+          description: Required when a Pusat Agent sets handlingUnitId
+        ownerUnitId:
+          type: string
+          nullable: true
+          description: Ignored — Owner is always the creator unit
+    InternalComplaintSummary:
+      type: object
+      properties:
+        complaintId: { type: string }
+        complaintNumber: { type: string }
+        status: { type: string }
+        subject: { type: string }
+        category: { type: string, nullable: true }
+        priority: { type: string, nullable: true }
+        ownerUnitId: { type: string }
+        handlingUnitId: { type: string }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        createdByName: { type: string, nullable: true }
+        relatedComplaintId: { type: string, nullable: true }
+        relatedComplaintNumber: { type: string, nullable: true }
+        transferRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING, APPROVED, REJECTED]
+        withdrawRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING, APPROVED, REJECTED]
+        completionRequestStatus:
+          type: string
+          nullable: true
+          enum: [PENDING]
+          description: PENDING = Pusat asked the branch to complete documents
+        resolutionStatus:
+          type: string
+          nullable: true
+          description: Latest resolution proposal status (e.g. PENDING_APPROVAL)
+    InternalComplaint:
+      type: object
+      properties:
+        complaintId: { type: string }
+        complaintNumber: { type: string }
+        status: { type: string }
+        closedBy: { type: string, nullable: true }
+        closedByName:
+          type: string
+          nullable: true
+          description: Directory display name for closedBy; null if unresolved
+        closedAt: { type: string, format: date-time, nullable: true }
+        createdBy: { type: string }
+        createdByName: { type: string, nullable: true }
+    TransferRequest:
+      type: object
+      required: [destinationUnitId]
+      properties:
+        destinationUnitId: { type: string }
+        reason: { type: string, nullable: true }
+    RequestTransferRequest:
+      type: object
+      required: [destinationUnitId, reason]
+      properties:
+        destinationUnitId: { type: string }
+        reason: { type: string, minLength: 1 }
+    DecideTransferRequestRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        reason:
+          type: string
+          nullable: true
+          description: Required when decision=REJECT
+    WithdrawRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+    ReturnForCompletionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: What is missing (documents, data, attachments)
+    ResendToPusatRequest:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          minLength: 1
+          description: Required — what the branch completed
+    DecideWithdrawRequestRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [APPROVE, REJECT] }
+        reason:
+          type: string
+          nullable: true
+          description: Required when decision=REJECT
+    ResolveInternalComplaintRequest:
+      type: object
+      required: [action, comment]
+      properties:
+        action: { type: string, enum: [PROPOSE, ACCEPT, REJECT] }
+        comment:
+          type: string
+          description: Required for PROPOSE; ACCEPT may reuse the pending comment
+        summary:
+          type: string
+          nullable: true
+          description: Required for PROPOSE; ACCEPT copies the pending summary
+        resolutionCode: { type: string, nullable: true }
+        detail: { type: string, nullable: true }
+        rejectionReason:
+          type: string
+          nullable: true
+          description: Required when action=REJECT

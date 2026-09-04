@@ -283,6 +283,8 @@ def test_router_handlers_call_service() -> None:
             service=svc,
             batch1=batch1,
             principal=principal,
+            session=MagicMock(),
+            settings=MagicMock(),
             aggregate_type="Complaint",
             aggregate_id=entity.aggregate_id,
             file=upload_file,
@@ -290,8 +292,20 @@ def test_router_handlers_call_service() -> None:
     )
     assert created.data.id == entity.id
 
-    assert get_attachment(entity.id, svc, batch1, principal).data.id == entity.id
-    listed = list_attachments(svc, principal)
+    assert (
+        get_attachment(
+            entity.id,
+            svc,
+            batch1,
+            principal,
+            session=MagicMock(),
+            settings=MagicMock(),
+        ).data.id
+        == entity.id
+    )
+    listed = list_attachments(
+        svc, principal, session=MagicMock(), settings=MagicMock()
+    )
     assert listed.meta.total_items == 1
     dl = download_attachment(
         entity.id, svc, batch1, principal, session=MagicMock(), settings=MagicMock()
@@ -308,6 +322,7 @@ def test_router_handlers_call_service() -> None:
             batch1,
             session=MagicMock(),
             principal=principal,
+            settings=MagicMock(),
         )
         assert complaint_listed.meta.total_items == 1
 
@@ -315,7 +330,13 @@ def test_router_handlers_call_service() -> None:
     session = MagicMock()
     with patch("app.modules.attachment.router.write_audit") as audit:
         result = delete_attachment(
-            entity.id, request, session, svc, batch1, principal
+            entity.id,
+            request,
+            session,
+            svc,
+            batch1,
+            principal,
+            settings=MagicMock(),
         )
         assert result.status_code == 204
         audit.assert_called_once()

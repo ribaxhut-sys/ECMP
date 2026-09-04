@@ -21,8 +21,22 @@ export function cmCasePaths() {
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/status`,
     resolve: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/resolve`,
+    acceptance: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/acceptance`,
     close: (caseId: string) =>
       `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/close`,
+    escalateToPusat: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/escalate-to-pusat`,
+    cancelEscalationToPusat: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/cancel-escalation-to-pusat`,
+    returnEscalation: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/return-escalation`,
+    history: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/history`,
+    exportPdf: (caseId: string) =>
+      `${CM_CASE_BASE}/cases/${encodeURIComponent(caseId)}/export`,
+    workBadges: `${CM_CASE_BASE}/work-badges`,
+    hqScheduleSeen: `${CM_CASE_BASE}/work-badges/hq-schedule-seen`,
   } as const;
 }
 

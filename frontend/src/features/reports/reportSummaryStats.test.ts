@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  branchPerformanceRows,
-  highestQueueBranch,
+  escalationTotal,
   operationalHealthFromRate,
   reportHeadlineCounts,
   resolutionBuckets,
+  resolutionMixRows,
   resolutionRatePercent,
 } from "./reportSummaryStats";
 
@@ -14,15 +14,14 @@ describe("reportHeadlineCounts", () => {
     expect(reportHeadlineCounts(undefined)).toBeNull();
   });
 
-  it("splits open vs resolved/closed", () => {
+  it("splits open vs closed on Aggregate statuses", () => {
     expect(
       reportHeadlineCounts({
         total: 10,
         byStatus: [
-          { status: "NEW", count: 2 },
+          { status: "REGISTERED", count: 2 },
           { status: "IN_PROGRESS", count: 3 },
-          { status: "RESOLVED", count: 4 },
-          { status: "CLOSED", count: 1 },
+          { status: "CLOSED", count: 5 },
         ],
       }),
     ).toEqual({ total: 10, open: 5, closed: 5 });
@@ -48,72 +47,77 @@ describe("resolutionBuckets", () => {
     expect(resolutionBuckets([])).toBeNull();
   });
 
-  it("groups waiting, escalated, and resolved", () => {
+  it("groups waiting, escalated, and closed into mutually exclusive slices", () => {
     expect(
       resolutionBuckets([
-        { status: "NEW", count: 1 },
-        { status: "ASSIGNED", count: 2 },
-        { status: "PENDING", count: 1 },
+        { status: "waitingAssignment", count: 1 },
+        { status: "escalateApproved", count: 2 },
+        { status: "escalateScheduled", count: 1 },
         { status: "IN_PROGRESS", count: 3 },
-        { status: "ESCALATED", count: 4 },
-        { status: "RESOLVED", count: 5 },
-        { status: "CLOSED", count: 2 },
+        { status: "escalatePending", count: 4 },
+        { status: "CLOSED", count: 7 },
       ]),
     ).toEqual({
       resolved: 7,
-      waiting: 4,
+      waiting: 1,
       escalated: 4,
+      escalationApproved: 2,
+      escalationScheduled: 1,
       inProgress: 3,
     });
   });
 });
 
-describe("branchPerformanceRows", () => {
-  it("ranks top / middle / lowest by volume", () => {
-    const rows = branchPerformanceRows([
-      {
-        branchId: "b1",
-        branchCode: "JKT",
-        branchName: "Jakarta",
-        total: 10,
-      },
-      {
-        branchId: "b2",
-        branchCode: "BDG",
-        branchName: "Bandung",
-        total: 7,
-      },
-      {
-        branchId: "b3",
-        branchCode: "SBY",
-        branchName: "Surabaya",
-        total: 4,
-      },
-    ]);
+describe("resolutionMixRows", () => {
+  it("returns nothing when the window has no work", () => {
+    expect(
+      resolutionMixRows({
+        resolved: 0,
+        waiting: 0,
+        escalated: 0,
+        escalationApproved: 0,
+        escalationScheduled: 0,
+        inProgress: 0,
+      }),
+    ).toEqual([]);
+  });
 
-    expect(rows).toEqual([
-      {
-        key: "b1",
-        name: "Jakarta",
-        total: 10,
-        share: 100,
-        rank: "top",
-      },
-      {
-        key: "b2",
-        name: "Bandung",
-        total: 7,
-        share: 70,
-        rank: "middle",
-      },
-      {
-        key: "b3",
-        name: "Surabaya",
-        total: 4,
-        share: 40,
-        rank: "lowest",
-      },
+  it("keeps shares summing to 100", () => {
+    const rows = resolutionMixRows({
+      resolved: 7,
+      waiting: 1,
+      escalated: 4,
+      escalationApproved: 2,
+      escalationScheduled: 1,
+      inProgress: 3,
+    });
+    expect(rows.map((row) => row.key)).toEqual([
+      "resolved",
+      "inProgress",
+      "waiting",
+      "escalated",
     ]);
+    expect(rows.reduce((sum, row) => sum + row.share, 0)).toBe(100);
+    expect(rows.find((row) => row.key === "escalated")?.count).toBe(7);
+  });
+});
+
+describe("escalationTotal", () => {
+  it("sums pending, approved, and HQ-scheduled escalations", () => {
+    expect(
+      escalationTotal({
+        resolved: 0,
+        waiting: 0,
+        escalated: 3,
+        escalationApproved: 2,
+        escalationScheduled: 3,
+        inProgress: 0,
+      }),
+    ).toBe(8);
+  });
+
+  it("returns 0 for null buckets", () => {
+    expect(escalationTotal(null)).toBe(0);
   });
 });
 
@@ -126,23 +130,3 @@ describe("operationalHealthFromRate", () => {
   });
 });
 
-describe("highestQueueBranch", () => {
-  it("returns the busiest branch", () => {
-    expect(
-      highestQueueBranch([
-        {
-          branchId: "b1",
-          branchCode: "JKT",
-          branchName: "Jakarta",
-          total: 3,
-        },
-        {
-          branchId: "b2",
-          branchCode: "BDG",
-          branchName: "Bandung",
-          total: 9,
-        },
-      ])?.branchName,
-    ).toBe("Bandung");
-  });
-});

@@ -9,6 +9,27 @@ export type ComplaintStatus =
   | "RESOLVED"
   | "CLOSED";
 
+/** CM Aggregate lifecycle on API-210 / API-211 (DEC-025 §3.3). */
+export type AggregateComplaintStatus =
+  | "REGISTERED"
+  | "IN_PROGRESS"
+  | "CLOSED";
+
+/**
+ * Donut / report-card slices from aggregate-kpis.
+ * IN_PROGRESS and CLOSED are real Aggregate statuses; the others are
+ * operational slices (not Foundation NEW/ASSIGNED/PENDING/ESCALATED).
+ */
+export type OperationalKpiSlice =
+  | "waitingAssignment"
+  | "escalatePending"
+  | "escalateApproved"
+  | "escalateScheduled"
+  | "IN_PROGRESS"
+  | "CLOSED";
+
+export type StatusCountStatus = AggregateComplaintStatus | OperationalKpiSlice;
+
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export type ResolutionCategory =
@@ -48,21 +69,70 @@ export interface ListResponse<T> {
 }
 
 export interface StatusCount {
-  status: ComplaintStatus;
+  status: StatusCountStatus;
   count: number;
+  /** Dashboard i18n key — do not fall back to Foundation status.NEW = "Baru". */
+  labelKey?: string;
+}
+
+/** GET /api/v1/reports/cycle-time — how long closed cases took, in days. */
+export interface CycleTimeBucket {
+  key: string;
+  count: number;
+}
+
+export interface CycleTimeSummary {
+  closedCases: number;
+  averageDays: number | null;
+  medianDays: number | null;
+  p90Days: number | null;
+  fastestDays: number | null;
+  slowestDays: number | null;
+  buckets: CycleTimeBucket[];
+}
+
+/** GET /api/v1/reports/by-user — one operator's work in the report window. */
+export interface UserActivityCount {
+  userId: string;
+  displayName: string;
+  username: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  createdCount: number;
+  decidedCount: number;
+  closedCount: number;
+  activityCount: number;
+  lastActivityAt: string | null;
 }
 
 export interface BranchCount {
   branchId: string | null;
   branchCode: string | null;
   branchName: string | null;
+  /** Stable 3-letter unit code, embedded in the complaint number (e.g. "TAB" in CMTAB-2608-0001). */
+  unitCode: string | null;
   total: number;
+  open: number;
+  closed: number;
+  /** Complaints on the active escalation path, including HQ_SCHEDULED. */
+  escalated: number;
+  caseTotal: number;
+  caseOpen: number;
+  caseClosed: number;
 }
 
 export interface ReportSummary {
   total: number;
   byStatus: StatusCount[];
 }
+
+/** GET /api/v1/reports/print — which slice of the window the PDF covers. */
+export type ReportPrintCategory =
+  | "all"
+  | "created"
+  | "resolved"
+  | "escalated"
+  | "other";
 
 /** API-318 KPI Foundation summary (live aggregates; never persisted). */
 export interface ComplaintKpiCounts {
@@ -128,12 +198,110 @@ export interface DashboardRecentActivityItem {
   complaintNumber: string;
   timestamp: string;
   actor: string;
+  caseNumber?: string | null;
 }
 
 export interface DashboardSummary {
   header: DashboardHeader;
   sla: DashboardSlaSummary;
   recentActivity: DashboardRecentActivityItem[];
+}
+
+/** DEC-031 — 30 calendar-day resolution SLA status of one complaint. */
+export type ComplaintSlaStatus = "ON_TRACK" | "OVERDUE" | "MET" | "MISSED";
+
+/**
+ * DEC-031 resolution SLA. Every value is computed server-side at read time —
+ * never recomputed from the browser clock.
+ */
+export interface ComplaintSla {
+  status: ComplaintSlaStatus;
+  targetDays: number;
+  dueAt: string;
+  elapsedDays: number;
+  remainingDays: number | null;
+  overdueDays: number | null;
+  /** Open and past the warning threshold, not yet overdue. */
+  isWarning: boolean;
+}
+
+/**
+ * DEC-031 dashboard rollup. The six counts partition every complaint in
+ * scope, so they always sum to the total.
+ */
+export interface DashboardResolutionSla {
+  targetDays: number;
+  onTrack: number;
+  warning: number;
+  overdue: number;
+  met: number;
+  missed: number;
+  /** Closed without a stamped closure time — excluded from compliance. */
+  unknown: number;
+  /** met / (met + missed); null until something has settled. */
+  compliancePercentage: number | null;
+}
+
+/** GET /api/v1/dashboard/aggregate-kpis — CM Aggregate complaint KPIs (DEC-026). */
+export interface DashboardAggregateKpis {
+  total: number;
+  open: number;
+  closed: number;
+  escalatePending: number;
+  waitingAssignment: number;
+  escalateApproved: number;
+  /** HQ visit already scheduled — still on the escalation path. */
+  escalateScheduled: number;
+  /**
+   * Open and already accepted by Pusat (`hq_accepted_at` or HQ_SCHEDULED).
+   * Cabang dashboard drops these from its work book; Pusat keeps them.
+   */
+  hqAcceptedOpen?: number;
+  /**
+   * Open and returned to the branch (`RETURNED_TO_BRANCH`). Cabang queue
+   * health shows this as its own work row; not a donut slice.
+   */
+  returnedToBranch?: number;
+  inProgress: number;
+  /** DEC-031 rollup; null when SLA measurement is switched off. */
+  sla?: DashboardResolutionSla | null;
+}
+
+/** DEC-031 — one complaint approaching or past its resolution target. */
+export interface ComplaintSlaAlertItem {
+  complaintId: string;
+  complaintNumber: string;
+  subject: string | null;
+  owningUnitId: string | null;
+  priority: string | null;
+  dueAt: string;
+  elapsedDays: number;
+  remainingDays: number | null;
+  overdueDays: number | null;
+  /** true = past the target; false = approaching it. */
+  isOverdue: boolean;
+}
+
+/**
+ * GET /api/v1/dashboard/sla-alerts. Counts cover the whole scope even when
+ * `items` is truncated, so a badge never under-reports.
+ */
+export interface ComplaintSlaAlerts {
+  targetDays: number;
+  overdueCount: number;
+  warningCount: number;
+  items: ComplaintSlaAlertItem[];
+}
+
+/** API-393 daily complaint trend from CM Aggregate (DEC-026). */
+export interface DashboardTrendItem {
+  date: string;
+  count: number;
+}
+
+export interface DashboardTrends {
+  period: string;
+  items: DashboardTrendItem[];
 }
 
 /** API-320–322 System Settings (TASK-028). */
@@ -164,7 +332,13 @@ export interface SettingUpdateRequest {
 }
 
 /** API-324 attachment metadata (TASK-029 / TASK-032 viewer). */
-export type AttachmentAggregateType = "Complaint" | "Queue" | "Notification";
+export type AttachmentAggregateType =
+  | "Complaint"
+  | "Queue"
+  | "Notification"
+  | "Announcement"
+  | "Knowledge"
+  | "InternalComplaint";
 export type AttachmentStatus =
   | "UPLOADED"
   | "AVAILABLE"
@@ -682,4 +856,211 @@ export interface AdminResetPasswordResponse {
   temporaryPassword: string;
   forcePasswordChange: boolean;
   message: string;
+}
+
+// --- Announcements (Pengumuman) ---
+
+export type AnnouncementPriority = "NORMAL" | "IMPORTANT";
+export type AnnouncementStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+/** Derived, read-only — never stored. SCHEDULED = PUBLISHED with future startAt;
+ * EXPIRED = PUBLISHED whose endAt has elapsed. */
+export type AnnouncementEffectiveStatus =
+  | AnnouncementStatus
+  | "EXPIRED"
+  | "SCHEDULED";
+
+/**
+ * IMMEDIATE = visible as soon as uploaded, even while the announcement is
+ * still DRAFT. PUBLISHED (default, safest) = follows the announcement's own
+ * status — only visible once the announcement is PUBLISHED.
+ */
+export type AnnouncementAttachmentVisibility = "IMMEDIATE" | "PUBLISHED";
+
+/** Attachment as seen through an announcement — `id` is the underlying
+ * platform attachment id, so /api/v1/attachments/{id}/... routes work
+ * unchanged (download, preview). */
+export interface AnnouncementAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  visibility: AnnouncementAttachmentVisibility;
+  createdAt: string;
+}
+
+/** Reusable announcement-domain file for the link picker / catalog. */
+export interface AnnouncementAttachmentLibraryItem {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  accessLevel: "PUBLIC" | "PRIVATE";
+  uploadedOrgUnitId: string | null;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
+  usageCount: number;
+  /** Pinned by the caller — presentation only, scoped per user. */
+  pinned: boolean;
+}
+
+export interface AnnouncementAttachmentLinkRequest {
+  attachmentId: string;
+  visibility: AnnouncementAttachmentVisibility;
+}
+
+export interface AnnouncementAttachmentAccessUpdateRequest {
+  accessLevel: "PUBLIC" | "PRIVATE";
+}
+
+export interface Announcement {
+  id: string;
+  /** Human reference — PGM-YYMM-NNNN; allocated at create. */
+  referenceNumber: string;
+  title: string;
+  body: string;
+  priority: AnnouncementPriority;
+  status: AnnouncementStatus;
+  effectiveStatus: AnnouncementEffectiveStatus;
+  startAt: string | null;
+  endAt: string | null;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedAt: string;
+  /** Already filtered per-caller by the backend — never filter again in FE. */
+  attachments: AnnouncementAttachment[];
+  attachmentCount: number;
+  /** Reader lists only — null on the management list. */
+  isRead?: boolean | null;
+}
+
+export interface AnnouncementCreateRequest {
+  title: string;
+  body: string;
+  priority: AnnouncementPriority;
+  endAt?: string | null;
+}
+
+/** Optional publish body — omit / null startAt = publish now. */
+export interface AnnouncementPublishRequest {
+  startAt?: string | null;
+}
+
+/** Update may include startAt to reschedule; omit to leave schedule unchanged. */
+export interface AnnouncementUpdateRequest extends AnnouncementCreateRequest {
+  startAt?: string | null;
+}
+
+// --- Knowledge (Pengetahuan) ---
+
+export type KnowledgeType =
+  | "SOP"
+  | "PERATURAN"
+  | "SURAT_EDARAN"
+  | "KEPUTUSAN"
+  | "PANDUAN";
+export type KnowledgeStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type KnowledgeFileRole = "PRIMARY" | "SUPPORTING";
+
+/** File as seen through a Knowledge record — `id` is the underlying platform
+ * attachment id, so /api/v1/attachments/{id}/... routes work unchanged
+ * (download, preview). */
+export interface KnowledgeFile {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  role: KnowledgeFileRole;
+  createdAt: string;
+}
+
+export interface Knowledge {
+  id: string;
+  title: string;
+  knowledgeType: KnowledgeType;
+  status: KnowledgeStatus;
+  documentNumber: string | null;
+  summary: string | null;
+  versionLabel: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  ownerOrgUnitId: string | null;
+  publishedAt: string | null;
+  publishedBy: string | null;
+  supersedesKnowledgeId: string | null;
+  supersedesTitle: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedAt: string;
+  /** Post-publish edit window (DEC-030) — server-computed from `publishedAt`;
+   * never derive this from the client clock. `editableUntil` is null when
+   * DRAFT (no deadline) or already locked — read `editable` to tell those
+   * two apart. */
+  editable: boolean;
+  editableUntil: string | null;
+  /** Already access-filtered per-caller by the backend — never filter again in FE. */
+  files: KnowledgeFile[];
+  /** Pinned by the caller — presentation only, scoped per user. */
+  pinned: boolean;
+}
+
+export interface KnowledgeCreateRequest {
+  title: string;
+  knowledgeType: KnowledgeType;
+  documentNumber?: string | null;
+  summary?: string | null;
+  versionLabel?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  supersedesKnowledgeId?: string | null;
+}
+
+export interface KnowledgeUpdateRequest {
+  title: string;
+  knowledgeType: KnowledgeType;
+  documentNumber?: string | null;
+  summary?: string | null;
+  versionLabel?: string | null;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+}
+
+export interface KnowledgeSearchParams {
+  q?: string;
+  type?: KnowledgeType;
+  status?: KnowledgeStatus;
+  /** `@` Knowledge Reference (Complaint Resolution) — always ACTIVE + within
+   * the effective window, even for a knowledge:manage caller. */
+  referenceOnly?: boolean;
+  /** Max rows (referenceOnly is capped at 10 on the server). */
+  limit?: number;
+}
+
+/** Citable (ACTIVE + in-window) counts for the `@` type picker. */
+export type KnowledgeTypeCounts = Record<KnowledgeType, number>;
+
+/** One row of the generic platform audit log, scoped to a Knowledge record
+ * (entityType="Knowledge"). ``oldValues``/``newValues`` carry only the
+ * fields that actually changed — see KnowledgeService._log. */
+export interface KnowledgeHistoryEntry {
+  id: string;
+  /** "KnowledgeCreated" | "KnowledgeUpdated" | "KnowledgePublished" |
+   * "KnowledgeArchived" | "KnowledgeUnarchived" | "KnowledgeDeleted" |
+   * "KnowledgeFileUploaded" | "KnowledgeFileReplaced" |
+   * "KnowledgeFilePrimaryChanged" | "KnowledgeFileRemoved" */
+  eventType: string;
+  action: "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "EXPORT" | "IMPORT";
+  actorId: string | null;
+  actorName: string | null;
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  /** DEC-030: `{ postPublish: true, statusAtChange, editableUntil }` set on
+   * any change made after publication — lets the UI flag entries made in
+   * the post-publish grace window. Null on a DRAFT-time change. */
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
 }

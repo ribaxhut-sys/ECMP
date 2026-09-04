@@ -5,11 +5,23 @@ Production path uses :class:`CmBatch1Repository` (SQLAlchemy).
 
 from __future__ import annotations
 
-import itertools
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from threading import Lock
 
+from app.core.authorization.visibility import (
+    DEFAULT_PUSAT_UNIT_CODES,
+    complaint_visible_for_pusat,
+)
+from app.modules.cm_batch1.complaint_number import (
+    counter_name as complaint_counter_name,
+)
+from app.modules.cm_batch1.complaint_number import (
+    next_complaint_number as format_next_complaint_number,
+)
+from app.modules.cm_batch1.complaint_number import (
+    resolve_unit_code,
+)
 from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
     DuplicateDecisionRecord,
@@ -17,6 +29,14 @@ from app.modules.cm_batch1.entities import (
     LaterReviewWorkItem,
 )
 from app.modules.cm_batch1.exceptions import ReplayConflict
+from app.modules.cm_batch1.predicates import (
+    AGGREGATE_STATUSES,
+    LIST_INTAKE_DISPOSITION_FILTERS,
+    in_escalation_family,
+    is_open,
+    matches_intake_disposition_filter,
+)
+from app.modules.cm_batch1.sla import apply_complaint_status
 
 
 class Batch1Store:
@@ -31,7 +51,7 @@ class Batch1Store:
         self._confirmed: dict[str, str] = {}
         self._decisions: list[DuplicateDecisionRecord] = []
         self._later_reviews: list[LaterReviewWorkItem] = []
-        self._seq = itertools.count(1)
+        self._counters: dict[str, int] = {}
         self.force_degraded: bool = False
 
     def reset(self) -> None:
@@ -43,7 +63,7 @@ class Batch1Store:
             self._confirmed.clear()
             self._decisions.clear()
             self._later_reviews.clear()
-            self._seq = itertools.count(1)
+            self._counters.clear()
             self.force_degraded = False
 
     def commit(self) -> None:
@@ -185,6 +205,10 @@ class Batch1Store:
         channel_message_id: str | None,
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
+        owning_unit_id: str | None = None,
+        proposed_arrival_date: date | None = None,
+        proposed_arrival_time: str | None = None,
+        proposed_by: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         with self._lock:
             by_req_rec = self._idempotency.get(request_id)
@@ -245,9 +269,18 @@ class Batch1Store:
                 )
                 return by_ch, False
 
-            n = next(self._seq)
+            now = datetime.now(UTC)
+            unit = (owning_unit_id or "").strip() or None
+            unit_code = resolve_unit_code(unit)
+            key = complaint_counter_name(
+                unit_code, year=now.year, month=now.month
+            )
+            n = self._counters.get(key, 0) + 1
+            self._counters[key] = n
             complaint_id = str(uuid.uuid4())
-            complaint_number = f"CM-{n:08d}"
+            complaint_number = format_next_complaint_number(
+                owning_unit_id=unit_code, sequence=n, at=now
+            )
             initial_status = (status or "REGISTERED").strip().upper() or "REGISTERED"
             if initial_status not in {"REGISTERED", "CLOSED"}:
                 initial_status = "REGISTERED"
@@ -262,9 +295,15 @@ class Batch1Store:
                 description=description,
                 priority=priority,
                 status=initial_status,
+                closed_at=now if initial_status == "CLOSED" else None,
                 intake_disposition=disposition,
+                owning_unit_id=unit,
                 created_by=created_by,
                 case_created=False,
+                proposed_arrival_date=proposed_arrival_date,
+                proposed_arrival_time=proposed_arrival_time,
+                proposed_by=proposed_by if proposed_arrival_date else None,
+                proposed_at=now if proposed_arrival_date else None,
             )
             self._complaints[complaint_id] = row
             self._by_number[complaint_number] = complaint_id
@@ -408,6 +447,10 @@ class Batch1Store:
         complaint_id: str,
         *,
         intake_disposition: str,
+        description: str | None = None,
+        priority: str | None = None,
+        decided_by: str | None = None,
+        clear_proposed: bool = False,
     ) -> ComplaintAggregate | None:
         with self._lock:
             row = self._complaints.get(str(complaint_id).strip())
@@ -415,6 +458,146 @@ class Batch1Store:
                 return None
             disposition = (intake_disposition or "").strip().upper() or None
             row.intake_disposition = disposition
+            if description is not None:
+                row.description = description
+            if priority is not None:
+                row.priority = priority.strip().upper()
+            if decided_by is not None:
+                row.decided_by = decided_by
+                row.decided_at = datetime.now(UTC)
+            if clear_proposed:
+                self._clear_proposed(row)
+            return row
+
+    def accept_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        accepted_by: str | None = None,
+        description: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.hq_accepted_at = hq_accepted_at
+            row.hq_accepted_by = accepted_by
+            if description is not None:
+                row.description = description
+            if intake_disposition is not None:
+                row.intake_disposition = intake_disposition
+            self._clear_proposed(row)
+            return row
+
+    def schedule_hq_arrival(
+        self,
+        complaint_id: str,
+        *,
+        arrival_date,
+        arrival_time: str,
+        description: str | None = None,
+        intake_disposition: str | None = None,
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.hq_arrival_date = arrival_date
+            row.hq_arrival_time = arrival_time
+            if destination_unit_id is not None:
+                row.hq_destination_unit_id = destination_unit_id
+                row.hq_destination_set_by = destination_set_by
+                row.hq_destination_set_at = datetime.now(UTC)
+            if description is not None:
+                row.description = description
+            if intake_disposition is not None:
+                row.intake_disposition = intake_disposition
+            self._clear_proposed(row)
+            return row
+
+    def accept_and_schedule_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        accepted_by: str | None = None,
+        arrival_date,
+        arrival_time: str,
+        description: str,
+        intake_disposition: str = "HQ_SCHEDULED",
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.hq_accepted_at = hq_accepted_at
+            row.hq_accepted_by = accepted_by
+            row.hq_arrival_date = arrival_date
+            row.hq_arrival_time = arrival_time
+            if destination_unit_id is not None:
+                row.hq_destination_unit_id = destination_unit_id
+                row.hq_destination_set_by = destination_set_by
+                row.hq_destination_set_at = datetime.now(UTC)
+            row.description = description
+            row.intake_disposition = intake_disposition
+            self._clear_proposed(row)
+            return row
+
+    def complete_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        description: str,
+        intake_disposition: str = "HQ_CLOSED",
+        closed_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.description = description
+            row.intake_disposition = intake_disposition
+            apply_complaint_status(row, "CLOSED")
+            _ = closed_by
+            return row
+
+    @staticmethod
+    def _clear_proposed(row: ComplaintAggregate) -> None:
+        row.proposed_arrival_date = None
+        row.proposed_arrival_time = None
+        row.proposed_by = None
+        row.proposed_at = None
+
+    def propose_arrival(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date,
+        proposed_time: str,
+        proposed_by: str | None,
+    ) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            row.proposed_arrival_date = proposed_date
+            row.proposed_arrival_time = proposed_time
+            row.proposed_by = proposed_by
+            row.proposed_at = datetime.now(UTC)
+            return row
+
+    def clear_proposed_arrival(self, complaint_id: str) -> ComplaintAggregate | None:
+        with self._lock:
+            row = self._complaints.get(str(complaint_id).strip())
+            if row is None:
+                return None
+            self._clear_proposed(row)
             return row
 
     def list_complaints(
@@ -427,11 +610,45 @@ class Batch1Store:
         category: str | None = None,
         status: str | None = None,
         intake_disposition: str | None = None,
+        created_by: str | None = None,
+        decided_by: str | None = None,
+        visibility: str | None = None,
+        actor_id: str | None = None,
+        org_unit_id: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
+        needs_pusat_handling: bool = False,
     ) -> tuple[list[ComplaintAggregate], int]:
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
         with self._lock:
             rows = list(self._complaints.values())
+            vis = (visibility or "ALL").strip().upper()
+            codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+            if vis == "ALL":
+                pass
+            elif vis == "SELF":
+                actor = (actor_id or "").strip()
+                if not actor:
+                    return [], 0
+                rows = [c for c in rows if (c.created_by or "") == actor]
+            elif vis == "UNIT":
+                unit = (org_unit_id or "").strip()
+                if not unit:
+                    return [], 0
+                rows = [c for c in rows if (c.owning_unit_id or "") == unit]
+            elif vis == "PUSAT":
+                rows = [
+                    c
+                    for c in rows
+                    if complaint_visible_for_pusat(
+                        owning_unit_id=c.owning_unit_id,
+                        intake_disposition=c.intake_disposition,
+                        hq_accepted_at=c.hq_accepted_at,
+                        pusat_unit_codes=codes,
+                    )
+                ]
+            else:
+                return [], 0
             kw = (keyword or "").strip().lower()
             if kw:
                 rows = [
@@ -442,20 +659,18 @@ class Batch1Store:
                     or kw in (c.customer_id or "").lower()
                 ]
             st = (status or "").strip().upper()
-            if st in {"REGISTERED", "CLOSED"}:
+            if st == "OPEN":
+                rows = [c for c in rows if is_open(c.status)]
+            elif st in AGGREGATE_STATUSES:
                 rows = [c for c in rows if (c.status or "").upper() == st]
             disp = (intake_disposition or "").strip().upper()
-            _allowed_disp = {
-                "BRANCH_CLOSED",
-                "ESCALATE_PENDING_APPROVAL",
-                "ESCALATE_APPROVED",
-                "ESCALATE_REJECTED",
-            }
-            if disp in _allowed_disp:
+            if disp in LIST_INTAKE_DISPOSITION_FILTERS:
                 rows = [
                     c
                     for c in rows
-                    if (c.intake_disposition or "").upper() == disp
+                    if matches_intake_disposition_filter(
+                        c.intake_disposition, disp
+                    )
                 ]
             pri = (priority or "").strip().upper()
             if pri:
@@ -463,10 +678,77 @@ class Batch1Store:
             cat = (category or "").strip().lower()
             if cat:
                 rows = [c for c in rows if (c.category or "").lower() == cat]
+            cb = (created_by or "").strip()
+            if cb:
+                rows = [c for c in rows if (c.created_by or "") == cb]
+            db_ = (decided_by or "").strip()
+            if db_:
+                rows = [c for c in rows if (c.decided_by or "") == db_]
+            if needs_pusat_handling:
+                from app.modules.cm_case.infrastructure.inbox_repository import (
+                    complaint_needs_pusat_handling,
+                )
+
+                rows = [
+                    c
+                    for c in rows
+                    if complaint_needs_pusat_handling(
+                        status=c.status,
+                        intake_disposition=c.intake_disposition,
+                        hq_accepted_at=c.hq_accepted_at,
+                        cases=[],
+                    )
+                ]
             rows = sorted(rows, key=lambda c: c.created_at, reverse=True)
             total = len(rows)
             start = (page - 1) * page_size
             return rows[start : start + page_size], total
+
+    def list_cases_for_complaint_ids(
+        self,
+        complaint_ids: list[str],
+        *,
+        visibility: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
+    ) -> dict[str, list[dict[str, object]]]:
+        # In-memory lab store has no Case table — list UI falls back to empty.
+        _ = (visibility, pusat_unit_codes)
+        return {str(i).strip(): [] for i in complaint_ids if str(i).strip()}
+
+    def unread_parent_ids(self, user_id: str, complaint_ids: list[str]) -> set[str]:
+        # In-memory store has no read-receipt table.
+        _ = (user_id, complaint_ids)
+        return set()
+
+    def work_stats_for_user(self, user_key: str) -> dict[str, int]:
+        key = (user_key or "").strip()
+        with self._lock:
+            rows = list(self._complaints.values())
+        if not key:
+            return {
+                "created_count": 0,
+                "escalation_requested_count": 0,
+                "escalation_approved_count": 0,
+                "escalation_rejected_count": 0,
+            }
+        created = [c for c in rows if (c.created_by or "") == key]
+        decided = [c for c in rows if (c.decided_by or "") == key]
+        return {
+            "created_count": len(created),
+            "escalation_requested_count": len(
+                [
+                    c
+                    for c in created
+                    if in_escalation_family(c.intake_disposition)
+                ]
+            ),
+            "escalation_approved_count": len(
+                [c for c in decided if (c.intake_disposition or "") == "ESCALATE_APPROVED"]
+            ),
+            "escalation_rejected_count": len(
+                [c for c in decided if (c.intake_disposition or "") == "ESCALATE_REJECTED"]
+            ),
+        }
 
 
 # Retained for rare process-local fallbacks / migrations; router uses DB repo.

@@ -23,6 +23,18 @@ CODE_DEFAULTS: dict[str, str] = {
     "METHOD_NOT_ALLOWED": "Metode HTTP tidak diizinkan.",
     "HTTP_ERROR": "Permintaan gagal.",
     "PASSWORD_CHANGE_REQUIRED": "Anda harus mengubah kata sandi sebelum mengakses aplikasi.",
+    "RELATED_COMPLAINT_NOT_FOUND": (
+        "Pengaduan WP terkait tidak ditemukan. "
+        "Pilih dari daftar, atau kosongkan kolom pencarian."
+    ),
+    "RELATED_COMPLAINT_CLOSED": (
+        "Pengaduan WP terkait sudah ditutup. "
+        "Pilih yang masih berjalan, atau kosongkan kolom pencarian."
+    ),
+    "RELATED_COMPLAINT_NOT_VISIBLE": (
+        "Pengaduan WP itu tidak bisa ditautkan dari akun Anda. "
+        "Pilih pengaduan yang Anda buat atau milik unit Anda, atau kosongkan kolom pencarian."
+    ),
 }
 
 MESSAGES: dict[str, str] = {
@@ -100,7 +112,7 @@ MESSAGES: dict[str, str] = {
     "iam.system_role_cannot_delete": "Peran sistem tidak dapat dihapus.",
     "iam.user_role_not_found": "Tautan pengguna-peran tidak ditemukan.",
     # --- Customer ---
-    "customer.exactly_one_key_type": "Tepat satu tipe kunci pelanggan harus disediakan.",
+    "customer.exactly_one_key_type": "Tepat satu tipe kunci wajib pajak harus disediakan.",
     "customer.search_key_empty": "Masukkan kunci pencarian.",
     "customer.search_name_too_short": "Nama terlalu pendek — minimal 3 karakter.",
     "customer.search_id_too_short": "ID terlalu pendek — minimal 8 digit.",
@@ -115,10 +127,10 @@ MESSAGES: dict[str, str] = {
     "customer.master_writeback_forbidden": (
         "Write-back ke Customer Master dilarang (ADR-002 / BR-002)."
     ),
-    "customer.not_found": "Pelanggan tidak ditemukan.",
-    "customer.not_in_master": "Pelanggan tidak ditemukan di Master Customer.",
+    "customer.not_found": "Wajib Pajak tidak ditemukan.",
+    "customer.not_in_master": "Wajib Pajak tidak ditemukan di Master Customer.",
     "customer.search_blocked_enumeration": (
-        "Pencarian pelanggan sementara diblokir oleh perlindungan enumerasi."
+        "Pencarian wajib pajak sementara diblokir oleh perlindungan enumerasi."
     ),
     # --- Complaint ---
     "complaint.already_closed": "Pengaduan sudah berstatus CLOSED.",
@@ -151,14 +163,86 @@ MESSAGES: dict[str, str] = {
     ),
     "complaint.not_found": "Pengaduan tidak ditemukan.",
     "complaint.only_supervisor_admin_close": (
-        "Hanya Branch Supervisor atau Head Office Admin yang dapat menutup pengaduan."
+        "Hanya CRO, Staff KaSatPel, atau KaSatPel yang dapat menutup pengaduan."
     ),
-    "complaint.only_supervisor_assign": "Hanya Supervisor yang dapat menugaskan pengaduan.",
-    "complaint.only_supervisor_escalate": "Hanya Supervisor yang dapat mengeskalasi pengaduan.",
+    "complaint.only_supervisor_assign": (
+        "Hanya Staff KaSatPel atau KaSatPel yang dapat menugaskan pengaduan."
+    ),
+    "complaint.only_supervisor_escalate": (
+        "Hanya Staff KaSatPel atau KaSatPel yang dapat mengeskalasi pengaduan."
+    ),
     "complaint.submitter_not_found": "Pengirim pengaduan tidak ditemukan atau tidak aktif.",
     "complaint.unsupported_source_type": "Pengaduan memiliki sourceType yang tidak didukung.",
     "complaint.unsupported_status": "Pengaduan memiliki status yang tidak didukung.",
     "complaint.unsupported_target_type": "Pengaduan memiliki targetType yang tidak didukung.",
+    # --- CAP-008 Case F4 acceptance ---
+    "case.acceptance_role_denied": (
+        "Hanya Staff KaSatPel atau KaSatPel yang berwenang yang dapat memberikan "
+        "persetujuan penutupan Case."
+    ),
+    "case.acceptance_owner_unit_mismatch": (
+        "Persetujuan Owner hanya boleh dilakukan oleh Staff KaSatPel/KaSatPel "
+        "pada unit Owner Case."
+    ),
+    "case.acceptance_handling_unit_mismatch": (
+        "Persetujuan Handling Unit hanya boleh dilakukan oleh Staff KaSatPel/KaSatPel "
+        "pada unit penanganan Case saat ini."
+    ),
+    "case.acceptance_creator_conflict": (
+        "Pembuat pengaduan tidak boleh menjadi satu-satunya pemberi persetujuan "
+        "untuk pengaduan yang sama (pemisahan tugas)."
+    ),
+    "internal.acceptance_cro_needs_approver": (
+        "CRO tidak dapat menutup pengaduan. Minta Staff KaSatPel atau KaSatPel "
+        "di unit pemilik."
+    ),
+    "case.acceptance_party_invalid": "Pihak persetujuan Case tidak valid.",
+    "case.resolve_accept_role_denied": (
+        "Peran Anda tidak boleh menyelesaikan penerimaan Case di unit ini. "
+        "Petugas hanya boleh Tutup/ACCEPT pada unit cabangnya sendiri; "
+        "unit lain memerlukan Supervisor/Manager."
+    ),
+    # --- Pengaduan Internal — gerbang permintaan transfer Petugas ---
+    "internal.transfer_request_reason_required": (
+        "Alasan wajib diisi saat Petugas meminta transfer Handling ke unit lawan."
+    ),
+    "internal.related_complaint_not_found": (
+        "Pengaduan WP terkait tidak ditemukan. "
+        "Pilih dari daftar, atau kosongkan kolom pencarian."
+    ),
+    "internal.related_complaint_closed": (
+        "Pengaduan WP terkait sudah ditutup. "
+        "Pilih yang masih berjalan, atau kosongkan kolom pencarian."
+    ),
+    "internal.related_complaint_not_visible": (
+        "Pengaduan WP itu tidak bisa ditautkan dari akun Anda. "
+        "Pilih pengaduan yang Anda buat atau milik unit Anda, atau kosongkan kolom pencarian."
+    ),
+    "internal.withdraw_reason_required": (
+        "Alasan wajib diisi untuk membatalkan pengaduan."
+    ),
+    "internal.withdraw_not_allowed": (
+        "Anda tidak dapat membatalkan pengaduan ini."
+    ),
+    "internal.withdraw_decide_denied": (
+        "Hanya Pusat yang dapat memutuskan permintaan pembatalan."
+    ),
+    "internal.return_reason_required": (
+        "Alasan wajib diisi saat mengembalikan pengaduan ke cabang."
+    ),
+    "internal.receive_not_allowed": (
+        "Hanya unit penanganan yang dapat menerima pengaduan ini. "
+        "Tiket di Pusat dapat diterima oleh semua login Pusat."
+    ),
+    "internal.return_not_allowed": (
+        "Hanya unit penanganan Pusat yang dapat mengembalikan pengaduan ke cabang."
+    ),
+    "internal.resend_not_allowed": (
+        "Hanya unit pemilik yang dapat mengirim ulang pengaduan ke Pusat."
+    ),
+    "internal.resend_note_required": (
+        "Catatan wajib diisi saat mengirim ulang pengaduan ke Pusat."
+    ),
     # --- Escalation ---
     "escalation.already_closed": "Eskalasi sudah berstatus CLOSED.",
     "escalation.already_reviewed": "Eskalasi sudah ditinjau.",
@@ -239,6 +323,9 @@ MESSAGES: dict[str, str] = {
     "resolution.resolved_by_must_match_user": (
         "resolvedBy harus sesuai dengan pengguna terautentikasi."
     ),
+    "resolution.invalid_knowledge_reference": (
+        "Pengetahuan yang dirujuk tidak ditemukan."
+    ),
     # --- Assignment ---
     "assignment.active_cannot_have_released_at": (
         "Penugasan aktif tidak boleh memiliki released_at."
@@ -255,6 +342,45 @@ MESSAGES: dict[str, str] = {
     ),
     "assignment.no_active_to_unassign": "Pengaduan tidak memiliki penugasan aktif untuk unassign.",
     "assignment.reason_required_reassignment": "Alasan wajib diisi untuk penugasan ulang.",
+    # --- Announcement ---
+    "announcement.body_required": "Isi pengumuman wajib diisi.",
+    "announcement.not_found": "Pengumuman tidak ditemukan.",
+    "announcement.only_admin_supervisor_manager_pusat": (
+        "Hanya Admin Pusat, Supervisor Pusat, atau Manager Pusat yang dapat "
+        "mengelola pengumuman."
+    ),
+    "announcement.not_published": "Pengumuman belum published.",
+    # --- Knowledge (Pengetahuan) ---
+    "knowledge.not_found": "Pengetahuan tidak ditemukan.",
+    "knowledge.pin_limit_reached": (
+        "Maksimal 10 Pengetahuan yang dapat disematkan. "
+        "Lepas salah satu sematan lebih dulu."
+    ),
+    "knowledge.only_admin_supervisor_manager_pusat": (
+        "Hanya Admin Pusat, Supervisor Pusat, atau Manager Pusat yang dapat "
+        "mengelola Pengetahuan."
+    ),
+    "knowledge.effective_to_before_from": (
+        "Berlaku sampai harus setelah berlaku mulai."
+    ),
+    "knowledge.edit_window_expired": (
+        "Masa perubahan Pengetahuan ini sudah berakhir, jadi isinya terkunci. "
+        "Buat Pengetahuan baru yang menggantikan versi ini."
+    ),
+    "knowledge.not_draft": "Tindakan ini hanya berlaku untuk Pengetahuan berstatus draft.",
+    "knowledge.not_active": "Tindakan ini hanya berlaku untuk Pengetahuan yang aktif.",
+    "knowledge.not_archived": (
+        "Tindakan ini hanya berlaku untuk Pengetahuan yang diarsipkan."
+    ),
+    "knowledge.primary_file_required": (
+        "Pengetahuan memerlukan setidaknya satu file sebelum dapat diaktifkan."
+    ),
+    "knowledge.delete_draft_only": (
+        "Hanya Pengetahuan berstatus draft yang dapat dihapus."
+    ),
+    "knowledge.files_locked": (
+        "Berkas Pengetahuan ini terkunci karena masa perubahannya sudah berakhir."
+    ),
     # --- SLA ---
     "sla.active_cannot_have_completed_at": "SLA aktif tidak boleh memiliki completed_at.",
     "sla.active_not_belong_complaint": "SLA aktif tidak termasuk pengaduan ini.",
@@ -303,12 +429,33 @@ MESSAGES: dict[str, str] = {
         "Tidak dapat supersede lampiran void atau yang sudah di-supersede."
     ),
     "attachment.case_id_not_supported": ("CaseId tidak didukung pada unggahan lampiran Batch 1."),
+    "attachment.case_pin_requires_complaint": (
+        "CaseId tidak dapat dipakai pada lampiran staging."
+    ),
+    "attachment.case_not_found": "CaseId tidak ditemukan.",
+    "attachment.case_not_in_complaint": "CaseId tidak termasuk Complaint ini.",
     "attachment.duplicate_checksum": "Checksum lampiran duplikat.",
     "attachment.file_not_in_storage": "Berkas lampiran tidak ditemukan di storage.",
     "attachment.metadata_bind_failed": (
         "Pengikatan metadata lampiran gagal; lampiran platform dikompensasi."
     ),
     "attachment.not_found": "Lampiran tidak ditemukan.",
+    "attachment.pin_limit_reached": (
+        "Maksimal 10 lampiran yang dapat disematkan. "
+        "Lepas salah satu sematan lebih dulu."
+    ),
+    "attachment.already_linked_announcement": (
+        "Lampiran sudah tertaut ke pengumuman ini."
+    ),
+    "attachment.not_announcement_domain": (
+        "Lampiran bukan milik domain pengumuman."
+    ),
+    "attachment.invalid_access_level": (
+        "Tingkat akses lampiran tidak valid (PUBLIC atau PRIVATE)."
+    ),
+    "attachment.invalid_org_scope": (
+        "Filter organisasi tidak valid (all, pusat, atau cabang)."
+    ),
     "attachment.security_scan_rejected": "Lampiran ditolak oleh pemindaian keamanan.",
     "attachment.superseded_not_found": "Lampiran superseded tidak ditemukan.",
     "attachment.unsupported_checksum_algorithm": "Algoritma checksum tidak didukung.",
@@ -317,9 +464,15 @@ MESSAGES: dict[str, str] = {
     ),
     "attachment.deleted_cannot_become_failed": ("Lampiran terhapus tidak dapat menjadi FAILED."),
     "attachment.void_reason_required": "Alasan pembatalan wajib diisi.",
+    "attachment.void_forbidden": (
+        "Hanya pengunggah, pembuat pengaduan, atau admin yang dapat menghapus lampiran."
+    ),
     # --- Storage / upload ---
     "storage.aggregate_type_id_required": (
         "aggregateType dan aggregateId diperlukan untuk unggahan platform."
+    ),
+    "storage.list_scope_required": (
+        "Daftar lampiran harus dibatasi: sertakan aggregateType dan aggregateId."
     ),
     "storage.allowed_mime_empty_strings": ("Entri storage.allowed.mime harus string non-kosong."),
     "storage.allowed_mime_non_empty_array": ("storage.allowed.mime harus array JSON non-kosong."),
@@ -333,6 +486,9 @@ MESSAGES: dict[str, str] = {
     "storage.filename_required": "filename diperlukan.",
     "storage.max_upload_mb_min": "storage.max.upload.mb harus >= 1.",
     "storage.mime_not_allowed": "Tipe MIME tidak diizinkan.",
+    "storage.zip_invalid": (
+        "Berkas ZIP tidak valid. Unggah arsip ZIP utuh; server tidak mengekstrak isinya."
+    ),
     "storage.mime_type_required": "mime_type diperlukan.",
     "storage.original_name_required": "original_name diperlukan.",
     "storage.path_escapes_root": "Path storage keluar dari root storage.",
@@ -398,7 +554,7 @@ MESSAGES: dict[str, str] = {
     "complaint.target_id_required": "targetId diperlukan untuk rute ini.",
     "complaint.classification_not_allowed": "Klasifikasi tidak diizinkan.",
     "complaint.principal_key_required_confirm_lock": (
-        "Kunci principal diperlukan untuk menerapkan kunci konfirmasi pelanggan."
+        "Kunci principal diperlukan untuk menerapkan kunci konfirmasi wajib pajak."
     ),
     # --- Config / settings validation ---
     "config.at_least_one_field": "Setidaknya satu field diperlukan.",
@@ -440,6 +596,8 @@ MESSAGES: dict[str, str] = {
     "validation.name_required": "Nama wajib diisi.",
     "validation.time_hhmm": "Harus berformat HH:MM.",
     "validation.end_after_start": "endTime harus setelah startTime.",
+    "validation.date_yyyy_mm_dd": "Tanggal harus berformat YYYY-MM-DD.",
+    "validation.date_range_invalid": "dateFrom tidak boleh setelah dateTo.",
     "escalation.target_required": ("escalatedToUserId atau escalatedToRoleId wajib diisi."),
     "complaint.route_fields_all_required": (
         "sourceType, sourceId, targetType, dan targetId wajib diisi jika salah satu diisi."
@@ -512,6 +670,8 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
         "attachment.metadata_bind_failed"
     ),
     "Attachment not found": "attachment.not_found",
+    "Lampiran sudah tertaut ke pengumuman ini.": "attachment.already_linked_announcement",
+    "Lampiran bukan milik domain pengumuman.": "attachment.not_announcement_domain",
     "Attachment rejected by security scan": "attachment.security_scan_rejected",
     "Audit log not found": "audit.not_found",
     "Authentication required": "auth.authentication_required",
@@ -527,6 +687,9 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     ),
     "Cannot supersede void or already superseded attachment": "attachment.cannot_supersede_void",
     "CaseId is not supported in Batch 1 attachment upload": "attachment.case_id_not_supported",
+    "CaseId cannot be used on staged attachments": "attachment.case_pin_requires_complaint",
+    "CaseId was not found": "attachment.case_not_found",
+    "CaseId does not belong to this Complaint": "attachment.case_not_in_complaint",
     "Closer not found or inactive": "complaint.closer_not_found",
     "Complaint already has a resolution and cannot be escalated.": (
         "complaint.has_resolution_cannot_escalate"
@@ -616,6 +779,9 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "One or more roles not found": "iam.roles_not_found",
     "Only BOOKED appointments can be checked in.": "appointment.only_booked_check_in",
     "Only BOOKED appointments can be marked as no-show.": "appointment.only_booked_no_show",
+    "Only CRO, Staff KaSatPel, or KaSatPel can close complaints": (
+        "complaint.only_supervisor_admin_close"
+    ),
     "Only Branch Supervisor or Head Office Admin can close complaints": (
         "complaint.only_supervisor_admin_close"
     ),
@@ -745,6 +911,7 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "inactive assignment requires released_at": "assignment.inactive_requires_released_at",
     "max_bytes must be >= 1": "storage.max_bytes_min",
     "mime type is not allowed": "storage.mime_not_allowed",
+    "zip archive is invalid": "storage.zip_invalid",
     "mime_type is required": "storage.mime_type_required",
     "module must be lowercase letters, digits, and underscores ": "config.module_lowercase_format",
     "new complaints must start in OPEN status": "complaint.new_must_start_open",
@@ -814,6 +981,7 @@ LEGACY_EN_TO_KEY: dict[str, str] = {
     "value must be an integer": "config.value_integer",
     "value must be valid JSON": "config.value_json",
     "void reason is required (void-with-reason)": "attachment.void_reason_required",
+    "attachment void forbidden": "attachment.void_forbidden",
     "workItemStatus must be OPEN, CLOSED, or ALL": "config.work_item_status_values",
     "NEW complaints cannot be escalated": "escalation.rejected_new",
     "RESOLVED complaints cannot be escalated": "escalation.rejected_resolved",

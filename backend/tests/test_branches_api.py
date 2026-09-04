@@ -104,3 +104,42 @@ def test_list_branches_returns_active_rows(
     branch.deleted_at = datetime.now(UTC)
     branch.is_active = False
     db_session.commit()
+
+
+def test_list_branches_accessible_with_users_read_only(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    """Branch-scoped personas without complaint access (e.g. Manager, BC-8.4)
+    still need this reference list to render unit labels in the Users screen."""
+    settings = get_settings()
+    token = create_access_token(
+        subject=str(uuid.uuid4()),
+        settings=settings,
+        claims={
+            "permissions": ["users:read"],
+            "roles": ["MANAGER"],
+        },
+    )
+    response = client.get(
+        "/api/v1/branches", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_list_branches_rejects_principal_without_either_permission(
+    client: TestClient,
+) -> None:
+    settings = get_settings()
+    token = create_access_token(
+        subject=str(uuid.uuid4()),
+        settings=settings,
+        claims={
+            "permissions": [],
+            "roles": ["VIEWER"],
+        },
+    )
+    response = client.get(
+        "/api/v1/branches", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 403

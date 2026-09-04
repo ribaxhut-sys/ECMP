@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generate lab directory: 200 calon identitas — SEMUA belum terdaftar.
 
-  - username = ID 16 digit
+  - username = ID login pendek (3101, 3102, …)
+  - email / external_user_id = ID 16 digit identitas pusat
   - display_name = nama orang
   - TIDAK ada peran — admin memilih peran saat mendaftarkan
   - home_branch = lokasi referensi (boleh diubah admin)
@@ -96,8 +97,13 @@ def uid(*parts: str) -> uuid.UUID:
 
 
 def person_id(seq: int) -> str:
-    """16-digit central user id (username)."""
+    """16-digit central identity (email local-part / external_user_id)."""
     return f"{3100000000000000 + seq:016d}"
+
+
+def login_username(seq: int) -> str:
+    """Short lab login: 3100000000000001 → 3101."""
+    return f"31{seq:02d}"
 
 
 def person_name(seq: int) -> str:
@@ -137,7 +143,7 @@ def build_rows() -> list[dict[str, str]]:
             used_names.add(full)
             rows.append(
                 {
-                    "username": user_id,
+                    "username": login_username(seq),
                     "display_name": full,
                     "email": f"{user_id}@lab.ecmp.local",
                     "external_user_id": user_id,
@@ -162,7 +168,7 @@ def build_rows() -> list[dict[str, str]]:
         used_names.add(full)
         rows.append(
             {
-                "username": user_id,
+                "username": login_username(seq),
                 "display_name": full,
                 "email": f"{user_id}@lab.ecmp.local",
                 "external_user_id": user_id,
@@ -181,7 +187,7 @@ def build_rows() -> list[dict[str, str]]:
 
     assert len(UPPPD) == 42, len(UPPPD)
     assert len(rows) == 200, len(rows)
-    assert all(len(r["username"]) == 16 and r["username"].isdigit() for r in rows)
+    assert all(r["username"] == login_username(i) for i, r in enumerate(rows, start=1))
     assert len({r["username"] for r in rows}) == 200
     assert len({r["display_name"] for r in rows}) == 200
     return rows
@@ -229,14 +235,15 @@ def write_xlsx(rows: list[dict[str, str]], path: Path) -> None:
     for line in (
         "ECMP Lab — Daftar CALON identitas (Mode A)",
         "",
-        "username = ID 16 digit (identitas pusat)",
+        "username = ID login pendek (3101, 3102, …)",
+        "email / external_user_id = ID 16 digit identitas pusat",
         "display_name = nama orang",
         "",
         "PERAN TIDAK diisi di directory — admin memilih peran saat mendaftarkan.",
         "home_branch_* = lokasi kerja referensi (boleh diubah admin).",
         "",
         "200 PENDING: 168 pool (42 UPPPD × 4 orang) + 32 ekstra.",
-        "ID range: 3100000000000001 … 3100000000000200",
+        "Login: 3101 … 31200 (identity 16 digit tetap di email/external_user_id)",
     ):
         readme.append([line])
     wb.save(path)

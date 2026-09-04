@@ -1,11 +1,9 @@
 /**
- * CM Batch 1 Aggregate API client — DEC-020 `/api/v1/cm` namespace.
+ * CM Batch 1 Aggregate API client — DEC-026 Single SoT `/api/v1/cm`.
  *
- * Dual SoT: this module is **not** interchangeable with `complaints.ts`
- * (foundation `/api/v1/complaints`). Create UI Mode A posts here
- * (`CreateComplaintView`); confirmation reads via `fetchCmBatch1Complaint`.
- * Do not merge SoTs or retire foundation without a Retirement DEC.
- * Mode B / Batch-2 remain CLOSED.
+ * Foundation `/api/v1/complaints` lifecycle is retired (M-026-2).
+ * Create UI Mode A posts here (`CreateComplaintView`).
+ * Mode B / CAP-006 remain CLOSED. CA BC is a separate surface.
  */
 import { apiRequest } from "./client";
 import {
@@ -13,7 +11,8 @@ import {
   cmBatch1Paths,
   type CmBatch1CreateComplaintOptions,
 } from "./cmBatch1Contract";
-import type { DataResponse, ListResponse } from "./types";
+import type { ComplaintSla, DataResponse, ListResponse } from "./types";
+import type { CmCaseSummary } from "./cmCase";
 
 export {
   CM_BATCH1_BASE,
@@ -101,33 +100,131 @@ export interface CmBatch1CreateComplaintRequest {
   stagingToken?: string | null;
   /** BRANCH_CLOSED = handled at branch. ESCALATE_PENDING_APPROVAL = await supervisor. */
   intakeDisposition?: "BRANCH_CLOSED" | "ESCALATE_PENDING_APPROVAL" | null;
+  /** Branch-proposed HQ arrival slot — advisory only, Pusat still decides. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
 }
 
 export interface CmBatch1ComplaintResponse {
   complaintId: string;
   complaintNumber: string;
-  status: "REGISTERED" | "CLOSED";
+  status: "REGISTERED" | "IN_PROGRESS" | "CLOSED";
   customerId: string;
   /** Operator-facing name from customer provider (not SoR). */
   customerDisplayName?: string | null;
   /** External/business customer id (not internal UUID). */
   customerNumber?: string | null;
-  /** Intake path label; Aggregate status stays REGISTERED|CLOSED. */
+  /** Actor id of the intake officer (PIC). */
+  createdBy?: string | null;
+  /** Operator-facing name of the intake officer, resolved via directory. */
+  createdByName?: string | null;
+  /** Intake path label; Aggregate status is REGISTERED | IN_PROGRESS | CLOSED. */
   intakeDisposition?:
     | "BRANCH_CLOSED"
     | "ESCALATE_PENDING_APPROVAL"
     | "ESCALATE_APPROVED"
     | "ESCALATE_REJECTED"
+    | "ESCALATE_CANCELLED"
     | string
     | null;
-  caseCreated: false;
+  caseCreated: boolean;
+  /** Nested Cases from API-514 list (parent-scoped; preferred over N+1). */
+  cases?: CmCaseSummary[];
+  /** Pusat still needs to claim this complaint (unclaimed escalate / waiting HQ accept). */
+  needsPusatHandling?: boolean;
+  /** Pusat caller has not opened this parent since last movement (list typography). */
+  pusatUnread?: boolean;
   replayed: boolean;
   category?: string | null;
   channel?: string | null;
   subject?: string | null;
+  /** Full intake narrative blob (Supervisor / HQ history). */
+  description?: string | null;
+  /** Taxpayer complaint body parsed from description. */
+  intakeNarrative?: string | null;
+  /** Branch close note (Penyelesaian). */
+  branchResolution?: string | null;
+  /** Why escalate to HQ (Alasan eskalasi) — HQ history. */
+  escalationReason?: string | null;
+  /** Supervisor/Manager note for HQ — required on APPROVE. */
+  supervisorNote?: string | null;
+  /** Reject reason history (Penolakan Eskalasi). */
+  rejectionNote?: string | null;
+  /** Batalkan Eskalasi reason history. */
+  cancellationNote?: string | null;
+  /** When set, Pusat accepted — Batalkan Eskalasi blocked. */
+  hqAcceptedAt?: string | null;
+  /** Scheduled arrival date YYYY-MM-DD. */
+  hqArrivalDate?: string | null;
+  /** Scheduled arrival time HH:MM. */
+  hqArrivalTime?: string | null;
+  /** Pusat unit the taxpayer reports to (PUSAT-CRO / PUSAT-SEKRE / …). */
+  hqDestinationUnitId?: string | null;
+  hqDestinationSetBy?: string | null;
+  hqDestinationSetAt?: string | null;
+  hqAcceptanceNote?: string | null;
+  hqArrivalNote?: string | null;
+  hqReturnNote?: string | null;
+  hqCompletionNote?: string | null;
+  /** Branch-proposed HQ arrival slot, still awaiting Pusat decision. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
+  proposedBy?: string | null;
+  proposedAt?: string | null;
+  owningUnitId?: string | null;
   priority?: string | null;
   createdAt?: string | null;
+  /** When the complaint reached CLOSED; cleared on reopen (DEC-031). */
+  closedAt?: string | null;
+  /**
+   * DEC-031 resolution SLA (30 calendar days), computed server-side on every
+   * read. Null when measurement is off or the closure time is unknown — the
+   * UI shows nothing rather than guessing.
+   */
+  sla?: ComplaintSla | null;
   duplicateCheckResult?: string | null;
+}
+
+/** Stable event codes from API-517 — labels live in the UI, not the API. */
+export type CmBatch1HistoryEventCode =
+  | "REGISTERED"
+  | "ESCALATION_REQUESTED"
+  | "BRANCH_CLOSED"
+  | "ESCALATION_APPROVED"
+  | "ESCALATION_REJECTED"
+  | "ESCALATION_CANCELLED"
+  | "ESCALATION_RE_REQUESTED"
+  | "HQ_ACCEPTED"
+  | "HQ_RETURNED"
+  | "HQ_ARRIVAL_SCHEDULED"
+  | "HQ_COMPLETED"
+  | "DUPLICATE_FOUND"
+  | "DUPLICATE_OVERRIDDEN"
+  | "DUPLICATE_LINKED"
+  | "DUPLICATE_REDIRECTED"
+  | "DUPLICATE_RECOMMENDED"
+  | "DUPLICATE_BLOCKED"
+  | "INTAKE_RECORDED"
+  | (string & {});
+
+export interface CmBatch1IntakeHistoryEntry {
+  entryId: string;
+  eventCode: CmBatch1HistoryEventCode;
+  eventType: string;
+  occurredAt: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  priority?: string | null;
+  /** Operator note captured with this event; null for rows logged before API-517. */
+  note?: string | null;
+  /** Case number when this event is scoped to one Case. */
+  caseNumber?: string | null;
+  /** Intake putusan on CaseCreated: register, close, escalate. */
+  intakeAction?: string | null;
+  /** Taxpayer-visit calendar date (YYYY-MM-DD) on HQ_ARRIVAL_SCHEDULED; not occurredAt. */
+  arrivalDate?: string | null;
+  /** Taxpayer-visit clock time (HH:MM, Asia/Jakarta) on HQ_ARRIVAL_SCHEDULED. */
+  arrivalTime?: string | null;
 }
 
 export interface CmBatch1DuplicateCheckRequest {
@@ -187,7 +284,8 @@ export type CmBatch1AttachmentStatus =
 export type CmBatch1AttachmentClassification =
   | "customer_evidence"
   | "internal_evidence"
-  | "official_letter";
+  | "official_letter"
+  | "other";
 
 export interface CmBatch1AttachmentResponse {
   attachmentId: string;
@@ -196,6 +294,7 @@ export interface CmBatch1AttachmentResponse {
   classification: string;
   stagingToken?: string | null;
   complaintId?: string | null;
+  caseId?: string | null;
   originalName: string;
   mimeType: string;
   sizeBytes: number;
@@ -216,8 +315,19 @@ export interface UploadCmBatch1AttachmentInput {
 }
 
 export interface CmBatch1IntakeEscalationDecisionRequest {
-  decision: "APPROVE" | "REJECT";
+  decision: "APPROVE" | "REJECT" | "CANCEL";
   note?: string | null;
+  /** Required on APPROVE — Supervisor/Manager HQ triage priority. */
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+}
+
+export interface CmBatch1IntakeEscalationRequestBody {
+  /** Alasan ajuan ulang (≥20). Appended to history; cancel/reject notes kept. */
+  reason: string;
+  priority?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | null;
+  /** Branch-proposed HQ arrival slot — advisory only, Pusat still decides. */
+  proposedArrivalDate?: string | null;
+  proposedArrivalTime?: string | null;
 }
 
 export interface CmBatch1LaterReviewWorkItem {
@@ -239,7 +349,7 @@ export interface CmBatch1AgingComplaintItem {
   priority?: string | null;
   createdAt: string;
   ageHours: number;
-  caseCreated: false;
+  caseCreated: boolean;
 }
 
 export interface CmBatch1SupervisorQueueResponse {
@@ -304,6 +414,9 @@ export function fetchCmBatch1Complaints(
     intakeDisposition?: string;
     priority?: string;
     category?: string;
+    createdBy?: string;
+    decidedBy?: string;
+    needsPusatHandling?: boolean;
   } = 1,
   pageSizeArg = 20,
 ): Promise<ListResponse<CmBatch1ComplaintResponse>> {
@@ -325,7 +438,26 @@ export function fetchCmBatch1Complaints(
   if (priority) params.set("priority", priority);
   const category = filters.category?.trim();
   if (category) params.set("category", category);
+  const createdBy = filters.createdBy?.trim();
+  if (createdBy) params.set("createdBy", createdBy);
+  const decidedBy = filters.decidedBy?.trim();
+  if (decidedBy) params.set("decidedBy", decidedBy);
+  if (filters.needsPusatHandling) params.set("needsPusatHandling", "true");
   return apiRequest(`${cmBatch1Paths().complaints}?${params.toString()}`);
+}
+
+export interface CmBatch1UserWorkStats {
+  createdCount: number;
+  escalationRequestedCount: number;
+  escalationApprovedCount: number;
+  escalationRejectedCount: number;
+}
+
+/** Per-user complaint work counters for the Users directory panel (UM-BUG-006). */
+export function fetchCmBatch1UserWorkStats(
+  userId: string,
+): Promise<DataResponse<CmBatch1UserWorkStats>> {
+  return apiRequest(cmBatch1Paths().userWorkStats(userId));
 }
 
 /** API-501 — GET /api/v1/cm/complaints/{complaintId} */
@@ -335,12 +467,123 @@ export function fetchCmBatch1Complaint(
   return apiRequest(cmBatch1Paths().complaint(complaintId));
 }
 
-/** API-515 — POST intake escalation approve/reject (disposition only; no Case). */
+/** API-517 — GET chronological intake history (append-only timeline projection). */
+export function fetchCmBatch1ComplaintHistory(
+  complaintId: string,
+): Promise<ListResponse<CmBatch1IntakeHistoryEntry>> {
+  return apiRequest(cmBatch1Paths().complaintHistory(complaintId));
+}
+
+/** API-515 — POST intake escalation approve/reject/cancel (disposition only; no Case). */
 export function decideCmBatch1IntakeEscalation(
   complaintId: string,
   body: CmBatch1IntakeEscalationDecisionRequest,
 ): Promise<DataResponse<CmBatch1ComplaintResponse>> {
   return apiRequest(cmBatch1Paths().intakeEscalationDecision(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** API-518 lab — Re-ajukan eskalasi setelah CANCELLED/REJECTED (history append-only). */
+export function requestCmBatch1IntakeEscalation(
+  complaintId: string,
+  body: CmBatch1IntakeEscalationRequestBody,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().intakeEscalationRequest(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface CmBatch1HqAcceptRequest {
+  note?: string | null;
+}
+
+export interface CmBatch1HqAcceptAndScheduleRequest {
+  arrivalDate: string;
+  arrivalTime: string;
+  /** Pusat unit the taxpayer is directed to — mandatory, Pusat is not one door. */
+  destinationUnitId: string;
+  /** Mandatory info Pusat relays to the taxpayer (min 10). */
+  note: string;
+}
+
+export interface CmBatch1HqScheduleArrivalRequest {
+  arrivalDate: string;
+  arrivalTime: string;
+  /** Redirect to another Pusat unit; omit to keep the current destination. */
+  destinationUnitId?: string | null;
+  note?: string | null;
+}
+
+export type CmBatch1HqReturnReasonCode =
+  | "MISSING_ATTACHMENT"
+  | "INCOMPLETE_CHRONOLOGY"
+  | "UNCLEAR_CUSTOMER_DATA"
+  | "WRONG_CATEGORY_OR_ROUTING"
+  | "ADDITIONAL_EVIDENCE_REQUIRED"
+  | "OTHER";
+
+export interface CmBatch1HqReturnRequest {
+  reasonCode: CmBatch1HqReturnReasonCode;
+  note: string;
+}
+
+/** API-516 lab — Pusat menerima eskalasi yang sudah APPROVED. */
+export function acceptCmBatch1HqEscalation(
+  complaintId: string,
+  body: CmBatch1HqAcceptRequest = {},
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqAccept(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Lab — Terima + jam final + unit tujuan → HQ_SCHEDULED (Pusat kabari wajib pajak). */
+export function acceptAndScheduleCmBatch1HqEscalation(
+  complaintId: string,
+  body: CmBatch1HqAcceptAndScheduleRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqAcceptAndSchedule(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** API-519 lab — Pusat mengembalikan eskalasi ke cabang. */
+export function returnCmBatch1HqEscalation(
+  complaintId: string,
+  body: CmBatch1HqReturnRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqReturn(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** API-517 lab — Jadwalkan kedatangan wajib pajak di Pusat. */
+export function scheduleCmBatch1HqArrival(
+  complaintId: string,
+  body: CmBatch1HqScheduleArrivalRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqScheduleArrival(complaintId), {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export interface CmBatch1HqCompleteRequest {
+  note: string;
+}
+
+/** Lab — Selesai di Pusat setelah kunjungan WP → CLOSED / HQ_CLOSED. */
+export function completeCmBatch1HqVisit(
+  complaintId: string,
+  body: CmBatch1HqCompleteRequest,
+): Promise<DataResponse<CmBatch1ComplaintResponse>> {
+  return apiRequest(cmBatch1Paths().hqComplete(complaintId), {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -434,7 +677,7 @@ export function uploadCmBatch1Attachment(
   });
 }
 
-/** API-509 — GET /api/v1/complaints/{id}/attachments (Aggregate when id is Batch-1). */
+/** API-509 — GET /api/v1/cm/complaints/{id}/attachments. */
 export function fetchCmBatch1ComplaintAttachments(
   complaintId: string,
   pageSize = 100,
@@ -444,7 +687,7 @@ export function fetchCmBatch1ComplaintAttachments(
     pageSize: String(pageSize),
   });
   return apiRequest(
-    `/api/v1/complaints/${encodeURIComponent(complaintId)}/attachments?${params.toString()}`,
+    `${cmBatch1Paths().complaintAttachments(complaintId)}?${params.toString()}`,
   );
 }
 

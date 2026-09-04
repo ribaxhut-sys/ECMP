@@ -1,0 +1,1 @@
+export { InternalFollowUpListView } from "./InternalAssignmentsView";

@@ -1,13 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
+import { FOUNDATION_RETIRED_CASES_HREF } from "@/features/complaints/foundationRetiredRedirect";
 
-import { Suspense } from "react";
-import { ResolutionListView } from "@/features/resolutions";
-import { PageFallback } from "@/shared/ui";
-
+/** DEC-026 M-026-1 — Foundation resolutions list is not a product door. */
 export default function ResolutionsPage() {
-  return (
-    <Suspense fallback={<PageFallback titleKey="resolutions" />}>
-      <ResolutionListView />
-    </Suspense>
-  );
+  redirect(FOUNDATION_RETIRED_CASES_HREF);
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   ApiError,
   updateCmCaseStatus,
@@ -15,8 +16,9 @@ import {
   Modal,
   ModalSection,
   Select,
-  Textarea,
 } from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import {
   CANCEL_REASON_OPTIONS,
   emptyUpdateStatusForm,
@@ -25,6 +27,10 @@ import {
   type UpdateStatusFormValues,
 } from "./caseForms";
 import { allowedStatusTargets } from "./caseStatus";
+
+/** Quick-fill reason presets for cancelling a case (PUBLIC setting, JSON array). */
+const CANCEL_REASON_PRESET_KEY = "case.cancel_reason_presets";
+const PRESET_KEYS = [CANCEL_REASON_PRESET_KEY];
 
 export function UpdateStatusDialog({
   open,
@@ -39,7 +45,10 @@ export function UpdateStatusDialog({
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const targets = allowedStatusTargets(caseData.status);
+  const presets = useReasonPresets(PRESET_KEYS);
   const [values, setValues] = useState(
     emptyUpdateStatusForm({
       destinationUnitId: caseData.owningUnitId ?? "",
@@ -92,7 +101,9 @@ export function UpdateStatusDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("updateFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("updateFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -167,11 +178,12 @@ export function UpdateStatusDialog({
                   options={CANCEL_REASON_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
                   error={fieldErrors.cancelReason ? tValidation(fieldErrors.cancelReason) : undefined}
                 />
-                <Textarea
+                <PresetTextField
+                  presets={presets[CANCEL_REASON_PRESET_KEY] ?? []}
                   name="reason"
                   label={t("reason")}
                   value={values.reason}
-                  onChange={(e) => setField("reason", e.target.value)}
+                  onChange={(next) => setField("reason", next)}
                   error={fieldErrors.reason ? tValidation(fieldErrors.reason) : undefined}
                 />
               </>

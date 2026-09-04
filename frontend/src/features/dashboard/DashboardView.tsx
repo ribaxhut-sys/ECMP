@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
+import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
+import { isPusatWorkAudience } from "@/features/complaints/cmBatch1ComplaintListIdentity";
+import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
 import {
   Empty,
   ErrorState,
@@ -13,14 +17,23 @@ import {
 import { ComplaintByBranch } from "./ComplaintByBranch";
 import { ComplaintByStatus } from "./ComplaintByStatus";
 import { CriticalAlerts } from "./CriticalAlerts";
-import { DASHBOARD_CARD_GAP, DASHBOARD_SHELL } from "./dashboardUtils";
+import {
+  countByStatus,
+  DASHBOARD_CARD_GAP,
+  DASHBOARD_SHELL,
+  DASHBOARD_TILE_GRID,
+  DASHBOARD_ZONE_LABEL,
+} from "./dashboardUtils";
 import { LiveStatusBar } from "./LiveStatusBar";
-import { OperationBriefing } from "./OperationBriefing";
-import { OperatorRail } from "./OperatorRail";
 import { QueueHealth } from "./QueueHealth";
 import { RecentActivity } from "./RecentActivity";
+import { SlaAlertsPanel } from "./SlaAlertsPanel";
 import { SlaCards } from "./SlaCards";
 import { SummaryCards } from "./SummaryCards";
+import {
+  dashboardStatusDonutRows,
+  toCabangDashboardBook,
+} from "./loadDashboardData";
 import { useDashboardData } from "./useDashboardData";
 
 export function DashboardView() {
@@ -29,21 +42,27 @@ export function DashboardView() {
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
   const canRead = hasPermission("dashboard:read");
-  const { state, reload } = useDashboardData();
+  const { state, reload, updatedAt, isFetching } = useDashboardData();
   const loading = state.status === "loading";
   const data = state.status === "success" ? state.data : null;
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const orgUnitCode = useOrgUnitCode();
+  const isPusat = isPusatWorkAudience(orgUnitCode) === true;
+  const { pusatQueue, pusatFollowUp } = useCmWorkBadges();
+  const hqScheduleToday = useHqScheduleTodayCount();
+  const pusatWork = isPusat
+    ? { queue: pusatQueue, followUp: pusatFollowUp, hqScheduleToday }
+    : null;
+  const book = useMemo(() => {
+    if (!data) return null;
+    return isPusat ? data : toCabangDashboardBook(data);
+  }, [data, isPusat]);
 
   useEffect(() => {
     if (!canRead) return;
     void reload();
-  }, [canRead, reload]);
-
-  useEffect(() => {
-    if (state.status === "success") {
-      setUpdatedAt(new Date());
-    }
-  }, [state.status, data]);
+    // Single mount-time load — useDashboardData owns the recurring poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRead]);
 
   const breadcrumbs = useMemo(
     () => [
@@ -74,13 +93,31 @@ export function DashboardView() {
   }
 
   const firstLoad = loading && !data;
-  const refreshing = loading && Boolean(data);
 
   return (
     <div className={DASHBOARD_SHELL}>
+      {/*
+        Single refresh control for the whole page. Auto-refreshes every 60s
+        (paused off-tab) via useDashboardData — no section below duplicates
+        it (see dashboard nav-target audit: every button used to also point
+        somewhere else on this same page).
+      */}
       <LiveStatusBar
-        sla={data?.sla ?? null}
+        sla={book?.sla ?? null}
+        waitingAssignment={countByStatus(book?.byStatus, "waitingAssignment") ?? 0}
+        escalatePending={countByStatus(book?.byStatus, "escalatePending") ?? 0}
+        escalateScheduled={
+          isPusat
+            ? (countByStatus(book?.byStatus, "escalateScheduled") ?? 0)
+            : 0
+        }
+        inProgress={countByStatus(book?.byStatus, "IN_PROGRESS") ?? 0}
+        returnedToBranch={book?.returnedToBranch ?? 0}
+        pusatQueue={pusatWork?.queue ?? 0}
+        pusatFollowUp={pusatWork?.followUp ?? 0}
+        hqScheduleToday={pusatWork?.hqScheduleToday ?? 0}
         loading={firstLoad}
+        refreshing={isFetching}
         error={state.status === "error"}
         updatedAt={updatedAt}
         onRefresh={() => void reload()}
@@ -95,78 +132,72 @@ export function DashboardView() {
         />
       ) : (
         <>
-          <OperationBriefing
-            header={data?.header ?? null}
-            sla={data?.sla ?? null}
-            byStatus={data?.byStatus ?? null}
-            loading={firstLoad}
-            refreshing={refreshing}
-            onRefresh={() => void reload()}
-          />
+          {/*
+            DEC-031 SLA band. Sits above the decision zone because a complaint
+            past its 30-day promise outranks every queue number below it. It
+            renders nothing when nothing is pressing, so its mere presence is
+            the alert. Refetches whenever the page data does.
+          */}
+          <SlaAlertsPanel reloadKey={updatedAt?.getTime()} />
 
-          <SummaryCards
-            header={data?.header ?? null}
-            sla={data?.sla ?? null}
-            byStatus={data?.byStatus ?? null}
-            loading={firstLoad}
-            onRefresh={() => void reload()}
-          />
+          {/*
+            Decision zone — one seamless command-center panel: hero number
+            and "needs action" fused with hairline dividers, not two
+            separate floating cards.
+          */}
+          <div className={`grid grid-cols-1 xl:grid-cols-12 ${DASHBOARD_TILE_GRID}`}>
+            <div className="xl:col-span-8">
+              <SummaryCards
+                header={book?.header ?? null}
+                byStatus={book?.byStatus ?? null}
+                trend={book?.trend ?? null}
+                sla={book?.sla ?? null}
+                loading={firstLoad}
+                pusatWork={pusatWork}
+              />
+            </div>
+            <div className="xl:col-span-4">
+              <CriticalAlerts
+                byStatus={book?.byStatus ?? null}
+                loading={firstLoad}
+                pusatWork={pusatWork}
+              />
+            </div>
+          </div>
+
+          <p className={`${DASHBOARD_ZONE_LABEL} pt-1`}>{t("operationalContext")}</p>
 
           {/* Queue Health = visual anchor */}
-          <div className={`grid grid-cols-1 ${DASHBOARD_CARD_GAP} xl:grid-cols-12`}>
+          <div className={`grid grid-cols-1 xl:grid-cols-12 ${DASHBOARD_TILE_GRID}`}>
             <div className="xl:col-span-8">
               <QueueHealth
-                header={data?.header ?? null}
-                sla={data?.sla ?? null}
-                byStatus={data?.byStatus ?? null}
+                header={book?.header ?? null}
+                byStatus={book?.byStatus ?? null}
                 loading={firstLoad}
-                onRefresh={() => void reload()}
+                pusatWork={pusatWork}
+                returnedToBranch={book?.returnedToBranch ?? 0}
               />
             </div>
             <div className="xl:col-span-4">
               <ComplaintByStatus
-                rows={data?.byStatus ?? null}
+                rows={
+                  data && book
+                    ? dashboardStatusDonutRows(data, book, isPusat)
+                    : null
+                }
                 loading={firstLoad}
-                onRefresh={() => void reload()}
               />
             </div>
           </div>
 
-          <CriticalAlerts
-            sla={data?.sla ?? null}
-            byStatus={data?.byStatus ?? null}
-            loading={firstLoad}
-            onRefresh={() => void reload()}
-          />
-
-          {/* Operator Rail + Recent Activity */}
-          <div className={`grid grid-cols-1 ${DASHBOARD_CARD_GAP} xl:grid-cols-12`}>
-            <div className="xl:col-span-4">
-              <OperatorRail onRefresh={() => void reload()} />
-            </div>
-            <div className="xl:col-span-8">
-              <RecentActivity
-                rows={data?.recentActivity ?? null}
-                loading={firstLoad}
-                onRefresh={() => void reload()}
-              />
-            </div>
-          </div>
+          <RecentActivity />
 
           <div className={`grid grid-cols-1 ${DASHBOARD_CARD_GAP} xl:grid-cols-12`}>
             <div className="xl:col-span-6">
-              <ComplaintByBranch
-                rows={data?.byBranch ?? null}
-                loading={firstLoad}
-                onRefresh={() => void reload()}
-              />
+              <ComplaintByBranch />
             </div>
             <div className="xl:col-span-6">
-              <SlaCards
-                sla={data?.sla ?? null}
-                loading={firstLoad}
-                onRefresh={() => void reload()}
-              />
+              <SlaCards sla={book?.sla ?? null} loading={firstLoad} />
             </div>
           </div>
         </>

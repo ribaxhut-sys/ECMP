@@ -2,21 +2,92 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
+from app.core.authorization.visibility import pusat_unit_clause
+from app.integrations.customer.local_cache_search import (
+    customer_ids_for_keyword,
+    ilike_contains_pattern,
+)
+from app.modules.cm_batch1.complaint_number import case_counter_name, resolve_unit_code
 from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.sla import apply_complaint_status
 from app.modules.cm_case.domain.aggregate import CaseAggregate
-from app.modules.cm_case.domain.repositories import ParentComplaintRef
+from app.modules.cm_case.domain.repositories import ParentComplaintRef, ParentHandoff
 from app.modules.cm_case.domain.value_objects import CaseNumber
 from app.modules.cm_case.infrastructure import mappers
 from app.modules.cm_case.infrastructure.orm import (
+    CmCaseAcceptanceORM,
     CmCaseNumberCounterORM,
     CmCaseORM,
     CmCaseResolutionORM,
 )
+
+
+def _has_timeline_table(session: Session) -> bool:
+    """Same-transaction table check — Inspector.has_table() can break SQLite txs."""
+    bind = session.get_bind()
+    if bind is None:
+        return False
+    dialect = getattr(bind.dialect, "name", "") or ""
+    if dialect == "sqlite":
+        return bool(
+            session.scalar(
+                text(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                    "AND name = 'timeline_entries'"
+                )
+            )
+        )
+    return bool(session.scalar(text("SELECT to_regclass('timeline_entries')")))
+
+
+def _apply_keyword_filter(session: Session, stmt, keyword: str | None):
+    """Substring match on Case fields, parent number, and local customer name."""
+    kw = (keyword or "").strip()[:200]
+    if not kw:
+        return stmt
+    pattern = ilike_contains_pattern(kw)
+    parent_ids = [
+        str(row_id)
+        for row_id in session.scalars(
+            select(CmBatch1ComplaintORM.id).where(
+                CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\")
+            )
+        ).all()
+    ]
+    clauses = [
+        CmCaseORM.case_number.ilike(pattern, escape="\\"),
+        CmCaseORM.subject.ilike(pattern, escape="\\"),
+        CmCaseORM.customer_id.ilike(pattern, escape="\\"),
+        CmCaseORM.description.ilike(pattern, escape="\\"),
+    ]
+    if parent_ids:
+        clauses.append(CmCaseORM.complaint_id.in_(parent_ids))
+    customer_keys = customer_ids_for_keyword(session, kw)
+    if customer_keys:
+        clauses.append(CmCaseORM.customer_id.in_(customer_keys))
+    return stmt.where(or_(*clauses))
+
+
+def _unique_uuids(raw_ids: list[str]) -> list[UUID]:
+    """Parse + de-duplicate complaint ids, dropping anything that is not a UUID."""
+    uuids: list[UUID] = []
+    seen: set[UUID] = set()
+    for raw in raw_ids:
+        try:
+            uid = UUID(str(raw).strip())
+        except ValueError:
+            continue
+        if uid in seen:
+            continue
+        seen.add(uid)
+        uuids.append(uid)
+    return uuids
 
 
 class SqlAlchemyCaseRepository:
@@ -50,6 +121,13 @@ class SqlAlchemyCaseRepository:
             status=row.status,
             case_created=bool(row.case_created),
             case_count=count,
+            owning_unit_id=row.owning_unit_id,
+            created_by=row.created_by,
+            hq_accepted_at=row.hq_accepted_at,
+            intake_disposition=row.intake_disposition,
+            hq_accepted_by=row.hq_accepted_by,
+            hq_destination_set_by=row.hq_destination_set_by,
+            proposed_by=row.proposed_by,
         )
 
     def count_cases(self, complaint_id: str) -> int:
@@ -62,15 +140,26 @@ class SqlAlchemyCaseRepository:
             or 0
         )
 
-    def next_case_number(self, year: int) -> str:
-        counter = self._session.get(CmCaseNumberCounterORM, year)
+    def next_case_number(
+        self, owning_unit_id: str | None, *, at: datetime | None = None
+    ) -> str:
+        when = at or datetime.now(UTC)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        unit = resolve_unit_code(owning_unit_id)
+        name = case_counter_name(unit, year=when.year, month=when.month)
+        counter = self._session.get(CmCaseNumberCounterORM, name)
         if counter is None:
-            counter = CmCaseNumberCounterORM(year=year, last_seq=0)
+            counter = CmCaseNumberCounterORM(name=name, last_seq=0)
             self._session.add(counter)
             self._session.flush()
+            counter = self._session.get(CmCaseNumberCounterORM, name)
+            assert counter is not None
         counter.last_seq += 1
         self._session.flush()
-        return CaseNumber.format(year, counter.last_seq).value
+        return CaseNumber.format(
+            unit, year=when.year, month=when.month, sequence=counter.last_seq
+        ).value
 
     def save(self, case: CaseAggregate) -> CaseAggregate:
         row = self._session.get(CmCaseORM, case.case_id)
@@ -91,22 +180,38 @@ class SqlAlchemyCaseRepository:
             if record.resolution_id in existing_ids:
                 continue
             self._session.add(mappers.resolution_to_orm(case.case_id, record))
+        # Acceptance history (F4 closure rule) — same append-only pattern.
+        existing_acceptances = list(
+            self._session.scalars(
+                select(CmCaseAcceptanceORM).where(
+                    CmCaseAcceptanceORM.case_id == case.case_id
+                )
+            )
+        )
+        existing_acceptance_ids = {str(a.id) for a in existing_acceptances}
+        for record in case.acceptance_history:
+            if record.acceptance_id in existing_acceptance_ids:
+                continue
+            self._session.add(mappers.acceptance_to_orm(case.case_id, record))
         self._session.flush()
         return case
 
-    def get(self, case_id: str) -> CaseAggregate | None:
+    def get(self, case_id: str, *, for_update: bool = False) -> CaseAggregate | None:
         key = (case_id or "").strip()
         if not key:
             return None
         row: CmCaseORM | None = None
         try:
-            row = self._session.get(CmCaseORM, UUID(key))
+            row = self._session.get(
+                CmCaseORM, UUID(key), with_for_update=for_update or None
+            )
         except ValueError:
             row = None
         if row is None:
-            row = self._session.scalar(
-                select(CmCaseORM).where(CmCaseORM.case_number == key)
-            )
+            stmt = select(CmCaseORM).where(CmCaseORM.case_number == key)
+            if for_update:
+                stmt = stmt.with_for_update()
+            row = self._session.scalar(stmt)
         if row is None:
             return None
         resolutions = list(
@@ -116,7 +221,51 @@ class SqlAlchemyCaseRepository:
                 .order_by(CmCaseResolutionORM.created_at.asc())
             )
         )
-        return mappers.case_from_orm(row, resolutions)
+        acceptances = list(
+            self._session.scalars(
+                select(CmCaseAcceptanceORM)
+                .where(CmCaseAcceptanceORM.case_id == row.id)
+                .order_by(CmCaseAcceptanceORM.decided_at.asc())
+            )
+        )
+        return mappers.case_from_orm(row, resolutions, acceptances)
+
+    def parent_handoffs_by_ids(
+        self, complaint_ids: list[str]
+    ) -> dict[str, ParentHandoff]:
+        """Handover actors per parent Complaint — one query for the whole page."""
+        uuids = _unique_uuids(complaint_ids)
+        if not uuids:
+            return {}
+        rows = self._session.execute(
+            select(
+                CmBatch1ComplaintORM.id,
+                CmBatch1ComplaintORM.intake_disposition,
+                CmBatch1ComplaintORM.hq_accepted_by,
+                CmBatch1ComplaintORM.hq_destination_set_by,
+                CmBatch1ComplaintORM.proposed_by,
+            ).where(CmBatch1ComplaintORM.id.in_(uuids))
+        ).all()
+        return {
+            str(row_id): ParentHandoff(
+                intake_disposition=disposition,
+                hq_accepted_by=accepted_by,
+                hq_destination_set_by=destination_set_by,
+                proposed_by=proposed_by,
+            )
+            for row_id, disposition, accepted_by, destination_set_by, proposed_by in rows
+        }
+
+    def complaint_numbers_by_ids(self, complaint_ids: list[str]) -> dict[str, str]:
+        uuids = _unique_uuids(complaint_ids)
+        if not uuids:
+            return {}
+        rows = self._session.execute(
+            select(CmBatch1ComplaintORM.id, CmBatch1ComplaintORM.complaint_number).where(
+                CmBatch1ComplaintORM.id.in_(uuids)
+            )
+        ).all()
+        return {str(row_id): number for row_id, number in rows}
 
     def list_summaries(
         self,
@@ -127,6 +276,7 @@ class SqlAlchemyCaseRepository:
         pusat_unit_codes: frozenset[str],
         complaint_id: str | None = None,
         status: str | None = None,
+        keyword: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[CmCaseORM], int]:
@@ -138,23 +288,51 @@ class SqlAlchemyCaseRepository:
             stmt = stmt.where(CmCaseORM.complaint_id == complaint_id.strip())
         if status and status.strip():
             stmt = stmt.where(CmCaseORM.status == status.strip().upper())
+        stmt = _apply_keyword_filter(self._session, stmt, keyword)
 
         vis = (visibility or "").upper()
         if vis == "ALL":
             pass
         elif vis == "SELF":
-            # Mode A interim (BQ-006): no assigned_user column → created_by only
-            stmt = stmt.where(CmCaseORM.created_by == actor_id)
+            actor = (actor_id or "").strip()
+            if not actor:
+                return [], 0
+            # Mode A interim (BQ-006): no assignee column. Inbox = Case.created_by.
+            # Parent-scoped reads (complaintId=…) also include Cases under a
+            # Complaint the actor created — another officer may have opened the
+            # Case (list/detail penanganan must not show a false "no case").
+            parent_key = (complaint_id or "").strip()
+            if parent_key:
+                parent = self.get_parent_complaint(parent_key)
+                parent_owned = (
+                    parent is not None
+                    and (parent.created_by or "").strip() == actor
+                )
+                if not parent_owned:
+                    stmt = stmt.where(CmCaseORM.created_by == actor)
+            else:
+                stmt = stmt.where(CmCaseORM.created_by == actor)
         elif vis == "UNIT":
             unit = (org_unit_id or "").strip()
             if not unit:
                 return [], 0
-            stmt = stmt.where(CmCaseORM.owning_unit_id == unit)
-        elif vis == "PUSAT":
-            codes = {c.upper() for c in pusat_unit_codes}
-            # SQLite/Postgres: compare upper(owning_unit_id)
+            # F4 visibility: Owner unit retains access after Handling Unit moves.
             stmt = stmt.where(
-                func.upper(CmCaseORM.owning_unit_id).in_(sorted(codes))
+                (CmCaseORM.owning_unit_id == unit)
+                | (CmCaseORM.owner_unit_id == unit)
+            )
+        elif vis == "PUSAT":
+            # Root code or Pusat sub-unit (PUSAT-CRO, PUSAT-SUBAN-1, …) on
+            # either side — Handling Unit may move between Pusat sub-units
+            # while the Owner keeps its access.
+            stmt = stmt.where(
+                pusat_unit_clause(
+                    CmCaseORM.owning_unit_id, pusat_unit_codes=pusat_unit_codes
+                )
+                | pusat_unit_clause(
+                    CmCaseORM.owner_unit_id, pusat_unit_codes=pusat_unit_codes
+                )
+                | (CmCaseORM.escalated_to_pusat.is_(True))
             )
         else:
             return [], 0
@@ -172,6 +350,185 @@ class SqlAlchemyCaseRepository:
         )
         return rows, total
 
+    def unclaimed_escalated_case_ids(self, complaint_id: str) -> list[str]:
+        """Open Cases under this parent still parked at Pusat, nobody claimed."""
+        key = (complaint_id or "").strip()
+        if not key:
+            return []
+        rows = self._session.scalars(
+            select(CmCaseORM.id).where(
+                CmCaseORM.complaint_id == key,
+                CmCaseORM.escalated_to_pusat.is_(True),
+                (CmCaseORM.handling_claimed_by.is_(None))
+                | (CmCaseORM.handling_claimed_by == ""),
+                CmCaseORM.status.not_in(("CLOSED", "CANCELLED", "RESOLVED")),
+            )
+        )
+        return [str(row) for row in rows]
+
+    def has_open_escalated_cases(self, complaint_id: str) -> bool:
+        """True if any open Case under this parent is still with Pusat."""
+        key = (complaint_id or "").strip()
+        if not key:
+            return False
+        count = self._session.scalar(
+            select(func.count())
+            .select_from(CmCaseORM)
+            .where(
+                CmCaseORM.complaint_id == key,
+                CmCaseORM.escalated_to_pusat.is_(True),
+                CmCaseORM.status.not_in(("CLOSED", "CANCELLED", "RESOLVED")),
+            )
+        )
+        return int(count or 0) > 0
+
+    def mark_parent_returned_to_branch(self, complaint_id: str) -> None:
+        """Case-level return (API-521) — parent leaves the HQ path.
+
+        Only when no sibling Case remains at Pusat. Clears accept/slot so
+        cabang tahap/CTA follow ``RETURNED_TO_BRANCH`` (not stale HQ_SCHEDULED).
+        """
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        if (row.status or "").strip().upper() == "CLOSED":
+            return
+        row.intake_disposition = "RETURNED_TO_BRANCH"
+        row.hq_accepted_at = None
+        row.hq_accepted_by = None
+        row.hq_arrival_date = None
+        row.hq_arrival_time = None
+        row.hq_destination_unit_id = None
+        row.hq_destination_set_by = None
+        row.hq_destination_set_at = None
+        row.proposed_arrival_date = None
+        row.proposed_arrival_time = None
+        row.proposed_by = None
+        row.proposed_at = None
+        self._session.flush()
+
+    def mark_parent_awaiting_hq_schedule(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date | None = None,
+        proposed_time: str | None = None,
+        proposed_by: str | None = None,
+    ) -> None:
+        """Case-level escalate (API-520) — parent waits for Terima & jadwalkan.
+
+        Does not rewind an already-accepted HQ_SCHEDULED slot. Sibling Cases are
+        not flagged; only this parent door opens so Pusat can schedule.
+        """
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        if (row.status or "").strip().upper() == "CLOSED":
+            return
+        current = (row.intake_disposition or "").strip().upper()
+        if current == "HQ_SCHEDULED" and row.hq_accepted_at is not None:
+            return
+        row.intake_disposition = "ESCALATE_APPROVED"
+        if current == "RETURNED_TO_BRANCH":
+            row.hq_accepted_at = None
+            row.hq_accepted_by = None
+            row.hq_arrival_date = None
+            row.hq_arrival_time = None
+            row.hq_destination_unit_id = None
+            row.hq_destination_set_by = None
+            row.hq_destination_set_at = None
+        if proposed_date is not None:
+            row.proposed_arrival_date = proposed_date
+            row.proposed_arrival_time = (proposed_time or "").strip() or None
+            row.proposed_by = proposed_by
+            row.proposed_at = datetime.now(UTC)
+        self._session.flush()
+
+    def close_parent_hq_schedule_door_if_idle(self, complaint_id: str) -> None:
+        """Drop ``ESCALATE_APPROVED`` when no Case remains at Pusat and HQ has not accepted."""
+        if self.has_open_escalated_cases(complaint_id):
+            return
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return
+        if (row.status or "").strip().upper() == "CLOSED":
+            return
+        if (row.intake_disposition or "").strip().upper() != "ESCALATE_APPROVED":
+            return
+        if row.hq_accepted_at is not None:
+            return
+        if self._complaint_has_case_return_event(uid):
+            self.mark_parent_returned_to_branch(complaint_id)
+            return
+        row.intake_disposition = None
+        row.proposed_arrival_date = None
+        row.proposed_arrival_time = None
+        row.proposed_by = None
+        row.proposed_at = None
+        self._session.flush()
+
+    def _complaint_has_case_return_event(self, complaint_uuid: UUID) -> bool:
+        if not _has_timeline_table(self._session):
+            return False
+        from app.modules.timeline.models import TimelineEntryORM
+
+        found = self._session.scalar(
+            select(TimelineEntryORM.id)
+            .where(
+                TimelineEntryORM.aggregate_id == complaint_uuid,
+                TimelineEntryORM.event_type == "CaseEscalationReturned",
+            )
+            .limit(1)
+        )
+        return found is not None
+
+    def latest_case_escalation_event(
+        self, *, case_id: str, complaint_id: str
+    ) -> str | None:
+        """Latest Case-level escalate / return / cancel event for this Case."""
+        key = (case_id or "").strip()
+        if not key:
+            return None
+        try:
+            cid = UUID((complaint_id or "").strip())
+        except ValueError:
+            return None
+        if not _has_timeline_table(self._session):
+            return None
+        from app.modules.timeline.models import TimelineEntryORM
+
+        rows = self._session.scalars(
+            select(TimelineEntryORM)
+            .where(
+                TimelineEntryORM.aggregate_id == cid,
+                TimelineEntryORM.event_type.in_(
+                    (
+                        "CaseEscalatedToPusat",
+                        "CaseEscalationReturned",
+                        "CaseEscalationToPusatCancelled",
+                    )
+                ),
+            )
+            .order_by(TimelineEntryORM.created_at.desc())
+        ).all()
+        for row in rows:
+            meta = row.metadata_json or {}
+            if str(meta.get("caseId") or "") == key:
+                return str(row.event_type)
+        return None
+
     def mark_complaint_in_progress(self, complaint_id: str) -> None:
         try:
             uid = UUID(complaint_id)
@@ -184,6 +541,57 @@ class SqlAlchemyCaseRepository:
         if row.status == "REGISTERED":
             row.status = "IN_PROGRESS"
         self._session.flush()
+
+    def sync_complaint_status_from_cases(self, complaint_id: str) -> str | None:
+        """DEC-025 §3.4 — BR-009 Mode A auto-close (bukan Close Case = Close Complaint).
+
+        Case ``CANCELLED`` diabaikan dalam hitungan "selesai". Induk auto-close
+        jika tidak ada Case yang masih dikerjakan dan ada minimal satu Case
+        ``CLOSED``. Semua Case ``CANCELLED`` (tanpa ``CLOSED``) juga menutup induk,
+        tetapi ditandai ``ALL_CASES_CANCELLED`` — bukan penyelesaian kerja, jadi
+        laporan bisa memisahkannya dari ``BRANCH_CLOSED``/``HQ_CLOSED``
+        (keputusan Business Owner 2026-08-22, follow-up DEC-025 §3.4).
+        """
+        try:
+            uid = UUID(complaint_id)
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+
+        statuses = [
+            (s or "").strip().upper()
+            for s in self._session.scalars(
+                select(CmCaseORM.status).where(CmCaseORM.complaint_id == str(uid))
+            )
+        ]
+        if not statuses:
+            return row.status
+
+        working = [s for s in statuses if s not in {"CLOSED", "CANCELLED"}]
+        has_closed = any(s == "CLOSED" for s in statuses)
+        row.case_created = True
+        if working:
+            if row.status in {"CLOSED", "REGISTERED"}:
+                # Reopen: apply_complaint_status clears closed_at so the SLA
+                # measures the reopened cycle, not the closure it superseded.
+                apply_complaint_status(row, "IN_PROGRESS")
+            disp = (row.intake_disposition or "").strip().upper()
+            if disp in {"BRANCH_CLOSED", "ALL_CASES_CANCELLED"}:
+                row.intake_disposition = None
+        elif has_closed:
+            apply_complaint_status(row, "CLOSED")
+            disp = (row.intake_disposition or "").strip().upper()
+            if not disp or disp in {"BRANCH_CLOSED", "ALL_CASES_CANCELLED"}:
+                row.intake_disposition = "BRANCH_CLOSED"
+        else:
+            # Semua Case CANCELLED — induk ditutup sebagai batal, bukan selesai.
+            apply_complaint_status(row, "CLOSED")
+            row.intake_disposition = "ALL_CASES_CANCELLED"
+
+        self._session.flush()
+        return row.status
 
     def commit(self) -> None:
         self._session.commit()

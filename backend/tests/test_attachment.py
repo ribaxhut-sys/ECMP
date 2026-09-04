@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import uuid
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -21,6 +23,7 @@ from app.modules.attachment.service import (
     SETTING_STORAGE_PROVIDER,
     SETTING_STORAGE_ROOT_PATH,
     AttachmentService,
+    normalize_upload_mime,
     sanitize_filename,
 )
 
@@ -263,3 +266,65 @@ def test_settings_defaults_json_roundtrip() -> None:
         separators=(",", ":"),
     )
     assert json.loads(raw) == ["application/pdf", "image/png"]
+
+
+def _minimal_zip() -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("note.txt", "ok")
+    return buf.getvalue()
+
+
+def test_normalize_upload_mime_zip_aliases() -> None:
+    data = _minimal_zip()
+    assert (
+        normalize_upload_mime(
+            content_type="application/x-zip-compressed",
+            filename="bukti.zip",
+            data=data,
+        )
+        == "application/zip"
+    )
+    assert (
+        normalize_upload_mime(
+            content_type="application/octet-stream",
+            filename="bukti.zip",
+            data=data,
+        )
+        == "application/zip"
+    )
+
+
+def test_normalize_upload_mime_rejects_fake_zip() -> None:
+    with pytest.raises(ValidationAppError, match="ZIP"):
+        normalize_upload_mime(
+            content_type="application/zip",
+            filename="bukti.zip",
+            data=b"not-a-zip",
+        )
+
+
+def test_upload_zip_as_opaque_blob(tmp_path: Path) -> None:
+    repo = MagicMock()
+    created: list[Attachment] = []
+    repo.add.side_effect = lambda entity: created.append(entity) or entity
+    storage = LocalStorageProvider(str(tmp_path))
+    svc = AttachmentService(
+        repo,
+        _settings(root=str(tmp_path), allowed=["application/zip", "image/png"]),
+        storage=storage,
+    )
+    data = _minimal_zip()
+    result = svc.upload(
+        aggregate_type=AggregateType.INTERNAL_COMPLAINT.value,
+        aggregate_id=uuid.uuid4(),
+        filename="bukti.zip",
+        content_type="application/x-zip-compressed",
+        data=data,
+        uploaded_by=None,
+    )
+    assert result.mime_type == "application/zip"
+    assert result.extension == ".zip"
+    assert result.original_name == "bukti.zip"
+    assert created[0].size_bytes == len(data)
+    assert storage.read(created[0].storage_path) == data

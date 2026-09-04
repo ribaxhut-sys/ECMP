@@ -31,6 +31,7 @@ class CmCaseORM(Base):
         Index("ix_cm_cases_complaint_id", "complaint_id"),
         Index("ix_cm_cases_status", "status"),
         Index("ix_cm_cases_created_at", "created_at"),
+        Index("ix_cm_cases_handling_claimed_by", "handling_claimed_by"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -48,7 +49,11 @@ class CmCaseORM(Base):
     subject: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     priority: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Current handling unit — mutated on transfer (ASSIGNED).
     owning_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # F4 owner rule — parent Complaint's owning unit, snapshotted once at
+    # Case creation. Application layer never updates this after insert.
+    owner_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sla_policy_version_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sla_countdown_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
@@ -62,6 +67,16 @@ class CmCaseORM(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
     created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    handling_claimed_by: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    escalated_to_pusat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    escalation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -113,8 +128,86 @@ class CmCaseResolutionORM(Base):
     )
 
 
+class CmCaseAcceptanceORM(Base):
+    """F4 closure rule — Handling Unit / Owner acceptance decisions.
+
+    Append-only audit trail (mirrors ``CmCaseResolutionORM``). Rows are
+    never updated or deleted; ``CaseAggregate.handling_unit_acceptance`` /
+    ``owner_acceptance`` are current-state pointers derived by the mapper,
+    not stored separately here.
+    """
+
+    __tablename__ = "cm_case_acceptances"
+    __table_args__ = (Index("ix_cm_case_acceptances_case_id", "case_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_cases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    party: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    actor_unit_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CmCaseInboxReceiptORM(Base):
+    """Per-user Case inbox unread (Cabang creator). Not CAP-005 / email.
+
+    One row per (case, user). ``read_at`` null means unread. A later event
+    (return / HQ schedule) clears ``read_at`` so the row lights up again.
+    ``user_id`` is an actor string (same as ``cm_cases.created_by``) — no FK.
+    """
+
+    __tablename__ = "cm_case_inbox_receipts"
+    __table_args__ = (
+        UniqueConstraint("case_id", "user_id", name="uq_cm_case_inbox_receipts_pair"),
+        Index("ix_cm_case_inbox_receipts_user_id", "user_id"),
+        Index("ix_cm_case_inbox_receipts_case_id", "case_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cm_cases.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
+    event_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class CmCaseNumberCounterORM(Base):
+    """Independent Case sequence — key ``cs:UNIT:YYYYMM`` (BQ-004)."""
+
     __tablename__ = "cm_case_number_counters"
 
-    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
     last_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

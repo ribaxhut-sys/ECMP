@@ -1,38 +1,31 @@
-# ECMP edge — dual host (Opsi A / DEC-023)
-# - Apex ($ECMP_APEX_DOMAIN): static landing → link ke modul
-# - Modul ($ECMP_DOMAIN): Next.js + API (Mode A)
-# TLS via Let's Encrypt (DNS A untuk kedua host → VPS dulu).
+# ECMP edge — canonical host layanan.tech (module = apex).
+# www + pengaduan → canonical. Bukan Mode B / SSO.
+# Domain lama layanankami.tech tidak dilayani di VPS ini.
 
 {
 	email {$CADDY_ACME_EMAIL}
-}
-
-# --- Portal sementara (apex + www) — bukan SSO / bukan modul ---
-{$ECMP_APEX_DOMAIN}, www.{$ECMP_APEX_DOMAIN} {
-	encode gzip
-
-	root * /srv/apex-landing
-	file_server
-
-	header {
-		X-Content-Type-Options nosniff
-		Referrer-Policy strict-origin-when-cross-origin
-		-Server
+	servers {
+		protocols h1 h2
 	}
 }
 
-# --- Modul Pengaduan ---
+www.{$ECMP_DOMAIN}, pengaduan.{$ECMP_DOMAIN} {
+	redir https://{$ECMP_DOMAIN}{uri} permanent
+}
+
 {$ECMP_DOMAIN} {
 	encode gzip
 
 	handle /api/* {
+		request_body {
+			max_size 55MB
+		}
 		reverse_proxy backend:8000
 	}
 
 	handle /health* {
 		reverse_proxy backend:8000
 	}
-	# W-S04: do not expose /docs /redoc /openapi.json on public edge
 
 	handle {
 		reverse_proxy frontend:3000

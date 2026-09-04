@@ -71,7 +71,7 @@
 | Appointment cumulative scope (BO-05) | **CLOSED** | Merged into DL-066 |
 | C-05 Dual SLA mechanisms | **STILL OPEN** | Architecture convergence (Board / M-18); bukan P1 BO |
 | C-04 Dual Case State Machine | **PARTIALLY CLOSED** | Disengaja (O3); perlu kualifikasi di BC; Retirement DEC = Board |
-| C-06 Dual SoT no Retirement DEC | **STILL OPEN** | Board |
+| C-06 Dual SoT no Retirement DEC | **CLOSED (Mode A runtime)** | DEC-026 + M-026-1…3 (2026-08-13); Foundation HTTP retired |
 | C-01 Frontend stack ADR | **STILL OPEN** | Board |
 | C-02 AuthN ADR-007/012 | **STILL OPEN** | Board |
 | C-03 DEC ID collision register | **STILL OPEN** | Board |

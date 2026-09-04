@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import Principal, require_permissions
+from app.core.auth import Principal, require_any_permission
 from app.core.schemas import ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.modules.branches.repository import BranchRepository
@@ -31,7 +31,10 @@ def get_branch_service(
 )
 def list_branches(
     service: Annotated[BranchService, Depends(get_branch_service)],
-    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:read", "users:read")),
+    ],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     q: Annotated[str | None, Query(max_length=200)] = None,

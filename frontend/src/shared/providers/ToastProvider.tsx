@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, subscribeApiErrors } from "@/lib/api/client";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { Toast, type ToastTone } from "@/shared/ui/toast";
 
 interface ToastItem {
@@ -34,30 +35,25 @@ let toastSeq = 0;
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<ToastItem | null>(null);
   const t = useTranslations("common");
+  const tErrors = useTranslations("errors");
 
   const describeError = useCallback(
     (error: unknown): { title: string; description: string } => {
       if (error instanceof ApiError) {
-        if (error.status === 0) {
-          return {
-            title: t("networkError"),
-            description: error.message || t("networkErrorDescription"),
-          };
-        }
         return {
-          title: t("requestFailed"),
-          description: error.message || t("httpError", { status: error.status }),
+          title: error.status === 0 ? t("networkError") : t("requestFailed"),
+          description: resolveApiErrorMessage(error, tErrors, t),
         };
       }
       if (error instanceof Error) {
-        return { title: t("unexpectedError"), description: error.message };
+        return { title: t("unexpectedError"), description: t("unexpectedErrorDescription") };
       }
       return {
         title: t("unexpectedError"),
         description: t("unexpectedErrorDescription"),
       };
     },
-    [t],
+    [t, tErrors],
   );
 
   const push = useCallback((toast: Omit<ToastItem, "id">) => {

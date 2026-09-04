@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { formatShortDateTime24 } from "@/shared/utils/datetime";
 import {
   Alert,
   Badge,
@@ -21,17 +22,6 @@ export interface EscalationHistoryPanelProps {
   complaint: MockComplaint;
 }
 
-function formatWhen(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
 const ESCALATION_TYPES: ReadonlySet<MockDecisionHistoryType> = new Set([
   "ESCALATION_OPEN",
   "ESCALATION_CONTEXT_REQUEST",
@@ -49,6 +39,7 @@ export function EscalationHistoryPanel({
   complaint,
 }: EscalationHistoryPanelProps) {
   const t = useTranslations("escalationHandling");
+  const locale = useLocale();
   const history = useMemo(
     () => complaint.decisionHistory ?? [],
     [complaint.decisionHistory],
@@ -75,7 +66,7 @@ export function EscalationHistoryPanel({
                   : entry.type === "ESCALATION_FORWARD"
                     ? t("hx.forward")
                     : t("hx.progress"),
-        time: formatWhen(entry.at),
+        time: formatShortDateTime24(entry.at, locale),
         actor: entry.actorName,
         status: entry.type,
         statusTone:
@@ -88,7 +79,7 @@ export function EscalationHistoryPanel({
                 : "info",
         description: entry.reason,
       })),
-    [escalationEntries, t],
+    [escalationEntries, t, locale],
   );
 
   if (!hasRequiredEscalationHistory(complaint)) {
