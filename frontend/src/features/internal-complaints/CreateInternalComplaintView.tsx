@@ -48,8 +48,12 @@ import {
   matchRelatedComplaint,
   mergeRelatedComplaintRefs,
   relatedComplaintFromListRow,
+  relatedComplaintIssueCopyKeys,
+  relatedComplaintIssueFromApiCode,
   relatedComplaintNoticeKind,
+  relatedComplaintSubmitIssue,
   resolveRelatedComplaintPayload,
+  type RelatedComplaintIssueKind,
   type RelatedComplaintRef,
 } from "./relatedComplaintMatch";
 import {
@@ -99,6 +103,12 @@ export function CreateInternalComplaintView() {
     uploadFail?: string;
   } | null>(null);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [relatedIssue, setRelatedIssue] = useState<{
+    kind: RelatedComplaintIssueKind;
+    value: string;
+  } | null>(null);
+  const [relatedLookupIdle, setRelatedLookupIdle] = useState(true);
+  const relatedInputRef = useRef<HTMLInputElement>(null);
   const presets = useReasonPresets(PRESET_KEYS);
 
   useEffect(() => {
@@ -139,6 +149,16 @@ export function CreateInternalComplaintView() {
     values.relatedComplaintId,
     matchedRelated,
   );
+
+  useEffect(() => {
+    if (!values.relatedComplaintId.trim() || matchedRelated) {
+      setRelatedLookupIdle(true);
+      return;
+    }
+    setRelatedLookupIdle(false);
+    const handle = window.setTimeout(() => setRelatedLookupIdle(true), 350);
+    return () => window.clearTimeout(handle);
+  }, [matchedRelated, values.relatedComplaintId]);
 
   useEffect(() => {
     const raw = values.relatedComplaintId.trim();
@@ -257,6 +277,68 @@ export function CreateInternalComplaintView() {
     return t("submitFailed");
   }
 
+  function relatedIssueFieldError(kind: RelatedComplaintIssueKind): string {
+    if (kind === "closed") return "relatedComplaintClosedError";
+    if (kind === "not_visible") return "relatedComplaintNotVisibleError";
+    return "relatedComplaintNotFoundError";
+  }
+
+  function openRelatedIssue(kind: RelatedComplaintIssueKind, value: string): void {
+    setRelatedIssue({ kind, value });
+    setErrors((prev) => ({
+      ...prev,
+      relatedComplaintId: relatedIssueFieldError(kind),
+    }));
+  }
+
+  function closeRelatedIssue(): void {
+    setRelatedIssue(null);
+    window.setTimeout(() => relatedInputRef.current?.focus(), 0);
+  }
+
+  function clearRelatedComplaintField(): void {
+    setField("relatedComplaintId", "");
+    setErrors((prev) => {
+      if (!prev.relatedComplaintId) return prev;
+      const next = { ...prev };
+      delete next.relatedComplaintId;
+      return next;
+    });
+    setRelatedIssue(null);
+    window.setTimeout(() => relatedInputRef.current?.focus(), 0);
+  }
+
+  async function lookupRelatedSuggestions(
+    keyword: string,
+  ): Promise<RelatedComplaintRef[]> {
+    const agentOnly = isInternalAgentFamily(roles);
+    const filters: {
+      status: string;
+      pageSize: number;
+      keyword: string;
+      createdBy?: string;
+    } = { status: "OPEN", pageSize: 10, keyword };
+    if (agentOnly && userId) {
+      filters.createdBy = userId;
+    }
+    try {
+      const res = await fetchCmBatch1Complaints(filters);
+      const incoming = (res.data ?? [])
+        .map(relatedComplaintFromListRow)
+        .filter((row): row is RelatedComplaintRef => row !== null);
+      if (incoming.length === 0) return relatedSuggestionsRef.current;
+      const merged = mergeRelatedComplaintRefs(
+        relatedSuggestionsRef.current,
+        incoming,
+      );
+      relatedSuggestionsRef.current = merged;
+      setRelatedSuggestions(merged);
+      return merged;
+    } catch {
+      return relatedSuggestionsRef.current;
+    }
+  }
+
   function goToCreatedTicket(id: string): void {
     refreshInternalInboxBadges();
     router.push(`/internal/complaints/${encodeURIComponent(id)}`);
@@ -265,16 +347,27 @@ export function CreateInternalComplaintView() {
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!canCreate || createdTicket) return;
-    const related = resolveRelatedComplaintPayload(
-      values.relatedComplaintId,
-      relatedSuggestions,
-    );
+    const rawRelated = values.relatedComplaintId.trim();
+    let rows = relatedSuggestionsRef.current;
+    let related = resolveRelatedComplaintPayload(rawRelated, rows);
+    if (
+      (related.status === "unresolved" || related.status === "literal") &&
+      looksLikeRelatedComplaintQuery(rawRelated)
+    ) {
+      rows = await lookupRelatedSuggestions(rawRelated);
+      related = resolveRelatedComplaintPayload(rawRelated, rows);
+    }
+    const relatedIssueKind = relatedComplaintSubmitIssue(related);
     const fieldErrors = validateInternalComplaintForm(values, {
       canAssign,
       requireRequestReason: !canAssign && fromPusat,
-      relatedUnresolved: related.status === "unresolved",
+      relatedUnresolved: relatedIssueKind !== null,
     });
     setErrors(fieldErrors);
+    if (relatedIssueKind) {
+      openRelatedIssue(relatedIssueKind, rawRelated);
+      return;
+    }
     if (!isInternalComplaintFormValid(fieldErrors)) return;
 
     setSaving(true);
@@ -314,11 +407,23 @@ export function CreateInternalComplaintView() {
         uploadFail: failed.length > 0 ? failed.join(", ") : undefined,
       });
     } catch (err) {
-      setSubmitError(relatedLinkError(err));
+      const apiIssue =
+        err instanceof ApiError
+          ? relatedComplaintIssueFromApiCode(err.code)
+          : null;
+      if (apiIssue) {
+        openRelatedIssue(apiIssue, values.relatedComplaintId.trim());
+      } else {
+        setSubmitError(relatedLinkError(err));
+      }
     } finally {
       setSaving(false);
     }
   }
+
+  const relatedIssueCopy = relatedComplaintIssueCopyKeys(
+    relatedIssue?.kind ?? "unresolved",
+  );
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
@@ -389,6 +494,7 @@ export function CreateInternalComplaintView() {
               </div>
               <div className="space-y-2">
               <Input
+                ref={relatedInputRef}
                 label={t("relatedComplaint")}
                 value={values.relatedComplaintId}
                 onChange={(e) => setField("relatedComplaintId", e.target.value)}
@@ -423,6 +529,14 @@ export function CreateInternalComplaintView() {
                     number: matchedRelated?.number ?? t("relatedComplaintNone"),
                   })}
                   description={t("relatedComplaintLinkedHint")}
+                />
+              ) : null}
+              {relatedNotice === "unresolved" && relatedLookupIdle ? (
+                <Alert
+                  role="status"
+                  tone="warning"
+                  title={t("relatedComplaintUnresolvedTitle")}
+                  description={t("relatedComplaintUnresolvedHint")}
                 />
               ) : null}
               {matchedRelated ? (
@@ -552,6 +666,41 @@ export function CreateInternalComplaintView() {
           </CardBody>
         </Card>
       </div>
+
+      <Modal
+        open={relatedIssue !== null}
+        onClose={closeRelatedIssue}
+        title={t(relatedIssueCopy.title)}
+        size="sm"
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={closeRelatedIssue}>
+              {t("relatedComplaintIssueFix")}
+            </Button>
+            <Button type="button" onClick={clearRelatedComplaintField}>
+              {t("relatedComplaintIssueClear")}
+            </Button>
+          </>
+        }
+      >
+        <ModalSection>
+          {relatedIssue ? (
+            <>
+              <p className="text-sm text-ecmp-text-primary">
+                {t(relatedIssueCopy.lead, {
+                  value: relatedIssue.value || tCommon("emDash"),
+                })}
+              </p>
+              <p className="text-sm text-ecmp-text-primary">
+                {t(relatedIssueCopy.why)}
+              </p>
+              <p className="text-sm text-ecmp-text-primary">
+                {t(relatedIssueCopy.how)}
+              </p>
+            </>
+          ) : null}
+        </ModalSection>
+      </Modal>
 
       <Modal
         open={Boolean(createdTicket)}

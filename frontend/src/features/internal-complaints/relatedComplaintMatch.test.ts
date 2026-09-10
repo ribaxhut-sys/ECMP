@@ -4,7 +4,10 @@ import {
   matchRelatedComplaint,
   mergeRelatedComplaintRefs,
   relatedComplaintFromListRow,
+  relatedComplaintIssueFromApiCode,
   relatedComplaintNoticeKind,
+  relatedComplaintSubmitIssue,
+  relatedComplaintIssueCopyKeys,
   resolveRelatedComplaintPayload,
 } from "./relatedComplaintMatch";
 
@@ -82,10 +85,53 @@ describe("relatedComplaintMatch", () => {
     });
   });
 
-  it("shows empty or linked notices, not while the keyword is still unresolved", () => {
+  it("shows empty, linked, or unresolved notices after two characters", () => {
     expect(relatedComplaintNoticeKind("", null)).toBe("empty");
     expect(relatedComplaintNoticeKind("   ", null)).toBe("empty");
     expect(relatedComplaintNoticeKind(ROW.number, ROW)).toBe("linked");
-    expect(relatedComplaintNoticeKind("bukan nomor", null)).toBeNull();
+    expect(relatedComplaintNoticeKind("a", null)).toBeNull();
+    expect(relatedComplaintNoticeKind("bukan nomor", null)).toBe("unresolved");
+  });
+
+  it("blocks submit on unmatched text or a CM- number that is not in the list", () => {
+    expect(relatedComplaintSubmitIssue({ status: "empty", id: null })).toBeNull();
+    expect(
+      relatedComplaintSubmitIssue({ status: "matched", id: ROW.id }),
+    ).toBeNull();
+    expect(relatedComplaintSubmitIssue({ status: "unresolved" })).toBe(
+      "unresolved",
+    );
+    expect(
+      relatedComplaintSubmitIssue({ status: "literal", id: "CM-2026-9999" }),
+    ).toBe("not_found");
+  });
+
+  it("maps related-link API codes to the explanation modal", () => {
+    expect(relatedComplaintIssueFromApiCode("RELATED_COMPLAINT_NOT_FOUND")).toBe(
+      "not_found",
+    );
+    expect(relatedComplaintIssueFromApiCode("NOT_FOUND")).toBe("not_found");
+    expect(relatedComplaintIssueFromApiCode("RELATED_COMPLAINT_CLOSED")).toBe(
+      "closed",
+    );
+    expect(
+      relatedComplaintIssueFromApiCode("RELATED_COMPLAINT_NOT_VISIBLE"),
+    ).toBe("not_visible");
+    expect(relatedComplaintIssueFromApiCode("VALIDATION_ERROR")).toBeNull();
+  });
+
+  it("picks explanation copy keys per related-link issue", () => {
+    expect(relatedComplaintIssueCopyKeys("unresolved").title).toBe(
+      "relatedComplaintIssueUnresolvedTitle",
+    );
+    expect(relatedComplaintIssueCopyKeys("not_found").lead).toBe(
+      "relatedComplaintIssueNotFoundLead",
+    );
+    expect(relatedComplaintIssueCopyKeys("closed").why).toBe(
+      "relatedComplaintIssueClosedWhy",
+    );
+    expect(relatedComplaintIssueCopyKeys("not_visible").how).toBe(
+      "relatedComplaintIssueNotVisibleHow",
+    );
   });
 });

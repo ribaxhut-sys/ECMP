@@ -115,8 +115,8 @@ export function mergeRelatedComplaintRefs(
   return [...byId.values()];
 }
 
-/** Advisory banner on create: empty vs confirmed pick. Unresolved typing stays silent. */
-export type RelatedComplaintNoticeKind = "empty" | "linked";
+/** Advisory banner on create: empty, confirmed pick, or unmatched text. */
+export type RelatedComplaintNoticeKind = "empty" | "linked" | "unresolved";
 
 export function relatedComplaintNoticeKind(
   raw: string,
@@ -124,5 +124,72 @@ export function relatedComplaintNoticeKind(
 ): RelatedComplaintNoticeKind | null {
   if (!raw.trim()) return "empty";
   if (matched) return "linked";
+  if (!looksLikeRelatedComplaintQuery(raw)) return null;
+  return "unresolved";
+}
+
+export type RelatedComplaintIssueKind =
+  | "unresolved"
+  | "not_found"
+  | "closed"
+  | "not_visible";
+
+/** Block create unless the field is empty or a list pick — avoids opaque 404. */
+export function relatedComplaintSubmitIssue(
+  payload: RelatedComplaintPayload,
+): RelatedComplaintIssueKind | null {
+  if (payload.status === "unresolved") return "unresolved";
+  if (payload.status === "literal") return "not_found";
   return null;
+}
+
+export function relatedComplaintIssueFromApiCode(
+  code: string | undefined,
+): RelatedComplaintIssueKind | null {
+  if (code === "RELATED_COMPLAINT_NOT_FOUND" || code === "NOT_FOUND") {
+    return "not_found";
+  }
+  if (code === "RELATED_COMPLAINT_CLOSED") return "closed";
+  if (code === "RELATED_COMPLAINT_NOT_VISIBLE") return "not_visible";
+  return null;
+}
+
+export function relatedComplaintIssueCopyKeys(
+  kind: RelatedComplaintIssueKind,
+): {
+  title: string;
+  lead: string;
+  why: string;
+  how: string;
+} {
+  if (kind === "closed") {
+    return {
+      title: "relatedComplaintIssueClosedTitle",
+      lead: "relatedComplaintIssueClosedLead",
+      why: "relatedComplaintIssueClosedWhy",
+      how: "relatedComplaintIssueClosedHow",
+    };
+  }
+  if (kind === "not_visible") {
+    return {
+      title: "relatedComplaintIssueNotVisibleTitle",
+      lead: "relatedComplaintIssueNotVisibleLead",
+      why: "relatedComplaintIssueNotVisibleWhy",
+      how: "relatedComplaintIssueNotVisibleHow",
+    };
+  }
+  if (kind === "not_found") {
+    return {
+      title: "relatedComplaintIssueNotFoundTitle",
+      lead: "relatedComplaintIssueNotFoundLead",
+      why: "relatedComplaintIssueNotFoundWhy",
+      how: "relatedComplaintIssueNotFoundHow",
+    };
+  }
+  return {
+    title: "relatedComplaintIssueUnresolvedTitle",
+    lead: "relatedComplaintIssueUnresolvedLead",
+    why: "relatedComplaintIssueUnresolvedWhy",
+    how: "relatedComplaintIssueUnresolvedHow",
+  };
 }
