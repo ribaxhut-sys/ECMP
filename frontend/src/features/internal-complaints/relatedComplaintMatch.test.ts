@@ -4,6 +4,7 @@ import {
   matchRelatedComplaint,
   mergeRelatedComplaintRefs,
   relatedComplaintFromListRow,
+  relatedComplaintNoticeKind,
   resolveRelatedComplaintPayload,
 } from "./relatedComplaintMatch";
 
@@ -79,5 +80,12 @@ describe("relatedComplaintMatch", () => {
     expect(resolveRelatedComplaintPayload("bukan nomor", [ROW])).toEqual({
       status: "unresolved",
     });
+  });
+
+  it("shows empty or linked notices, not while the keyword is still unresolved", () => {
+    expect(relatedComplaintNoticeKind("", null)).toBe("empty");
+    expect(relatedComplaintNoticeKind("   ", null)).toBe("empty");
+    expect(relatedComplaintNoticeKind(ROW.number, ROW)).toBe("linked");
+    expect(relatedComplaintNoticeKind("bukan nomor", null)).toBeNull();
   });
 });

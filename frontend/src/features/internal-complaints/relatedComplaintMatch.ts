@@ -114,3 +114,15 @@ export function mergeRelatedComplaintRefs(
   for (const row of incoming) byId.set(row.id, row);
   return [...byId.values()];
 }
+
+/** Advisory banner on create: empty vs confirmed pick. Unresolved typing stays silent. */
+export type RelatedComplaintNoticeKind = "empty" | "linked";
+
+export function relatedComplaintNoticeKind(
+  raw: string,
+  matched: RelatedComplaintRef | null,
+): RelatedComplaintNoticeKind | null {
+  if (!raw.trim()) return "empty";
+  if (matched) return "linked";
+  return null;
+}

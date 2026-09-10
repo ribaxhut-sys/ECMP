@@ -48,6 +48,7 @@ import {
   matchRelatedComplaint,
   mergeRelatedComplaintRefs,
   relatedComplaintFromListRow,
+  relatedComplaintNoticeKind,
   resolveRelatedComplaintPayload,
   type RelatedComplaintRef,
 } from "./relatedComplaintMatch";
@@ -133,6 +134,10 @@ export function CreateInternalComplaintView() {
   const matchedRelated = useMemo(
     () => matchRelatedComplaint(values.relatedComplaintId, relatedSuggestions),
     [relatedSuggestions, values.relatedComplaintId],
+  );
+  const relatedNotice = relatedComplaintNoticeKind(
+    values.relatedComplaintId,
+    matchedRelated,
   );
 
   useEffect(() => {
@@ -402,6 +407,24 @@ export function CreateInternalComplaintView() {
                   <option key={row.id} value={row.number} />
                 ))}
               </datalist>
+              {relatedNotice === "empty" ? (
+                <Alert
+                  role="status"
+                  tone="info"
+                  title={t("relatedComplaintEmptyTitle")}
+                  description={t("relatedComplaintEmptyHint")}
+                />
+              ) : null}
+              {relatedNotice === "linked" ? (
+                <Alert
+                  role="status"
+                  tone="info"
+                  title={t("relatedComplaintLinkedTitle", {
+                    number: matchedRelated?.number ?? t("relatedComplaintNone"),
+                  })}
+                  description={t("relatedComplaintLinkedHint")}
+                />
+              ) : null}
               {matchedRelated ? (
                 <div
                   role="status"
