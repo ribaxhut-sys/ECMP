@@ -14,6 +14,8 @@ import {
   type CmBatch1VerificationStatus,
 } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { IconCopy } from "@/shared/icons";
+import { useToast } from "@/shared/providers";
 import {
   Alert,
   Badge,
@@ -28,6 +30,11 @@ import {
 } from "@/shared/ui";
 import { formatDateTime24 } from "@/shared/utils/datetime";
 import { validateCustomerSearchKey } from "./customerSearchKey";
+import {
+  formatTaxpayerProfileClipboard,
+  taxpayerIdForClipboard,
+  writeClipboardText,
+} from "./taxpayerProfileClipboard";
 
 export interface CustomerSearchPanelProps {
   confirmedCustomerId: string;
@@ -115,6 +122,7 @@ export function CustomerSearchPanel({
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const { push, pushSuccess } = useToast();
   const [keyValue, setKeyValue] = useState("");
   const [searching, setSearching] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -394,6 +402,50 @@ export function CustomerSearchPanel({
 
   const locked = Boolean(confirmedCustomerId);
   const busy = searching || selecting;
+  const profileRecord = (profile360?.profile ?? {}) as Record<string, unknown>;
+  const profileName =
+    profileText(profileRecord, "displayName", "fullName", "name") ??
+    confirmedDisplayName;
+  const profileCustomerNumber =
+    profileText(
+      profileRecord,
+      "customerNumber",
+      "externalCustomerId",
+      "identityNumber",
+    ) ?? "";
+  const profileEmail =
+    profileText(profileRecord, "email", "emailAddress") ?? "";
+  const profileIdForClipboard = taxpayerIdForClipboard(profileCustomerNumber);
+
+  async function copyToClipboard(
+    text: string,
+    successKey: "taxpayerProfileCopied" | "taxpayerIdCopied",
+  ): Promise<void> {
+    try {
+      await writeClipboardText(text);
+      pushSuccess(t(successKey));
+    } catch {
+      push({ title: t("copyTaxpayerProfileFailed"), tone: "danger" });
+    }
+  }
+
+  async function onCopyProfile(): Promise<void> {
+    const payload = formatTaxpayerProfileClipboard({
+      nama: profileName,
+      idWp: profileCustomerNumber,
+      telepon:
+        phoneDraft.trim() ||
+        profileText(profileRecord, "phone", "phoneNumber") ||
+        "",
+      email: profileEmail,
+    });
+    await copyToClipboard(payload, "taxpayerProfileCopied");
+  }
+
+  async function onCopyTaxpayerId(): Promise<void> {
+    if (!profileIdForClipboard) return;
+    await copyToClipboard(profileIdForClipboard, "taxpayerIdCopied");
+  }
 
   const candidateTotalPages = Math.max(
     1,
@@ -719,93 +771,112 @@ export function CustomerSearchPanel({
 
         {locked && (loading360 || profile360) ? (
           <div className="space-y-[var(--ecmp-form-gap)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3 text-[length:var(--ecmp-font-body-small-size)]">
-            <h3 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
-              {t("customer360Title")}
-            </h3>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h3 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
+                {t("customer360Title")}
+              </h3>
+              {profile360 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<IconCopy className="size-4" aria-hidden />}
+                  disabled={disabled}
+                  aria-label={t("copyTaxpayerProfileAria")}
+                  onClick={() => void onCopyProfile()}
+                >
+                  {t("copyTaxpayerProfile")}
+                </Button>
+              ) : null}
+            </div>
             {loading360 ? <Skeleton rows={3} /> : null}
             {profile360 ? (
               <div className="space-y-[var(--ecmp-form-gap)]">
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                  {(() => {
-                    const profile = (profile360.profile ?? {}) as Record<
-                      string,
-                      unknown
-                    >;
-                    const activeCount = profile360.activeComplaints?.length ?? 0;
-                    const totalCount = profile360.complaintCount ?? 0;
-                    return (
-                      <>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("profileName")}
-                          </dt>
-                          <dd className="font-medium text-ecmp-text-primary">
-                            {profileText(
-                              profile,
-                              "displayName",
-                              "fullName",
-                              "name",
-                            ) ?? confirmedDisplayName}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("activeComplaints")}
-                          </dt>
-                          <dd>
-                            <button
-                              type="button"
-                              className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
-                              onClick={() => setHistoryMode("active")}
-                              disabled={disabled}
-                              aria-haspopup="dialog"
-                              aria-label={t("activeComplaintsLinkAria", {
-                                count: activeCount,
-                              })}
-                            >
-                              {t("activeComplaintsLink", {
-                                count: activeCount,
-                              })}
-                            </button>
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("profileCustomerNumber")}
-                          </dt>
-                          <dd className="font-medium text-ecmp-text-primary">
-                            {profileText(
-                              profile,
-                              "customerNumber",
-                              "externalCustomerId",
-                              "identityNumber",
-                            ) ?? "—"}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("complaintCount")}
-                          </dt>
-                          <dd>
-                            <button
-                              type="button"
-                              className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
-                              onClick={() => setHistoryMode("all")}
-                              disabled={disabled}
-                              aria-haspopup="dialog"
-                              aria-label={t("complaintHistoryLinkAria", {
-                                count: totalCount,
-                              })}
-                            >
-                              {t("complaintHistoryLink", {
-                                count: totalCount,
-                              })}
-                            </button>
-                          </dd>
-                        </div>
-                      </>
-                    );
-                  })()}
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("profileName")}
+                    </dt>
+                    <dd className="font-medium text-ecmp-text-primary">
+                      {profileName}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("activeComplaints")}
+                    </dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
+                        onClick={() => setHistoryMode("active")}
+                        disabled={disabled}
+                        aria-haspopup="dialog"
+                        aria-label={t("activeComplaintsLinkAria", {
+                          count: profile360.activeComplaints?.length ?? 0,
+                        })}
+                      >
+                        {t("activeComplaintsLink", {
+                          count: profile360.activeComplaints?.length ?? 0,
+                        })}
+                      </button>
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("profileCustomerNumber")}
+                    </dt>
+                    <dd className="flex min-w-0 items-center gap-1 font-medium text-ecmp-text-primary">
+                      <span className="min-w-0 break-all">
+                        {profileCustomerNumber
+                          ? formatCustomerIdDisplay(profileCustomerNumber)
+                          : "—"}
+                      </span>
+                      {profileIdForClipboard ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="!h-8 !min-h-8 shrink-0 px-2"
+                          disabled={disabled}
+                          aria-label={t("copyTaxpayerIdAria")}
+                          title={t("copyTaxpayerIdAria")}
+                          onClick={() => void onCopyTaxpayerId()}
+                        >
+                          <IconCopy className="size-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("complaintCount")}
+                    </dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
+                        onClick={() => setHistoryMode("all")}
+                        disabled={disabled}
+                        aria-haspopup="dialog"
+                        aria-label={t("complaintHistoryLinkAria", {
+                          count: profile360.complaintCount ?? 0,
+                        })}
+                      >
+                        {t("complaintHistoryLink", {
+                          count: profile360.complaintCount ?? 0,
+                        })}
+                      </button>
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("profileEmail")}
+                    </dt>
+                    <dd className="break-all font-medium text-ecmp-text-primary">
+                      {profileEmail || "—"}
+                    </dd>
+                  </div>
                 </dl>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div className="w-full max-w-[14rem]">
