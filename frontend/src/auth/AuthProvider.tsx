@@ -28,6 +28,7 @@ import {
   type MockSession,
   type OfficerWorkMode,
 } from "@/auth/mockAuth";
+import { principalHasPermission } from "@/auth/permissionCheck";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -208,8 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const forcePasswordChange = Boolean(user?.forcePasswordChange);
 
   const hasPermission = useCallback(
-    (permission: string) =>
-      permissions.includes("*") || permissions.includes(permission),
+    (permission: string) => principalHasPermission(permissions, permission),
     [permissions],
   );
 

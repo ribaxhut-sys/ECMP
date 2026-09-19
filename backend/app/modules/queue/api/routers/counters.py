@@ -47,7 +47,7 @@ async def create_counter(
     payload: CreateCounterRequest,
     controller: Annotated[CounterController, Depends(get_counter_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
-    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
+    principal: Annotated[Principal, Depends(require_permissions("queue:manage"))],
 ) -> DataResponse[QueueCounterResponse]:
     """API-370 — Create Counter."""
     _ = principal

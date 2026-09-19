@@ -15,6 +15,7 @@ import {
 import {
   allowedStatusTargets,
   canClose,
+  canOfferResolve,
   canResolve,
   caseStatusTone,
 } from "./caseStatus";
@@ -51,6 +52,25 @@ describe("toCreateCaseRequest / toAddCaseRequest", () => {
     };
     expect(toCreateCaseRequest("c1", values).destinationUnitId).toBeNull();
     expect(toAddCaseRequest(values).destinationUnitId).toBeNull();
+  });
+
+  it("passes intake note and action on create", () => {
+    const values = {
+      ...emptyCreateCaseForm(),
+      caseType: "BILLING",
+      subject: "Charge",
+      description: "Wrong fee",
+      priority: "LOW",
+    };
+    expect(
+      toCreateCaseRequest("c1", values, {
+        note: "  Perlu Pusat  ",
+        intakeAction: "escalate",
+      }),
+    ).toMatchObject({
+      note: "Perlu Pusat",
+      intakeAction: "escalate",
+    });
   });
 });
 
@@ -92,40 +112,56 @@ describe("toUpdateStatusRequest", () => {
 });
 
 describe("validateResolveCaseForm", () => {
-  it("requires comment and resolution fields for ACCEPT", () => {
+  it("requires comment for CLOSE (DEC-021)", () => {
     const errors = validateResolveCaseForm(emptyResolveCaseForm());
     expect(errors.comment).toBeTruthy();
-    expect(errors.resolutionCode).toBeTruthy();
-    expect(errors.summary).toBeTruthy();
+    expect(Object.keys(errors)).toEqual(["comment"]);
   });
 
   it("requires rejection reason for REJECT", () => {
     const errors = validateResolveCaseForm({
       ...emptyResolveCaseForm(),
-      action: "REJECT",
+      intent: "REJECT",
       comment: "no",
     });
     expect(errors.rejectionReason).toBeTruthy();
   });
+
+  it("requires comment for CLOSE", () => {
+    expect(
+      validateResolveCaseForm({
+        ...emptyResolveCaseForm(),
+        intent: "CLOSE",
+      }),
+    ).toEqual({ comment: "commentRequired" });
+  });
 });
 
 describe("toResolveCaseRequest / toCloseCaseRequest", () => {
-  it("trims resolve fields", () => {
+  it("maps CLOSE to ACCEPT with comment only", () => {
     expect(
       toResolveCaseRequest({
-        action: "ACCEPT",
+        intent: "CLOSE",
         comment: " ok ",
-        resolutionCode: " R1 ",
-        summary: " Done ",
-        detail: " ",
         rejectionReason: "",
       }),
-    ).toMatchObject({
+    ).toEqual({
       action: "ACCEPT",
       comment: "ok",
-      resolutionCode: "R1",
-      summary: "Done",
-      detail: null,
+    });
+  });
+
+  it("maps REJECT with reason", () => {
+    expect(
+      toResolveCaseRequest({
+        intent: "REJECT",
+        comment: " note ",
+        rejectionReason: " incomplete ",
+      }),
+    ).toEqual({
+      action: "REJECT",
+      comment: "note",
+      rejectionReason: "incomplete",
     });
   });
 
@@ -150,6 +186,13 @@ describe("caseStatus helpers", () => {
     expect(canResolve("ASSIGNED")).toBe(false);
     expect(canClose("RESOLVED")).toBe(true);
     expect(canClose("IN_PROGRESS")).toBe(false);
+  });
+
+  it("offers resolve CTA for active statuses", () => {
+    expect(canOfferResolve("CREATED")).toBe(true);
+    expect(canOfferResolve("ASSIGNED")).toBe(true);
+    expect(canOfferResolve("IN_PROGRESS")).toBe(true);
+    expect(canOfferResolve("RESOLVED")).toBe(false);
   });
 
   it("maps badge tones", () => {

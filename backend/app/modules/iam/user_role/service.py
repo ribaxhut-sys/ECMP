@@ -41,6 +41,7 @@ def _user_response(user: User) -> UserResponse:
         lastLoginAt=user.last_login_at,
         createdAt=user.created_at,
         updatedAt=user.updated_at,
+        initials=getattr(user, "initials", None) or "USR",
     )
 
 

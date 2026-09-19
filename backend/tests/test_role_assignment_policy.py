@@ -26,6 +26,7 @@ def _user_row(**overrides: object) -> SimpleNamespace:
         "username": "jdoe",
         "email": "jdoe@example.com",
         "full_name": "Jane Doe",
+        "initials": "JDO",
         "password_hash": hash_password("Secret123!"),
         "role_id": uuid.uuid4(),
         "branch_id": None,
@@ -57,6 +58,7 @@ def _repo_for_create(*, role_code: str) -> tuple[MagicMock, uuid.UUID]:
     repo = MagicMock()
     repo.username_exists.return_value = False
     repo.email_exists.return_value = False
+    repo.list_taken_initials.return_value = set()
     repo.role_exists.return_value = True
     repo.branch_exists.return_value = True
     repo.get_role_code.return_value = role_code

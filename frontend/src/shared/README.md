@@ -231,7 +231,7 @@ Barrel: `@/shared/ui`. All primitives consume Design System tokens (color, radiu
 | `Button` | `primary` `secondary` `outline` `ghost` `danger` `success` · `sm` `md` `lg` |
 | `Card` (+ Header/Title/Description/Body/Footer) | Surfaces; `interactive` hover elevation |
 | `Badge` | `soft` `solid` `outline` × semantic tones |
-| `Alert` | Info/success/warning/danger + dismiss/actions slots |
+| `Alert` | Compact inline banner (info/success/warning/danger + dismiss/actions); not a card |
 | `Modal` | Dialogs (Escape + overlay close) |
 | `Table` | Sticky header, row hover, density, loading/empty, selection highlight (presentation) |
 | `Loading` / `Spinner` / `Skeleton` / `GlobalLoadingBar` | Async feedback |

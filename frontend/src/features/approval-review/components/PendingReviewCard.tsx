@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Badge, Card, CardBody } from "@/shared/ui";
 import type {
   MockComplaint,
@@ -26,6 +26,7 @@ export function PendingReviewCard({
   onOpen,
 }: PendingReviewCardProps) {
   const t = useTranslations("approvalReview");
+  const locale = useLocale();
 
   return (
     <Card
@@ -70,7 +71,7 @@ export function PendingReviewCard({
             {t("submittedAt", {
               when: new Date(
                 complaint.submittedAt ?? complaint.registeredAt,
-              ).toLocaleString(),
+              ).toLocaleString(locale),
             })}
           </p>
         </div>

@@ -5,21 +5,31 @@ No Notification / Assignment / SLA / Event engines. Audit + Complaint Timeline o
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import logging
+import re
+from dataclasses import replace
+from datetime import date, datetime
 from typing import Protocol
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from app.core.authorization.principal import Principal
 from app.modules.audit.repository import AuditRepository
 from app.modules.audit.service import AuditService
+from app.modules.cm_case.application.current_handler import resolve_current_handler
 from app.modules.cm_case.application.dto import (
+    AcceptanceDTO,
     AddCaseCommand,
+    CancelEscalationToPusatCommand,
     CaseDTO,
     CaseSummaryDTO,
     CloseCaseCommand,
     CreateCaseCommand,
+    EscalateToPusatCommand,
+    RecordAcceptanceCommand,
     ResolutionDTO,
     ResolveCaseCommand,
+    ReturnEscalationCommand,
     UpdateStatusCommand,
 )
 from app.modules.cm_case.application.visibility import (
@@ -27,16 +37,128 @@ from app.modules.cm_case.application.visibility import (
     resolve_case_visibility,
 )
 from app.modules.cm_case.domain import errors as err
-from app.modules.cm_case.domain.aggregate import CaseAggregate, ResolutionRecord
-from app.modules.cm_case.domain.repositories import CaseRepository
+from app.modules.cm_case.domain.aggregate import (
+    AcceptanceRecord,
+    CaseAggregate,
+    ResolutionRecord,
+)
+from app.modules.cm_case.domain.repositories import CaseRepository, ParentComplaintRef
 from app.modules.cm_case.domain.value_objects import (
     MAX_CASES_PER_COMPLAINT,
+    AcceptanceDecision,
+    AcceptanceParty,
     CaseNumber,
+    CaseStatus,
     ResolveAction,
+)
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    REASON_RETURNED,
+    CaseInboxRepository,
+    safe_mark_unread,
 )
 from app.modules.timeline.domain.entity import TimelineEntry
 from app.modules.timeline.domain.enums import ActorType, AggregateType
 from app.modules.timeline.repository import TimelineRepository
+
+logger = logging.getLogger(__name__)
+
+_INTAKE_ACTIONS = frozenset({"register", "close", "escalate"})
+
+
+def _intake_action(raw: str | None) -> str | None:
+    value = (raw or "").strip().lower()
+    return value if value in _INTAKE_ACTIONS else None
+
+HANDLE_CLAIM_REASON = "HANDLE_CLAIM"
+HANDLE_REASSIGN_REASON = "HANDLE_REASSIGN"
+_OPERATOR_TZ = ZoneInfo("Asia/Jakarta")
+_HHMM = re.compile(r"^\d{2}:\d{2}$")
+
+
+def _normalize_actor_id(value: str | None) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    try:
+        return str(UUID(raw))
+    except ValueError:
+        return raw.casefold()
+
+
+def _actor_is_complaint_creator(parent: ParentComplaintRef, actor_id: str) -> bool:
+    left = _normalize_actor_id(parent.created_by)
+    right = _normalize_actor_id(actor_id)
+    return bool(left) and left == right
+
+
+def _ids_equal(left: str | None, right: str | None) -> bool:
+    a = _normalize_actor_id(left)
+    b = _normalize_actor_id(right)
+    return bool(a) and a == b
+
+
+def _validate_proposed_arrival(
+    proposed_date: date | None, proposed_time: str | None
+) -> None:
+    if proposed_date is None and not (proposed_time or "").strip():
+        return
+    if proposed_date is None or not (proposed_time or "").strip():
+        raise err.validation(
+            "proposedArrivalDate and proposedArrivalTime must be provided together",
+            details={"field": "proposedArrivalDate"},
+        )
+    if _HHMM.match((proposed_time or "").strip()) is None:
+        raise err.validation(
+            "proposedArrivalTime must be HH:MM",
+            details={"field": "proposedArrivalTime"},
+        )
+    if proposed_date < datetime.now(_OPERATOR_TZ).date():
+        raise err.validation(
+            "proposedArrivalDate cannot be in the past",
+            details={"field": "proposedArrivalDate"},
+        )
+
+
+def _assert_current_handler(case: CaseAggregate, actor_id: str) -> None:
+    claimed = (case.handling_claimed_by or "").strip()
+    if not claimed:
+        raise err.conflict(
+            "HANDLING_CLAIM_REQUIRED",
+            "Claim handling before working this Case.",
+        )
+    if not _ids_equal(claimed, actor_id):
+        raise err.conflict(
+            "HANDLING_CLAIMER_ONLY",
+            "Only the current handling officer can do this.",
+            details={"handlingClaimedBy": claimed},
+        )
+
+
+def _assert_work_allowed(
+    case: CaseAggregate,
+    *,
+    actor_is_pusat: bool,
+    closure: bool = False,
+) -> None:
+    """DEC-029 — branch work pauses at Pusat; Pusat may claim/resolve.
+
+    After Pusat resolves, originating branch may complete F4 closure
+    (owner acceptance / close) while ``escalatedToPusat`` stays true.
+    """
+    if not case.escalated_to_pusat:
+        return
+    if actor_is_pusat:
+        return
+    if closure and case.status in (
+        CaseStatus.RESOLVED,
+        CaseStatus.CLOSED,
+        CaseStatus.CANCELLED,
+    ):
+        return
+    raise err.conflict(
+        "CASE_WITH_PUSAT",
+        "This Case is with Pusat; branch work is paused.",
+    )
 
 
 class SideEffects(Protocol):
@@ -47,8 +169,11 @@ class SideEffects(Protocol):
         event_name: str,
         title: str,
         actor_id: str,
+        actor_unit_id: str | None = None,
         before: dict | None = None,
         after: dict | None = None,
+        note: str | None = None,
+        extra_metadata: dict | None = None,
     ) -> None: ...
 
 
@@ -60,10 +185,23 @@ class NoOpSideEffects:
         event_name: str,
         title: str,
         actor_id: str,
+        actor_unit_id: str | None = None,
         before: dict | None = None,
         after: dict | None = None,
+        note: str | None = None,
+        extra_metadata: dict | None = None,
     ) -> None:
-        _ = (case, event_name, title, actor_id, before, after)
+        _ = (
+            case,
+            event_name,
+            title,
+            actor_id,
+            actor_unit_id,
+            before,
+            after,
+            note,
+            extra_metadata,
+        )
 
 
 class AuditTimelineSideEffects:
@@ -86,8 +224,11 @@ class AuditTimelineSideEffects:
         event_name: str,
         title: str,
         actor_id: str,
+        actor_unit_id: str | None = None,
         before: dict | None = None,
         after: dict | None = None,
+        note: str | None = None,
+        extra_metadata: dict | None = None,
     ) -> None:
         actor_uuid: UUID | None = None
         try:
@@ -95,6 +236,11 @@ class AuditTimelineSideEffects:
         except ValueError:
             actor_uuid = None
 
+        extra = {
+            key: value
+            for key, value in dict(extra_metadata or {}).items()
+            if value is not None and value != ""
+        }
         self._audit.log(
             event_type=event_name,
             entity_type="Case",
@@ -107,6 +253,11 @@ class AuditTimelineSideEffects:
                 "complaintId": case.complaint_id,
                 "caseNumber": case.case_number.value,
                 "domainEvent": event_name,
+                # F4 history rule — "unit mana yang melakukan" alongside actor_id.
+                "actorUnitId": actor_unit_id,
+                "note": note,
+                "priority": case.priority,
+                **extra,
             },
             commit=False,
         )
@@ -128,6 +279,10 @@ class AuditTimelineSideEffects:
                 "caseId": str(case.case_id),
                 "caseNumber": case.case_number.value,
                 "caseStatus": case.status.value,
+                "actorUnitId": actor_unit_id,
+                "note": note,
+                "priority": case.priority,
+                **extra,
             },
         )
         self._timeline.add(entry)
@@ -151,6 +306,18 @@ def _resolution_dto(r: ResolutionRecord) -> ResolutionDTO:
     )
 
 
+def _acceptance_dto(a: AcceptanceRecord) -> AcceptanceDTO:
+    return AcceptanceDTO(
+        acceptance_id=a.acceptance_id,
+        party=a.party.value,
+        decision=a.decision.value,
+        actor_id=a.actor_id,
+        actor_unit_id=a.actor_unit_id,
+        decided_at=a.decided_at,
+        note=a.note,
+    )
+
+
 def to_case_dto(case: CaseAggregate) -> CaseDTO:
     return CaseDTO(
         case_id=str(case.case_id),
@@ -164,8 +331,10 @@ def to_case_dto(case: CaseAggregate) -> CaseDTO:
         priority=case.priority,
         created_at=case.created_at,
         created_by=case.created_by,
+        handling_claimed_by=case.handling_claimed_by,
         category=case.category,
         owning_unit_id=case.owning_unit_id,
+        owner_unit_id=case.owner_unit_id,
         assigned_user_id=None,
         sla_policy_version_id=case.sla_policy_version_id,
         sla_countdown_active=False,
@@ -176,6 +345,19 @@ def to_case_dto(case: CaseAggregate) -> CaseDTO:
         resolution=_resolution_dto(case.resolution) if case.resolution else None,
         resolution_history=[_resolution_dto(r) for r in case.resolution_history],
         complaint_status_after_create=case.complaint_status_after_create,
+        handling_unit_acceptance=(
+            _acceptance_dto(case.handling_unit_acceptance)
+            if case.handling_unit_acceptance
+            else None
+        ),
+        owner_acceptance=(
+            _acceptance_dto(case.owner_acceptance) if case.owner_acceptance else None
+        ),
+        acceptance_history=[_acceptance_dto(a) for a in case.acceptance_history],
+        escalated_to_pusat=case.escalated_to_pusat,
+        owning_unit="PUSAT" if case.escalated_to_pusat else "BRANCH",
+        escalation_reason=case.escalation_reason,
+        escalated_at=case.escalated_at,
     )
 
 
@@ -205,6 +387,7 @@ class CaseApplicationService:
                 assigned_user_id=cmd.assigned_user_id,
                 sla_policy_version_id=cmd.sla_policy_version_id,
                 actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
             )
         )
 
@@ -241,8 +424,8 @@ class CaseApplicationService:
                 "Maximum 5 Cases per Complaint reached (BQ-003).",
             )
 
-        year = datetime.now(UTC).year
-        number = CaseNumber(self._repo.next_case_number(year))
+        unit_for_number = (cmd.destination_unit_id or parent.owning_unit_id or "").strip() or None
+        number = CaseNumber(self._repo.next_case_number(unit_for_number))
         first_case = parent.case_count == 0 and parent.status == "REGISTERED"
         case = CaseAggregate.create(
             complaint_id=parent.complaint_id,
@@ -255,6 +438,9 @@ class CaseApplicationService:
             created_by=cmd.actor_id,
             category=cmd.category,
             destination_unit_id=cmd.destination_unit_id,
+            # F4 owner rule — snapshot the parent Complaint's owning unit
+            # once; never reassigned by any later transition on this Case.
+            owner_unit_id=parent.owning_unit_id,
             sla_policy_version_id=cmd.sla_policy_version_id or "MODE-A-BIND-ONLY",
             complaint_became_in_progress=first_case,
         )
@@ -268,10 +454,41 @@ class CaseApplicationService:
             event_name="CaseCreated",
             title="Case Created",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             after=case.to_snapshot(),
+            note=(cmd.note or "").strip() or None,
+            extra_metadata={"intakeAction": _intake_action(cmd.intake_action)},
+        )
+        self._record_handling_claim(
+            case=case,
+            parent=parent,
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
         )
         self._repo.commit()
         return to_case_dto(case)
+
+    def _record_handling_claim(
+        self,
+        *,
+        case: CaseAggregate,
+        parent: ParentComplaintRef,
+        actor_id: str,
+        actor_unit_id: str | None,
+    ) -> None:
+        continued = _actor_is_complaint_creator(parent, actor_id)
+        event_name = "HandlingContinued" if continued else "HandlingTakenOver"
+        title = "Handling continued" if continued else "Handling taken over"
+        case.claim_handling(actor_id)
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name=event_name,
+            title=title,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+            after=case.to_snapshot(),
+        )
 
     def get_case(
         self, case_id: str, *, complaint_id_context: str | None = None
@@ -293,7 +510,55 @@ class CaseApplicationService:
                     "CASE_COMPLAINT_MEMBERSHIP_MISMATCH",
                     "CaseId is not a member of the supplied Complaint context.",
                 )
+        self._repair_parent_after_case_return(case)
+        self._repair_parent_hq_schedule_door(case)
         return to_case_dto(case)
+
+    def _repair_parent_after_case_return(self, case: CaseAggregate) -> None:
+        """Heal stale HQ disposition after API-521 when siblings are not at Pusat.
+
+        Lab rows returned before mark_parent_returned_to_branch can leave the
+        parent on ESCALATE_APPROVED. GET is the operator's next read.
+        """
+        if case.escalated_to_pusat:
+            return
+        if self._repo.has_open_escalated_cases(case.complaint_id):
+            return
+        last = self._repo.latest_case_escalation_event(
+            case_id=str(case.case_id),
+            complaint_id=case.complaint_id,
+        )
+        if last != "CaseEscalationReturned":
+            return
+        parent = self._repo.get_parent_complaint(case.complaint_id)
+        if parent is None:
+            return
+        disposition = (parent.intake_disposition or "").strip().upper()
+        if disposition not in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
+            return
+        if (parent.status or "").strip().upper() == "CLOSED":
+            return
+        self._repo.mark_parent_returned_to_branch(case.complaint_id)
+        self._repo.commit()
+
+    def _repair_parent_hq_schedule_door(self, case: CaseAggregate) -> None:
+        """Open Terima & jadwalkan when a Case is at Pusat but the parent left HQ path."""
+        if not case.escalated_to_pusat:
+            return
+        if case.status in (
+            CaseStatus.CLOSED,
+            CaseStatus.CANCELLED,
+            CaseStatus.RESOLVED,
+        ):
+            return
+        parent = self._repo.get_parent_complaint(case.complaint_id)
+        if parent is None or (parent.status or "").strip().upper() == "CLOSED":
+            return
+        disposition = (parent.intake_disposition or "").strip().upper()
+        if disposition in {"ESCALATE_APPROVED", "HQ_SCHEDULED"}:
+            return
+        self._repo.mark_parent_awaiting_hq_schedule(case.complaint_id)
+        self._repo.commit()
 
     def list_cases(
         self,
@@ -303,6 +568,7 @@ class CaseApplicationService:
         page_size: int = 20,
         complaint_id: str | None = None,
         status: str | None = None,
+        keyword: str | None = None,
     ) -> tuple[list[CaseSummaryDTO], int]:
         visibility = resolve_case_visibility(principal)
         rows, total = self._repo.list_summaries(
@@ -312,9 +578,22 @@ class CaseApplicationService:
             pusat_unit_codes=DEFAULT_PUSAT_UNIT_CODES,
             complaint_id=complaint_id,
             status=status,
+            keyword=keyword,
             page=page,
             page_size=page_size,
         )
+        complaint_ids = [row.complaint_id for row in rows]
+        numbers = self._repo.complaint_numbers_by_ids(complaint_ids)
+        handoffs = self._repo.parent_handoffs_by_ids(complaint_ids)
+        handlers = {
+            str(row.id): resolve_current_handler(
+                handling_claimed_by=row.handling_claimed_by,
+                created_by=row.created_by,
+                escalated_to_pusat=bool(row.escalated_to_pusat),
+                parent=handoffs.get(str(row.complaint_id)),
+            )
+            for row in rows
+        }
         items = [
             CaseSummaryDTO(
                 case_id=str(row.id),
@@ -326,16 +605,98 @@ class CaseApplicationService:
                 priority=row.priority,
                 created_at=row.created_at,
                 created_by=row.created_by,
+                handling_claimed_by=row.handling_claimed_by,
                 category=row.category,
                 owning_unit_id=row.owning_unit_id,
+                owner_unit_id=row.owner_unit_id,
                 customer_id=row.customer_id,
+                complaint_number=numbers.get(str(row.complaint_id)),
+                escalated_to_pusat=bool(row.escalated_to_pusat),
+                owning_unit="PUSAT" if row.escalated_to_pusat else "BRANCH",
+                escalation_reason=row.escalation_reason,
+                current_handler_id=handlers[str(row.id)].actor_id,
+                current_handler_scope=handlers[str(row.id)].scope,
             )
             for row in rows
         ]
+        session = getattr(self._repo, "_session", None)
+        if session is not None and items:
+            unread = CaseInboxRepository(session).unread_map(
+                str(principal.user_id),
+                [item.case_id for item in items],
+            )
+            items = [
+                replace(
+                    item,
+                    is_read=unread.get(item.case_id) is None,
+                    unread_reason=unread.get(item.case_id),
+                )
+                for item in items
+            ]
         return items, total
 
     def update_status(self, cmd: UpdateStatusCommand) -> CaseDTO:
-        case = self._require(cmd.case_id)
+        reason = (cmd.reason or "").strip().upper()
+        # BR-005 E4 — double-claim race: lock the row before reading
+        # ``handling_claimed_by`` so two concurrent claims/reassigns cannot
+        # both observe the pre-claim state. Only one request wins; the other
+        # sees the just-committed claimer once it acquires the lock.
+        claims_handling = reason in (HANDLE_CLAIM_REASON, HANDLE_REASSIGN_REASON)
+        case = self._require(cmd.case_id, for_update=claims_handling)
+        _assert_work_allowed(case, actor_is_pusat=cmd.actor_is_pusat)
+        if reason == HANDLE_REASSIGN_REASON:
+            if not cmd.actor_can_reassign:
+                raise err.conflict(
+                    "HANDLING_REASSIGN_FORBIDDEN",
+                    "Only Supervisor or Manager can reassign handling.",
+                )
+            if case.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED):
+                raise err.invalid_state("Case is terminal; handling cannot be reassigned.")
+            target = (cmd.handling_claimed_by or "").strip()
+            parent = self._repo.get_parent_complaint(case.complaint_id)
+            if parent is None:
+                raise err.not_found("Parent Complaint does not exist.")
+            case.claim_handling(target)
+            self._repo.save(case)
+            self._effects.record_case_event(
+                case=case,
+                event_name="HandlingTakenOver",
+                title="Handling reassigned",
+                actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
+                after=case.to_snapshot(),
+                note=target,
+            )
+            self._repo.commit()
+            return to_case_dto(case)
+        if reason == HANDLE_CLAIM_REASON:
+            if case.status in (CaseStatus.CLOSED, CaseStatus.CANCELLED):
+                raise err.invalid_state("Case is terminal; handling cannot be claimed.")
+            claimed = (case.handling_claimed_by or "").strip()
+            if claimed and not _ids_equal(claimed, cmd.actor_id):
+                raise err.conflict(
+                    "HANDLING_ALREADY_CLAIMED",
+                    "Another officer is already handling this Case.",
+                    details={"handlingClaimedBy": claimed},
+                )
+            # Same officer reclaim is idempotent — do not append another
+            # HandlingContinued / HandlingTakenOver to intake history.
+            if claimed and _ids_equal(claimed, cmd.actor_id):
+                return to_case_dto(case)
+            parent = self._repo.get_parent_complaint(case.complaint_id)
+            if parent is None:
+                raise err.not_found("Parent Complaint does not exist.")
+            self._record_handling_claim(
+                case=case,
+                parent=parent,
+                actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
+            )
+            self._repo.commit()
+            return to_case_dto(case)
+        target = (cmd.to_status or "").strip().upper()
+        if target == "IN_PROGRESS":
+            _assert_current_handler(case, cmd.actor_id)
         before = case.to_snapshot()
         if cmd.to_status and cmd.to_status.strip().upper() == "CANCELLED":
             if not (cmd.reason or "").strip() and not cmd.cancel_reason:
@@ -362,15 +723,21 @@ class CaseApplicationService:
             event_name=event,
             title="Case Status Updated",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             before=before,
             after=case.to_snapshot(),
+            note=cmd.reason,
         )
+        if case.status.value in {"CANCELLED", "CLOSED"}:
+            self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 
     def resolve(self, cmd: ResolveCaseCommand) -> CaseDTO:
         case = self._require(cmd.case_id)
-        before = case.to_snapshot()
+        _assert_work_allowed(case, actor_is_pusat=cmd.actor_is_pusat)
+        if case.escalated_to_pusat:
+            _assert_current_handler(case, cmd.actor_id)
         try:
             action = ResolveAction(cmd.action.strip().upper())
         except ValueError as exc:
@@ -378,6 +745,9 @@ class CaseApplicationService:
                 "Invalid resolve action",
                 details={"field": "action", "value": cmd.action},
             ) from exc
+        if action == ResolveAction.PROPOSE:
+            _assert_current_handler(case, cmd.actor_id)
+        before = case.to_snapshot()
         case.resolve(
             action=action,
             actor_id=cmd.actor_id,
@@ -389,6 +759,7 @@ class CaseApplicationService:
             attachment_ids=list(cmd.attachment_ids or []),
             rejection_reason=cmd.rejection_reason,
             evidence_required=False,  # category evidence policy catalog: NOT SPECIFIED
+            actor_unit_id=cmd.actor_unit_id,
         )
         self._repo.save(case)
         self._effects.record_case_event(
@@ -396,15 +767,92 @@ class CaseApplicationService:
             event_name="CaseResolved" if case.status.value == "RESOLVED" else "ResolutionUpdated",
             title="Case Resolution",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             before=before,
             after=case.to_snapshot(),
+            note=cmd.comment,
         )
+        if case.status.value in {"CLOSED", "CANCELLED"}:
+            self._repo.sync_complaint_status_from_cases(case.complaint_id)
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def record_acceptance(self, cmd: RecordAcceptanceCommand) -> CaseDTO:
+        """F4 closure rule — Handling Unit / Owner accept or reject a resolution.
+
+        When both parties have ACCEPT, the Case transitions to CLOSED as a
+        consequence of the second acceptance (no separate approval step).
+        ``close()`` remains for compatibility and still cannot bypass the
+        dual-acceptance gate.
+        """
+        case = self._require(cmd.case_id)
+        _assert_work_allowed(
+            case, actor_is_pusat=cmd.actor_is_pusat, closure=True
+        )
+        before = case.to_snapshot()
+        try:
+            party = AcceptanceParty(cmd.party.strip().upper())
+        except ValueError as exc:
+            raise err.validation(
+                "Invalid acceptance party",
+                details={"field": "party", "value": cmd.party},
+            ) from exc
+        try:
+            decision = AcceptanceDecision(cmd.decision.strip().upper())
+        except ValueError as exc:
+            raise err.validation(
+                "Invalid acceptance decision",
+                details={"field": "decision", "value": cmd.decision},
+            ) from exc
+        case.record_acceptance(
+            party=party,
+            decision=decision,
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            note=cmd.note,
+        )
+        self._repo.save(case)
+        event_name = (
+            "CaseHandlingUnitAccepted"
+            if party == AcceptanceParty.HANDLING_UNIT
+            and decision == AcceptanceDecision.ACCEPT
+            else "CaseOwnerAccepted"
+            if party == AcceptanceParty.OWNER and decision == AcceptanceDecision.ACCEPT
+            else "CaseHandlingUnitRejected"
+            if party == AcceptanceParty.HANDLING_UNIT
+            else "CaseOwnerRejected"
+        )
+        after_acceptance = case.to_snapshot()
+        self._effects.record_case_event(
+            case=case,
+            event_name=event_name,
+            title="Case Closure Acceptance",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=after_acceptance,
+            note=cmd.note,
+        )
+        if case.status.value == "CLOSED":
+            self._effects.record_case_event(
+                case=case,
+                event_name="CaseClosed",
+                title="Case Closed",
+                actor_id=cmd.actor_id,
+                actor_unit_id=cmd.actor_unit_id,
+                before=after_acceptance,
+                after=case.to_snapshot(),
+                note=cmd.note,
+            )
+            self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
         return to_case_dto(case)
 
     def close(self, cmd: CloseCaseCommand) -> CaseDTO:
-        _ = cmd.note  # optional; NOT SPECIFIED as mandatory
         case = self._require(cmd.case_id)
+        _assert_work_allowed(
+            case, actor_is_pusat=cmd.actor_is_pusat, closure=True
+        )
         before = case.to_snapshot()
         case.close(actor_id=cmd.actor_id)
         self._repo.save(case)
@@ -413,15 +861,161 @@ class CaseApplicationService:
             event_name="CaseClosed",
             title="Case Closed",
             actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
             before=before,
             after=case.to_snapshot(),
+            note=cmd.note,
         )
+        # Mode A product rule (2026-08-12): when every Case under the parent is
+        # terminal, close the Aggregate. Supersedes BQ-007 "never close parent".
+        self._repo.sync_complaint_status_from_cases(case.complaint_id)
         self._repo.commit()
-        # BQ-007: do NOT close Complaint Aggregate
         return to_case_dto(case)
 
-    def _require(self, case_id: str) -> CaseAggregate:
-        case = self._repo.get(case_id)
+    def escalate_to_pusat(self, cmd: EscalateToPusatCommand) -> CaseDTO:
+        """DEC-029 / API-520 lab — this Case only; parent opens HQ schedule door."""
+        _validate_proposed_arrival(
+            cmd.proposed_arrival_date, cmd.proposed_arrival_time
+        )
+        case = self._require(cmd.case_id)
+        before = case.to_snapshot()
+        origin_unit = case.owning_unit_id
+        case.escalate_to_pusat(reason=cmd.reason)
+        self._repo.save(case)
+        proposed_time = (cmd.proposed_arrival_time or "").strip() or None
+        self._repo.mark_parent_awaiting_hq_schedule(
+            case.complaint_id,
+            proposed_date=cmd.proposed_arrival_date,
+            proposed_time=proposed_time,
+            proposed_by=cmd.actor_id if cmd.proposed_arrival_date else None,
+        )
+        self._effects.record_case_event(
+            case=case,
+            event_name="CaseEscalatedToPusat",
+            title="Case escalated to Pusat",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=case.to_snapshot(),
+            note=case.escalation_reason,
+            extra_metadata={"originatingBranchId": origin_unit},
+        )
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def cancel_escalation_to_pusat(
+        self, cmd: CancelEscalationToPusatCommand
+    ) -> CaseDTO:
+        """Branch recall of API-520 — blocked after HQ accept/schedule or claim."""
+        if cmd.actor_is_pusat:
+            raise err.conflict(
+                "CASE_PUSAT_CANNOT_CANCEL_ESCALATION",
+                "Pusat cannot cancel a branch escalation.",
+            )
+        case = self._require(cmd.case_id)
+        parent = self._repo.get_parent_complaint(case.complaint_id)
+        disposition = (
+            (parent.intake_disposition or "").strip().upper() if parent else ""
+        )
+        if parent is not None and (
+            parent.hq_accepted_at is not None or disposition == "HQ_SCHEDULED"
+        ):
+            raise err.conflict(
+                "CASE_HQ_ALREADY_ACCEPTED",
+                "Pusat has already accepted this escalation; branch cannot cancel.",
+            )
+        before = case.to_snapshot()
+        case.cancel_escalation_to_pusat(reason=cmd.reason)
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name="CaseEscalationToPusatCancelled",
+            title="Case escalation to Pusat cancelled",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=case.to_snapshot(),
+            note=(cmd.reason or "").strip() or None,
+        )
+        if not self._repo.has_open_escalated_cases(case.complaint_id):
+            self._repo.close_parent_hq_schedule_door_if_idle(case.complaint_id)
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def return_escalation(self, cmd: ReturnEscalationCommand) -> CaseDTO:
+        """API-521 lab — Pusat returns Case to originating branch (FR-CM-011 slice)."""
+        if not cmd.actor_is_pusat:
+            raise err.conflict(
+                "CASE_BRANCH_CANNOT_RETURN_ESCALATION",
+                "Only Pusat may return an escalated Case to the branch.",
+            )
+        case = self._require(cmd.case_id)
+        before = case.to_snapshot()
+        origin_unit = case.owning_unit_id or case.owner_unit_id
+        case.return_escalation_from_pusat(note=cmd.return_note)
+        note = (cmd.return_note or "").strip()
+        self._repo.save(case)
+        self._effects.record_case_event(
+            case=case,
+            event_name="CaseEscalationReturned",
+            title="Case escalation returned to branch",
+            actor_id=cmd.actor_id,
+            actor_unit_id=cmd.actor_unit_id,
+            before=before,
+            after=case.to_snapshot(),
+            note=note or None,
+            extra_metadata={"returnedToBranchId": origin_unit},
+        )
+        session = getattr(self._repo, "_session", None)
+        safe_mark_unread(
+            session,
+            case_id=str(case.case_id),
+            user_id=case.created_by,
+            reason=REASON_RETURNED,
+            actor_id=cmd.actor_id,
+        )
+        if not self._repo.has_open_escalated_cases(case.complaint_id):
+            self._repo.mark_parent_returned_to_branch(case.complaint_id)
+        self._repo.commit()
+        return to_case_dto(case)
+
+    def return_escalations_for_complaint(
+        self,
+        *,
+        complaint_id: str,
+        return_note: str,
+        actor_id: str,
+        actor_unit_id: str | None = None,
+    ) -> int:
+        """Pusat returned the whole intake — release the Cases it parked here.
+
+        Without this a Case keeps ``escalatedToPusat`` after the parent went
+        back to the branch: it counts as Pusat work in the badge but the
+        parent no longer shows in any Pusat list, so nobody can act on it.
+        Already-claimed Cases are left alone — that is real Pusat work in
+        progress, ended through API-521 instead.
+        """
+        released = 0
+        for case_id in self._repo.unclaimed_escalated_case_ids(complaint_id):
+            try:
+                self.return_escalation(
+                    ReturnEscalationCommand(
+                        case_id=case_id,
+                        return_note=return_note,
+                        actor_id=actor_id,
+                        actor_unit_id=actor_unit_id,
+                        actor_is_pusat=True,
+                    )
+                )
+                released += 1
+            except Exception:
+                logger.exception(
+                    "release escalated case failed", extra={"caseId": case_id}
+                )
+        return released
+
+    def _require(self, case_id: str, *, for_update: bool = False) -> CaseAggregate:
+        case = self._repo.get(case_id, for_update=for_update)
         if case is None:
             raise err.not_found("Case does not exist.")
         return case

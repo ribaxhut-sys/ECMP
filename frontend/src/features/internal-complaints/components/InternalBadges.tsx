@@ -1,0 +1,67 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { Badge } from "@/shared/ui";
+import {
+  CATEGORY_LABEL_KEY,
+  PRIORITY_TONE,
+  STATUS_LABEL_KEY,
+  STATUS_TONE,
+  type InternalCategory,
+  type InternalPriority,
+  type InternalStatus,
+} from "../types";
+
+export function InternalStatusBadge({ status }: { status: string }) {
+  const t = useTranslations("internalComplaints");
+  const key = status as InternalStatus;
+  const labelKey = STATUS_LABEL_KEY[key];
+  const tone = STATUS_TONE[key] ?? "neutral";
+  return (
+    <Badge tone={tone}>{labelKey ? t(labelKey) : status}</Badge>
+  );
+}
+
+export function InternalPriorityBadge({ priority }: { priority: string }) {
+  const tPriority = useTranslations("priority");
+  const tone = PRIORITY_TONE[priority as InternalPriority] ?? "neutral";
+  return <Badge tone={tone}>{tPriority(priority as InternalPriority)}</Badge>;
+}
+
+export function InternalCategoryBadge({ category }: { category: string }) {
+  const t = useTranslations("internalComplaints");
+  const key = CATEGORY_LABEL_KEY[category as InternalCategory];
+  return <Badge tone="neutral">{key ? t(key) : category}</Badge>;
+}
+
+const TRANSFER_REQUEST_TONE = {
+  PENDING: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+} as const;
+
+/** Shown only when a transfer request exists — null status renders nothing. */
+export function InternalTransferRequestBadge({
+  status,
+}: {
+  status: string | null | undefined;
+}) {
+  const t = useTranslations("internalComplaints");
+  if (!status) return null;
+  const tone =
+    TRANSFER_REQUEST_TONE[status as keyof typeof TRANSFER_REQUEST_TONE] ?? "neutral";
+  return <Badge tone={tone}>{t(`transferRequestStatus${status}`)}</Badge>;
+}
+
+/** Shown only when a withdraw request exists — null status renders nothing. */
+export function InternalWithdrawRequestBadge({
+  status,
+}: {
+  status: string | null | undefined;
+}) {
+  const t = useTranslations("internalComplaints");
+  if (!status) return null;
+  const tone =
+    TRANSFER_REQUEST_TONE[status as keyof typeof TRANSFER_REQUEST_TONE] ?? "neutral";
+  return <Badge tone={tone}>{t(`withdrawRequestStatus${status}`)}</Badge>;
+}

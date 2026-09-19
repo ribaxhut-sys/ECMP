@@ -26,6 +26,7 @@ from app.modules.auth.password_helpers import (
     write_password_audit,
 )
 from app.modules.iam.permission_cache import invalidate_iam_user
+from app.modules.users.initials import allocate_user_initials
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
     AdminResetPasswordResponse,
@@ -38,7 +39,7 @@ from app.modules.users.schemas import (
     UserUpdateRequest,
 )
 
-# Operational roles that belong to a branch (agent / officer / supervisor /
+# Operational roles that belong to a branch (officer / supervisor /
 # branch manager). Head-office / SUPER_ADMIN may omit branchId.
 BRANCH_SCOPED_ROLE_CODES: frozenset[str] = frozenset(
     {
@@ -47,6 +48,7 @@ BRANCH_SCOPED_ROLE_CODES: frozenset[str] = frozenset(
         "BRANCH_OFFICER",
         "SUPERVISOR",
         "BRANCH_SUPERVISOR",
+        "MANAGER",
     }
 )
 
@@ -83,6 +85,7 @@ def _to_response(user: User) -> UserResponse:
         createdAt=user.created_at,
         updatedAt=user.updated_at,
         preferredLanguage=getattr(user, "preferred_language", None) or "id",
+        initials=getattr(user, "initials", None) or "USR",
     )
 
 
@@ -199,10 +202,17 @@ class UserService:
         self._policy().validate(payload.password)
 
         now = datetime.now(UTC)
+        taken = self._repo.list_taken_initials()
+        initials = allocate_user_initials(
+            payload.full_name,
+            taken,
+            username=payload.username,
+        )
         user = User(
             username=payload.username,
             email=payload.email,
             full_name=payload.full_name,
+            initials=initials,
             password_hash=hash_password(payload.password),
             role_id=payload.role_id,
             branch_id=payload.branch_id,

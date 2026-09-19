@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type {
   CmBatch1DuplicateCheckResponse,
   CmBatch1DuplicateDecision,
 } from "@/lib/api";
 import { Alert, Badge, Button, Empty, Input, Modal, Textarea } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 
 export interface DuplicateWarningPanelProps {
   open: boolean;
@@ -19,18 +20,6 @@ export interface DuplicateWarningPanelProps {
     survivingComplaintId?: string;
     justification?: string;
   }) => void | Promise<void>;
-}
-
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 /**
@@ -46,7 +35,11 @@ export function DuplicateWarningPanel({
 }: DuplicateWarningPanelProps) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
-  const [survivingId, setSurvivingId] = useState("");
+  const locale = useLocale();
+  const [selectedId, setSelectedId] = useState("");
+  const [showOtherId, setShowOtherId] = useState(false);
+  const [otherId, setOtherId] = useState("");
+  const [creatingNew, setCreatingNew] = useState(false);
   const [justification, setJustification] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -57,8 +50,26 @@ export function DuplicateWarningPanel({
       : typeof candidates[0]?.id === "string"
         ? candidates[0].id
         : "";
+  const firstLabel =
+    typeof candidates[0]?.complaintNumber === "string"
+      ? candidates[0].complaintNumber
+      : firstId;
 
-  const effectiveSurviving = survivingId.trim() || firstId;
+  const effectiveSurviving = otherId.trim() || selectedId || firstId;
+  const selectedCandidate = candidates.find((c, index) => {
+    const id =
+      typeof c.complaintId === "string"
+        ? c.complaintId
+        : typeof c.id === "string"
+          ? c.id
+          : `candidate-${index}`;
+    return id === effectiveSurviving;
+  });
+  const effectiveSurvivingLabel =
+    (typeof selectedCandidate?.complaintNumber === "string"
+      ? selectedCandidate.complaintNumber
+      : undefined) ??
+    (otherId.trim() ? effectiveSurviving : firstLabel);
 
   async function decide(
     decision: CmBatch1DuplicateDecision,
@@ -83,6 +94,15 @@ export function DuplicateWarningPanel({
     });
   }
 
+  function onCreateNewClick(): void {
+    if (!creatingNew) {
+      setLocalError(null);
+      setCreatingNew(true);
+      return;
+    }
+    void decide("override");
+  }
+
   return (
     <Modal
       open={open}
@@ -102,28 +122,20 @@ export function DuplicateWarningPanel({
           <Button
             type="button"
             variant="outline"
-            disabled={busy}
+            disabled={busy || (creatingNew && justification.trim().length < 20)}
             loading={busy}
-            onClick={() => void decide("recommend_only")}
+            onClick={onCreateNewClick}
           >
-            {t("recommendExistingOnly")}
+            {creatingNew ? t("confirmCreateNew") : t("overrideAndCreate")}
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="primary"
             disabled={busy || !effectiveSurviving}
             loading={busy}
             onClick={() => void decide("link_existing")}
           >
             {t("linkToExisting")}
-          </Button>
-          <Button
-            type="button"
-            disabled={busy}
-            loading={busy}
-            onClick={() => void decide("override")}
-          >
-            {t("overrideAndCreate")}
           </Button>
         </div>
       }
@@ -160,7 +172,7 @@ export function DuplicateWarningPanel({
         {candidates.length === 0 ? (
           <Empty
             title={t("noCandidateDetails")}
-            description={t("duplicateWarningDescription")}
+            description={t("noRelatedComplaintsDescription")}
             primaryAction={{
               label: tCommon("closeDialog"),
               onClick: onClose,
@@ -187,8 +199,9 @@ export function DuplicateWarningPanel({
               const statusRaw =
                 typeof c.status === "string" ? c.status.toUpperCase() : "";
               const isClosed = statusRaw === "CLOSED" || c.open === false;
-              const createdLabel = formatWhen(
+              const createdLabel = formatDateTime24(
                 typeof c.createdAt === "string" ? c.createdAt : undefined,
+                locale,
               );
               const selected = effectiveSurviving === id;
               const detailHref = `/complaints/cm/${encodeURIComponent(id)}`;
@@ -205,7 +218,10 @@ export function DuplicateWarningPanel({
                     <button
                       type="button"
                       className="min-w-0 flex-1 text-left"
-                      onClick={() => setSurvivingId(id)}
+                      onClick={() => {
+                        setSelectedId(id);
+                        setOtherId("");
+                      }}
                       disabled={busy}
                     >
                       <div className="flex flex-wrap items-center gap-2">
@@ -246,26 +262,56 @@ export function DuplicateWarningPanel({
           </ul>
         )}
 
-        <Input
-          name="survivingComplaintId"
-          id="survivingComplaintId"
-          label={t("survivingComplaintIdLabel")}
-          value={survivingId || effectiveSurviving}
-          onChange={(event) => setSurvivingId(event.target.value)}
-          disabled={busy}
-          hint={t("survivingComplaintIdHint")}
-        />
+        {effectiveSurvivingLabel ? (
+          <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+            {t("selectedSurvivingCandidateLabel", { label: effectiveSurvivingLabel })}
+          </p>
+        ) : null}
 
-        <Textarea
-          name="overrideJustification"
-          id="overrideJustification"
-          label={t("overrideJustificationLabel")}
-          rows={3}
-          value={justification}
-          onChange={(event) => setJustification(event.target.value)}
-          disabled={busy}
-          hint={t("overrideJustificationHint")}
-        />
+        {showOtherId ? (
+          <Input
+            name="survivingComplaintId"
+            id="survivingComplaintId"
+            label={t("survivingComplaintIdLabel")}
+            value={otherId}
+            onChange={(event) => setOtherId(event.target.value)}
+            disabled={busy}
+            hint={t("survivingComplaintIdHint")}
+          />
+        ) : (
+          <button
+            type="button"
+            className="self-start text-[length:var(--ecmp-font-helper-size)] text-ecmp-primary underline-offset-2 hover:underline"
+            disabled={busy}
+            onClick={() => setShowOtherId(true)}
+          >
+            {t("pasteOtherId")}
+          </button>
+        )}
+
+        {creatingNew ? (
+          <div className="space-y-2">
+            <Textarea
+              name="overrideJustification"
+              id="overrideJustification"
+              label={t("createNewJustificationLabel")}
+              rows={3}
+              value={justification}
+              onChange={(event) => setJustification(event.target.value)}
+              disabled={busy}
+              hint={t("createNewJustificationHint")}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="self-start text-[length:var(--ecmp-font-helper-size)] text-ecmp-primary underline-offset-2 hover:underline"
+              disabled={busy}
+              onClick={() => setCreatingNew(false)}
+            >
+              {t("backToCandidates")}
+            </button>
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

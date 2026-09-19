@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { QueueDashboardView } from "@/features/queue";
+import { useRouter } from "next/navigation";
 import { ShellPlaceholderPage } from "@/features/shell";
 import { SupervisorQueue } from "@/features/supervisor-assign";
 import { OfficerQueue } from "@/features/officer-handle";
+import { FOUNDATION_RETIRED_CASES_HREF } from "@/features/complaints/foundationRetiredRedirect";
 import {
   isBatchAtLeast,
   isBatchB0,
@@ -21,7 +22,7 @@ import { PageFallback } from "@/shared/ui";
  * B1+ Supervisor → SCR-Q-02 Unassigned (mock).
  * B2+ Officer → SCR-Q-01 Assigned Queue (mock).
  * B0 / earlier → placeholder.
- * Non-shell → API QueueDashboardView.
+ * Non-shell → Case inbox (DEC-026 M-026-1). B0/shell mock stays.
  */
 export default function QueuePage() {
   const t = useTranslations("shell");
@@ -74,7 +75,15 @@ export default function QueuePage() {
 
   return (
     <Suspense fallback={<PageFallback titleKey="queue" />}>
-      <QueueDashboardView />
+      <NonShellQueueRedirect />
     </Suspense>
   );
+}
+
+function NonShellQueueRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(FOUNDATION_RETIRED_CASES_HREF);
+  }, [router]);
+  return <PageFallback titleKey="queue" />;
 }

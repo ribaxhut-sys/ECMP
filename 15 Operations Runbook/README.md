@@ -68,7 +68,8 @@ Historical DEP-CHK-001 is **not** used for foundation production cutover.
 ### Core operations
 
 - [`ECMP_Runbook_Slice_v0.1.md`](./ECMP_Runbook_Slice_v0.1.md) (OPS-RB-001) — service inventory, health, playbooks P1–P6, escalation matrix (foundation-updated)
-- [`ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md`](./ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md) (OPS-CM-B1-STG-001) — Mode A FR-004 staging TTL void + attachment storage probe (script; no Mode B)
+- [`ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md`](./ECMP_CM_Batch1_Staging_TTL_Cleanup_v0.1.md) (OPS-CM-B1-STG-001) — Mode A FR-004 staging TTL void + attachment storage probe (script; no Mode B). Same command shape is the **Accepted** Time Source pattern for CAP-006 (ADR-CAP006-002 / B2-25); an SLA sweep crontab is **not** installed until Implementation Gate 1–4 (heartbeat C-1 mandatory).
+- [`ECMP_CM_Batch1_SLA_Sweep_v0.1.md`](./ECMP_CM_Batch1_SLA_Sweep_v0.1.md) (OPS-CM-B1-SLA-001) — Mode A SLA H-7/H-3/H-1 + breach sweep + outbox drain + heartbeat markers (IG-20260823-01 authorized; crontab after commands ship)
 - [`ECMP_IdP_Administrator_Runbook_v1.0.md`](./ECMP_IdP_Administrator_Runbook_v1.0.md) (OPS-IDP-001) — local DEV Keycloak baseline (**Historical pack path** `implementation/infrastructure` — marked in-doc)
 - [`ECMP_Shutdown_Procedure_v0.1.md`](./ECMP_Shutdown_Procedure_v0.1.md) (OPS-SHDN-001) — orderly shutdown
 - [`ECMP_Log_Inspection_Procedure_v0.1.md`](./ECMP_Log_Inspection_Procedure_v0.1.md) (OPS-LOG-001) — request id lookup (foundation + historical JSON note)

@@ -2,22 +2,50 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
+from dataclasses import replace
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.orm import Session
 
-from app.core.auth import OrgUnitResolver, Principal, enforce_org_scope, require_permissions
+from app.core.auth import (
+    OrgUnitResolver,
+    Principal,
+    enforce_org_scope,
+    require_any_permission,
+    require_permissions,
+)
+from app.core.authorization.gates import (
+    principal_may_auto_approve_intake_escalation,
+    require_hq_intake_action,
+)
 from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
+from app.core.authorization.visibility import (
+    VisibilityClass,
+    is_hq_schedule_destination_unit,
+    is_pusat_unit,
+    resolve_row_visibility,
+)
 from app.core.config import Settings, get_settings
+from app.core.errors import ValidationAppError
 from app.core.schemas import DataResponse, ListResponse, PageMeta
 from app.db.session import get_db_session
 from app.integrations.customer import build_customer_provider
+from app.integrations.directory import LocalUserDirectory
+from app.modules.attachment.permissions import ATTACHMENT_READ
 from app.modules.attachment.registration import build_attachment_service
+from app.modules.cm_batch1.attachment_authorization import (
+    assert_can_access_cm_complaint_attachment,
+)
 from app.modules.cm_batch1.attachment_repository import CmBatch1AttachmentRepository
 from app.modules.cm_batch1.attachment_service import CmBatch1AttachmentService
+from app.modules.cm_batch1.complaint_authorization import assert_cm_complaint_visible
+from app.modules.cm_batch1.history import CmBatch1HistoryService
 from app.modules.cm_batch1.repository import CmBatch1Repository
 from app.modules.cm_batch1.schemas import (
+    Batch1AttachmentResponse,
     ComplaintBatch1Response,
     ConfirmCustomerRequest,
     ConfirmCustomerResponse,
@@ -29,13 +57,33 @@ from app.modules.cm_batch1.schemas import (
     DuplicateCheckResponse,
     DuplicateDecisionRequest,
     DuplicateDecisionResponse,
+    HqAcceptAndScheduleRequest,
+    HqAcceptRequest,
+    HqCompleteRequest,
+    HqReturnRequest,
+    HqScheduleArrivalRequest,
     IntakeEscalationDecisionRequest,
+    IntakeEscalationRequestBody,
+    IntakeHistoryEntry,
     SupervisorQueueResponse,
     TransferAttachmentsRequest,
     TransferAttachmentsResponse,
+    UserWorkStatsResponse,
 )
 from app.modules.cm_batch1.service import CmBatch1Service
 from app.modules.cm_batch1.side_effects import CmBatch1SideEffectRecorder
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    safe_mark_cases_read_for_complaint,
+    safe_mark_pusat_queue_seen,
+)
+from app.modules.timeline.repository import TimelineRepository
+from app.modules.users.org_scope import (
+    HEAD_OFFICE_ADMIN_ROLES,
+    assert_target_user_in_same_unit,
+    org_scope_denied,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/cm", tags=["CM-Batch1"])
 
@@ -53,6 +101,16 @@ def get_cm_batch1_service(
             enterprise_base_url=settings.customer_provider_enterprise_base_url,
             session=session,
         ),
+        user_directory=LocalUserDirectory(session),
+    )
+
+
+def get_cm_batch1_history_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> CmBatch1HistoryService:
+    return CmBatch1HistoryService(
+        TimelineRepository(session),
+        user_directory=LocalUserDirectory(session),
     )
 
 
@@ -142,18 +200,31 @@ def forbid_write_back(
 def get_supervisor_queue(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     work_item_status: Annotated[
         str, Query(alias="workItemStatus")
     ] = "OPEN",
     aging_hours: Annotated[int, Query(alias="agingHours", ge=1, le=8760)] = 24,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> DataResponse[SupervisorQueueResponse]:
-    _ = principal
+    """The aging queue is a list — scope it like one (DEC-024).
+
+    Built from the same visibility class as ``list_complaints``, resolved
+    claim-first with the DB-membership fallback so a branch actor sees only
+    their own unit in Mode A too.
+    """
+    effective_org = _effective_org_unit(OrgUnitResolver(session), principal)
+    visibility = resolve_row_visibility(
+        replace(principal, org_unit_id=effective_org)
+    ).value
     return DataResponse(
         data=service.get_supervisor_queue(
             work_item_status=work_item_status,
             aging_hours=aging_hours,
             limit=limit,
+            visibility=visibility,
+            actor_unit_id=effective_org,
+            actor_id=str(principal.user_id),
         )
     )
 
@@ -165,8 +236,110 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
         "ESCALATE_PENDING_APPROVAL",
         "ESCALATE_APPROVED",
         "ESCALATE_REJECTED",
+        "ESCALATE_CANCELLED",
+        "RETURNED_TO_BRANCH",
+        "HQ_SCHEDULED",
+        "HQ_CLOSED",
+        "ALL_CASES_CANCELLED",
+        # Pseudo-value: any escalate-family state (Users directory drill-down).
+        "ESCALATED",
+        # Pseudo-value: not in the escalate family (dashboard waiting-assignment).
+        "UNESCALATED",
+        # Pseudo-value: successful close (Ditutup cabang archive).
+        "COMPLETED",
     }
 )
+
+
+def _effective_org_unit(
+    resolver: OrgUnitResolver, principal: Principal
+) -> str | None:
+    """Claim first; membership fallback fail-open (Mode A / offline lab)."""
+    return resolver.resolve_principal(principal)
+
+
+def _actor_is_pusat(principal: Principal, session: Session) -> bool:
+    """Same visibility class the Pusat queue list is built with (DEC-024)."""
+    effective = _effective_org_unit(OrgUnitResolver(session), principal)
+    vis = resolve_row_visibility(replace(principal, org_unit_id=effective))
+    return vis in (VisibilityClass.PUSAT, VisibilityClass.ALL)
+
+
+def _release_pusat_cases(
+    session: Session,
+    *,
+    complaint_id: str,
+    return_note: str,
+    actor_id: str,
+    actor_unit_id: str | None,
+) -> None:
+    """Hand Cases parked at Pusat back to the branch (API-521 use case).
+
+    Fail-open: the intake decision is already committed, so a Case that
+    cannot be released must not turn the response into a 500.
+    """
+    try:
+        from app.modules.cm_case.api.router import get_case_service
+
+        get_case_service(session).return_escalations_for_complaint(
+            complaint_id=complaint_id,
+            return_note=return_note,
+            actor_id=actor_id,
+            actor_unit_id=actor_unit_id,
+        )
+    except Exception:
+        logger.exception("release pusat cases after HQ return failed")
+
+
+def _enforce_cm_org_or_pusat_hq(
+    *,
+    principal: Principal,
+    resource_org: str | None,
+    session: Session,
+    settings: Settings,
+) -> None:
+    """Org-scope with Pusat HQ exception for escalated branch work."""
+    if not org_scope_enforcement_enabled(settings):
+        return
+    effective = _effective_org_unit(OrgUnitResolver(session), principal)
+    if is_pusat_unit(effective) or principal.has_any_role(
+        "ADMIN", "ADMINISTRATOR", "SUPER_ADMIN", "HO_SCHEDULER",
+        "HEAD_OFFICE_SCHEDULER", "SCHEDULER",
+    ):
+        return
+    enforce_org_scope(principal, resource_org, settings)
+
+
+def _resolve_hq_destination_unit(
+    session: Session, declared: str | None, *, required: bool
+) -> str | None:
+    """Validate the HQ CRO unit the taxpayer is directed to for arrival.
+
+    Two checks, deliberately at different layers: the service enforces the
+    domain rule (must be HQ CRO), this one the directory fact (the unit
+    exists and is active). A taxpayer sent to a unit that no longer exists is
+    a wasted trip, so an unknown code is rejected rather than stored as text.
+    """
+    cleaned = (declared or "").strip()
+    if not cleaned:
+        if required:
+            raise ValidationAppError(
+                "destinationUnitId is required",
+                details={"field": "destinationUnitId"},
+            )
+        return None
+    resolved = OrgUnitResolver(session).resolve_active_unit_code(cleaned)
+    if resolved is None:
+        raise ValidationAppError(
+            "destinationUnitId is not a known active organization unit",
+            details={"field": "destinationUnitId", "value": cleaned},
+        )
+    if not is_hq_schedule_destination_unit(resolved):
+        raise ValidationAppError(
+            "destinationUnitId must be a HQ CRO unit",
+            details={"field": "destinationUnitId", "value": resolved},
+        )
+    return resolved
 
 
 @router.get(
@@ -178,6 +351,7 @@ _ALLOWED_INTAKE_DISPOSITIONS = frozenset(
 def list_complaints(
     principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
     service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 20,
     keyword: Annotated[str | None, Query(max_length=200)] = None,
@@ -187,17 +361,29 @@ def list_complaints(
     ] = None,
     priority: Annotated[str | None, Query()] = None,
     category: Annotated[str | None, Query(max_length=100)] = None,
+    created_by: Annotated[str | None, Query(alias="createdBy")] = None,
+    decided_by: Annotated[str | None, Query(alias="decidedBy")] = None,
+    needs_pusat_handling: Annotated[
+        bool, Query(alias="needsPusatHandling")
+    ] = False,
 ) -> ListResponse[ComplaintBatch1Response]:
-    _ = principal
     pri = (priority or "").strip().upper() or None
     if pri is not None and pri not in _ALLOWED_PRIORITIES:
         pri = None
     st = (status_filter or "").strip().upper() or None
-    if st is not None and st not in {"REGISTERED", "CLOSED"}:
+    if st is not None and st not in {
+        "REGISTERED",
+        "IN_PROGRESS",
+        "CLOSED",
+        "OPEN",
+    }:
         st = None
     disp = (intake_disposition or "").strip().upper() or None
     if disp is not None and disp not in _ALLOWED_INTAKE_DISPOSITIONS:
         disp = None
+    resolver = OrgUnitResolver(session)
+    effective_org = _effective_org_unit(resolver, principal)
+    vis_principal = replace(principal, org_unit_id=effective_org)
     items, total = service.list_complaints(
         page=page,
         page_size=page_size,
@@ -206,6 +392,11 @@ def list_complaints(
         intake_disposition=disp,
         priority=pri,
         category=category,
+        created_by=(created_by or "").strip() or None,
+        decided_by=(decided_by or "").strip() or None,
+        principal=vis_principal,
+        org_unit_id=effective_org,
+        needs_pusat_handling=needs_pusat_handling,
     )
     return ListResponse(
         data=items,
@@ -213,10 +404,42 @@ def list_complaints(
     )
 
 
+@router.get(
+    "/complaints/work-stats/{user_id}",
+    response_model=DataResponse[UserWorkStatsResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Per-user complaint work counters (Users directory panel, UM-BUG-006)",
+)
+def get_user_work_stats(
+    user_id: str,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DataResponse[UserWorkStatsResponse]:
+    """Counters for one colleague — scoped like the directory row they open.
+
+    Reuses the Users guard so this panel and ``GET /users/{id}`` cannot
+    disagree about who may be looked at: own stats always, Head Office admins
+    unrestricted, everyone else only within their own unit (Mode A included).
+    """
+    target = (user_id or "").strip()
+    if target != str(principal.user_id):
+        try:
+            target_user_id = uuid.UUID(target)
+        except ValueError:
+            # Legacy free-text ``created_by`` key: no user row, so no unit to
+            # compare — only Head Office may query it.
+            if not principal.has_any_role(*HEAD_OFFICE_ADMIN_ROLES):
+                raise org_scope_denied() from None
+        else:
+            assert_target_user_in_same_unit(principal, target_user_id, session)
+    return DataResponse(data=service.work_stats_for_user(target))
+
+
 @router.post(
     "/complaints",
     response_model=DataResponse[ComplaintBatch1Response],
-    summary="Create Complaint Aggregate idempotent (API-500 / FR-001) — no Case",
+    summary="Create Complaint Aggregate idempotent (API-500 / FR-001)",
 )
 def create_complaint(
     body: CreateComplaintBatch1Request,
@@ -234,14 +457,16 @@ def create_complaint(
     ] = None,
 ) -> DataResponse[ComplaintBatch1Response]:
     # SECMIG-P4: pre-check declared unit before write (new create fail-closed).
-    declared_org = OrgUnitResolver(session).resolve_declared(body.recording_unit_id)
+    resolver = OrgUnitResolver(session)
+    declared_org = resolver.resolve_declared(body.recording_unit_id)
     enforce_org_scope(principal, declared_org, settings)
+    owning_unit_id = declared_org or _effective_org_unit(resolver, principal)
     # SECMIG-P4-001R2 FIX 2: authorize the *actual* replay target before any
     # create_replayed commit / outbox. Declared recordingUnitId alone is insufficient.
     def _authorize_replay(complaint_id: str) -> None:
         if not org_scope_enforcement_enabled(settings):
             return
-        actual_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+        actual_org = resolver.resolve_cm_complaint(complaint_id)
         enforce_org_scope(principal, actual_org, settings)
 
     if org_scope_enforcement_enabled(settings):
@@ -265,6 +490,10 @@ def create_complaint(
         actor_id=_principal_key(principal),
         principal_key=_principal_key(principal),
         authorize_replay=_authorize_replay,
+        owning_unit_id=owning_unit_id,
+        auto_approve_escalation=principal_may_auto_approve_intake_escalation(
+            principal
+        ),
     )
     if (
         not result.replayed
@@ -304,8 +533,126 @@ def get_complaint(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> DataResponse[ComplaintBatch1Response]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
-    enforce_org_scope(principal, resource_org, settings)
-    return DataResponse(data=service.get_complaint(complaint_id))
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    body = service.get_complaint(complaint_id)
+    # P0-3 domain floor: the SECMIG-P4 guard above is a no-op in Mode A, and it
+    # lets any Pusat actor through. Opening by id must obey the same row
+    # visibility the list applies (404, never a 403 existence oracle).
+    assert_cm_complaint_visible(
+        principal, body, session=session, settings=settings
+    )
+    actor_is_pusat = _actor_is_pusat(principal, session)
+    # Opening the parent counts as reading its Pusat queue badge row.
+    # get_db_session does not auto-commit; persist the receipt before close.
+    safe_mark_pusat_queue_seen(
+        session,
+        complaint_id=complaint_id,
+        user_id=str(principal.user_id),
+        actor_is_pusat=actor_is_pusat,
+    )
+    safe_mark_cases_read_for_complaint(
+        session,
+        complaint_id=complaint_id,
+        user_id=str(principal.user_id),
+        actor_is_pusat=actor_is_pusat,
+    )
+    try:
+        session.commit()
+    except Exception:
+        logger.exception("pusat queue seen commit failed")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+    return DataResponse(data=body)
+
+
+@router.get(
+    "/complaints/{complaint_id}/attachments",
+    response_model=ListResponse[Batch1AttachmentResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List attachments for Aggregate complaint (API-509 / FR-004)",
+)
+def list_cm_complaint_attachments(
+    complaint_id: str,
+    principal: Annotated[Principal, Depends(require_permissions(ATTACHMENT_READ))],
+    attachments: Annotated[
+        CmBatch1AttachmentService, Depends(get_cm_batch1_attachment_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=100)] = 100,
+) -> ListResponse[Batch1AttachmentResponse]:
+    """Empty list is 200 — attachments are optional (FR-004).
+
+    Same assert as the shared attachment router (G2), so the two doors onto
+    one complaint's files cannot disagree — including in Mode A.
+    """
+    if org_scope_enforcement_enabled(settings):
+        resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+        _enforce_cm_org_or_pusat_hq(
+            principal=principal,
+            resource_org=resource_org,
+            session=session,
+            settings=settings,
+        )
+    assert_can_access_cm_complaint_attachment(
+        principal=principal,
+        session=session,
+        complaint_id=complaint_id,
+        settings=settings,
+    )
+    rows = attachments.list_for_complaint(complaint_id)
+    start = (page - 1) * page_size
+    return ListResponse(
+        data=rows[start : start + page_size],
+        meta=PageMeta(page=page, pageSize=page_size, totalItems=len(rows)),
+    )
+
+
+@router.get(
+    "/complaints/{complaint_id}/history",
+    response_model=ListResponse[IntakeHistoryEntry],
+    status_code=status.HTTP_200_OK,
+    summary="Chronological intake history (API-517 / FR-001)",
+)
+def get_complaint_history(
+    complaint_id: str,
+    principal: Annotated[Principal, Depends(require_permissions("complaints:read"))],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    history: Annotated[
+        CmBatch1HistoryService, Depends(get_cm_batch1_history_service)
+    ],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ListResponse[IntakeHistoryEntry]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    # 404 before reading the log — history is not an existence oracle.
+    assert_cm_complaint_visible(
+        principal,
+        service.get_complaint(complaint_id),
+        session=session,
+        settings=settings,
+    )
+    items = history.list_history(complaint_id)
+    return ListResponse(
+        data=items,
+        meta=PageMeta(
+            page=1, pageSize=max(1, len(items)), totalItems=len(items)
+        ),
+    )
 
 
 @router.post(
@@ -326,8 +673,224 @@ def decide_intake_escalation(
 ) -> DataResponse[ComplaintBatch1Response]:
     resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
     enforce_org_scope(principal, resource_org, settings)
+    assert_cm_complaint_visible(
+        principal,
+        service.get_complaint(complaint_id),
+        session=session,
+        settings=settings,
+    )
     return DataResponse(
         data=service.decide_intake_escalation(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/intake-escalation/request",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="Re-request intake escalation after cancel/reject (API-518 lab / FR-001)",
+)
+def request_intake_escalation(
+    complaint_id: str,
+    body: IntakeEscalationRequestBody,
+    principal: Annotated[
+        Principal,
+        Depends(require_any_permission("complaints:create", "complaints:escalate")),
+    ],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """From ESCALATE_CANCELLED / ESCALATE_REJECTED → ESCALATE_PENDING_APPROVAL.
+
+    Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor remain in
+    description history (append-only). MUST NOT create Case.
+    """
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    enforce_org_scope(principal, resource_org, settings)
+    assert_cm_complaint_visible(
+        principal,
+        service.get_complaint(complaint_id),
+        session=session,
+        settings=settings,
+    )
+    return DataResponse(
+        data=service.request_intake_escalation(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+            auto_approve_escalation=principal_may_auto_approve_intake_escalation(
+                principal
+            ),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-accept",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ accept approved intake escalation (API-516 lab)",
+)
+def hq_accept_escalation(
+    complaint_id: str,
+    body: HqAcceptRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    return DataResponse(
+        data=service.accept_at_hq(
+            complaint_id,
+            body,
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-accept-and-schedule",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ accept and schedule arrival (lab) → HQ_SCHEDULED",
+)
+def hq_accept_and_schedule(
+    complaint_id: str,
+    body: HqAcceptAndScheduleRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """Terima + tetapkan jam final dan unit tujuan; Pusat yang menginformasikan WP."""
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    destination = _resolve_hq_destination_unit(
+        session, body.destination_unit_id, required=True
+    )
+    return DataResponse(
+        data=service.accept_and_schedule_at_hq(
+            complaint_id,
+            body.model_copy(update={"destination_unit_id": destination}),
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-return",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ return approved escalation to branch (API-519 lab / DEC-F4)",
+)
+def hq_return_escalation(
+    complaint_id: str,
+    body: HqReturnRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """Tolak/kembalikan ke cabang dengan reason code + catatan (sebelum HQ accept)."""
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    result = service.return_from_hq(
+        complaint_id,
+        body,
+        actor_id=_principal_key(principal),
+    )
+    # The parent is back at the branch — release the Cases Pusat still holds,
+    # otherwise they stay flagged ``escalatedToPusat`` on a row no Pusat list
+    # shows any more (ghost work in the sidebar badge).
+    _release_pusat_cases(
+        session,
+        complaint_id=complaint_id,
+        return_note=(body.note or "").strip(),
+        actor_id=_principal_key(principal),
+        actor_unit_id=_effective_org_unit(OrgUnitResolver(session), principal),
+    )
+    return DataResponse(data=result)
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-schedule-arrival",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="Schedule customer arrival at HQ (API-517 lab)",
+)
+def hq_schedule_arrival(
+    complaint_id: str,
+    body: HqScheduleArrivalRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    destination = _resolve_hq_destination_unit(
+        session, body.destination_unit_id, required=False
+    )
+    return DataResponse(
+        data=service.schedule_hq_arrival(
+            complaint_id,
+            body.model_copy(update={"destination_unit_id": destination}),
+            actor_id=_principal_key(principal),
+        )
+    )
+
+
+@router.post(
+    "/complaints/{complaint_id}/hq-complete",
+    response_model=DataResponse[ComplaintBatch1Response],
+    status_code=status.HTTP_200_OK,
+    summary="HQ complete visit and close complaint (lab)",
+)
+def hq_complete_visit(
+    complaint_id: str,
+    body: HqCompleteRequest,
+    principal: Annotated[Principal, Depends(require_hq_intake_action)],
+    service: Annotated[CmBatch1Service, Depends(get_cm_batch1_service)],
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> DataResponse[ComplaintBatch1Response]:
+    """Selesai di Pusat dengan catatan; status CLOSED. Kunjungan tetap di kalender hari itu."""
+    resource_org = OrgUnitResolver(session).resolve_cm_complaint(complaint_id)
+    _enforce_cm_org_or_pusat_hq(
+        principal=principal,
+        resource_org=resource_org,
+        session=session,
+        settings=settings,
+    )
+    return DataResponse(
+        data=service.complete_at_hq(
             complaint_id,
             body,
             actor_id=_principal_key(principal),

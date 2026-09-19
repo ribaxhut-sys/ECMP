@@ -12,12 +12,15 @@ const createCmCase = vi.fn();
 const updateCmCaseStatus = vi.fn();
 const resolveCmCase = vi.fn();
 const closeCmCase = vi.fn();
+const recordCmCaseAcceptance = vi.fn();
 const fetchCmCase = vi.fn();
 const hasPermission = vi.fn(() => true);
 const noop = () => undefined;
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/complaints/cm/complaint-1/cases",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -52,13 +55,14 @@ vi.mock("@/lib/api", async () => {
     updateCmCaseStatus: (...args: unknown[]) => updateCmCaseStatus(...args),
     resolveCmCase: (...args: unknown[]) => resolveCmCase(...args),
     closeCmCase: (...args: unknown[]) => closeCmCase(...args),
+    recordCmCaseAcceptance: (...args: unknown[]) =>
+      recordCmCaseAcceptance(...args),
   };
 });
 
 import { CreateCaseDialog } from "./CreateCaseDialog";
 import { UpdateStatusDialog } from "./UpdateStatusDialog";
 import { ResolveCaseDialog } from "./ResolveCaseDialog";
-import { CloseCaseDialog } from "./CloseCaseDialog";
 import { clearKnownCaseIds } from "./caseSessionRegistry";
 
 const COMPLAINT_ID = "11111111-1111-1111-1111-111111111111";
@@ -98,12 +102,13 @@ describe("CAP-008 case lifecycle flow", () => {
     updateCmCaseStatus.mockReset();
     resolveCmCase.mockReset();
     closeCmCase.mockReset();
+    recordCmCaseAcceptance.mockReset();
     fetchCmCase.mockReset();
     hasPermission.mockImplementation(() => true);
     sessionStorage.clear();
   });
 
-  it("Create → Update Status → Resolve → Close", async () => {
+  it("Create → Update Status → Resolve Tutup (DEC-021 comment-only)", async () => {
     const user = userEvent.setup();
     let current = baseCase({ status: "CREATED" });
 
@@ -121,8 +126,12 @@ describe("CAP-008 case lifecycle flow", () => {
 
     setFieldValue(/case type/i, "SERVICE");
     setFieldValue(/^subject/i, "Flow subject");
-    setFieldValue(/description/i, "Flow description");
-    await user.click(screen.getByRole("button", { name: /^create case$/i }));
+    const descriptionEditor = document.getElementById(
+      "description",
+    ) as HTMLElement;
+    await user.click(descriptionEditor);
+    await user.keyboard("Flow description");
+    await user.click(screen.getByRole("button", { name: /^start branch work$/i }));
 
     await waitFor(() => expect(createCmCase).toHaveBeenCalled());
     expect(onCreated).toHaveBeenCalledWith(
@@ -146,7 +155,7 @@ describe("CAP-008 case lifecycle flow", () => {
     );
 
     await user.selectOptions(screen.getByLabelText(/target status/i), "ASSIGNED");
-    setFieldValue(/destination unit/i, "unit-ops");
+    setFieldValue(/branch unit/i, "unit-ops");
     await user.click(screen.getByRole("button", { name: /update status/i }));
 
     await waitFor(() => expect(updateCmCaseStatus).toHaveBeenCalled());
@@ -192,19 +201,34 @@ describe("CAP-008 case lifecycle flow", () => {
 
     progressRender.unmount();
     current = baseCase({
-      status: "RESOLVED",
+      status: "CLOSED",
       owningUnitId: "unit-ops",
+      closedAt: "2026-08-01T12:00:00Z",
       resolution: {
         resolutionId: "res-1",
-        resolutionCode: "FIX",
-        summary: "Fixed",
+        resolutionCode: "BRANCH_DONE",
+        summary: "Done",
         status: "ACCEPTED",
         comment: "Done",
       },
     });
-    resolveCmCase.mockResolvedValue({ data: current });
+    resolveCmCase.mockResolvedValue({
+      data: baseCase({
+        status: "RESOLVED",
+        owningUnitId: "unit-ops",
+        resolution: {
+          resolutionId: "res-1",
+          resolutionCode: "BRANCH_DONE",
+          summary: "Done",
+          status: "ACCEPTED",
+          comment: "Done",
+        },
+      }),
+    });
+    recordCmCaseAcceptance.mockResolvedValue({ data: current });
+    closeCmCase.mockResolvedValue({ data: current });
     const onResolved = vi.fn();
-    const resolveRender = renderWithProviders(
+    renderWithProviders(
       <ResolveCaseDialog
         open
         onClose={noop}
@@ -213,9 +237,9 @@ describe("CAP-008 case lifecycle flow", () => {
       />,
     );
 
-    setFieldValue(/comment/i, "Done");
-    setFieldValue(/resolution code/i, "FIX");
-    setFieldValue(/^summary/i, "Fixed");
+    const commentEditor = document.getElementById("comment") as HTMLElement;
+    await user.click(commentEditor);
+    await user.keyboard("Done");
     await user.click(
       screen.getByRole("button", { name: /submit resolution/i }),
     );
@@ -225,34 +249,10 @@ describe("CAP-008 case lifecycle flow", () => {
       "case-flow-1",
       expect.objectContaining({
         action: "ACCEPT",
-        resolutionCode: "FIX",
-        summary: "Fixed",
+        comment: "Done",
       }),
     );
     expect(onResolved).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "RESOLVED" }),
-    );
-
-    resolveRender.unmount();
-    current = baseCase({
-      status: "CLOSED",
-      owningUnitId: "unit-ops",
-      closedAt: "2026-08-01T12:00:00Z",
-    });
-    closeCmCase.mockResolvedValue({ data: current });
-    const onClosed = vi.fn();
-    renderWithProviders(
-      <CloseCaseDialog
-        open
-        onClose={noop}
-        caseId="case-flow-1"
-        onClosed={onClosed}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: /^close case$/i }));
-    await waitFor(() => expect(closeCmCase).toHaveBeenCalled());
-    expect(onClosed).toHaveBeenCalledWith(
       expect.objectContaining({ status: "CLOSED" }),
     );
   });

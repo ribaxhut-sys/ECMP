@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   ApiError,
   downloadAttachment,
@@ -15,7 +15,9 @@ import {
   IconImage,
 } from "@/shared/icons";
 import { Alert, Badge, Button, Card, CardBody } from "@/shared/ui";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { AttachmentViewer } from "./AttachmentViewer";
+import { attachmentPreviewPath } from "./previewRoutes";
 import {
   fileTypeLabel,
   formatFileSize,
@@ -35,6 +37,7 @@ function TypeIcon({
   const kind = getPreviewKind(mimeType, extension, filename);
   if (kind === "image") return <IconImage className="size-8 text-ecmp-primary" />;
   if (kind === "pdf") return <IconFile className="size-8 text-ecmp-danger" />;
+  if (kind === "docx") return <IconFile className="size-8 text-ecmp-info" />;
   return <IconFile className="size-8 text-ecmp-text-secondary" />;
 }
 
@@ -44,6 +47,9 @@ export interface AttachmentCardProps {
 
 export function AttachmentCard({ attachment }: AttachmentCardProps) {
   const t = useTranslations("attachments");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
+  const locale = useLocale();
   const kind = getPreviewKind(
     attachment.mimeType,
     attachment.extension,
@@ -58,10 +64,10 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
       if (error.status === 404) return t("notFound404");
       if (error.status === 403) return t("permissionDenied403");
       if (error.status === 500) return t("serverError500");
-      return error.message;
+      return resolveApiErrorMessage(error, tErrors, tCommon);
     }
     return t("actionFailed");
-  }, [t]);
+  }, [t, tErrors, tCommon]);
 
   const handleDownload = useCallback(async () => {
     setBusy(true);
@@ -83,25 +89,17 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
     }
   }, [attachment.originalName, attachment.id, mapError]);
 
-  const handleOpenTab = useCallback(async () => {
-    setBusy(true);
+  // In-app preview route, not a blob: URL — Word files render instead of
+  // downloading, and the tab can be refreshed or shared.
+  const handleOpenTab = useCallback(() => {
     setActionError(null);
-    try {
-      const result = await downloadAttachment(attachment.id);
-      const url = URL.createObjectURL(result.blob);
-      const opened = window.open(url, "_blank", "noopener,noreferrer");
-      if (!opened) {
-        URL.revokeObjectURL(url);
-        setActionError(t("popupBlocked"));
-        return;
-      }
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      setActionError(mapError(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [attachment.id, mapError, t]);
+    const opened = window.open(
+      attachmentPreviewPath(attachment.id),
+      "_blank",
+      "noopener,noreferrer",
+    );
+    if (!opened) setActionError(t("popupBlocked"));
+  }, [attachment.id, t]);
 
   return (
     <>
@@ -158,7 +156,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
                 {t("uploadDate")}
               </dt>
               <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                {formatUploadDate(attachment.uploadedAt)}
+                {formatUploadDate(attachment.uploadedAt, locale)}
               </dd>
             </div>
           </dl>
@@ -196,7 +194,7 @@ export function AttachmentCard({ attachment }: AttachmentCardProps) {
               size="sm"
               leftIcon={<IconExternalLink />}
               disabled={busy}
-              onClick={() => void handleOpenTab()}
+              onClick={handleOpenTab}
             >{t("openInNewTab")}            </Button>
           </div>
         </CardBody>

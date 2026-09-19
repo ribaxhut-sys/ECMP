@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, addCmCase, createCmCase, type CmCase } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
   Alert,
   Button,
@@ -10,8 +11,8 @@ import {
   Modal,
   ModalSection,
   Select,
-  Textarea,
 } from "@/shared/ui";
+import { KnowledgeMentionTextarea } from "@/features/complaints/KnowledgeMentionTextarea";
 import {
   CASE_PRIORITY_OPTIONS,
   emptyCreateCaseForm,
@@ -40,6 +41,8 @@ export function CreateCaseDialog({
 }) {
   const t = useTranslations("cases");
   const tValidation = useTranslations("validation");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [values, setValues] = useState<CreateCaseFormValues>(emptyCreateCaseForm());
   const [fieldErrors, setFieldErrors] = useState<
     ReturnType<typeof validateCreateCaseForm>
@@ -99,7 +102,9 @@ export function CreateCaseDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("unableToLoad"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToLoad"),
       );
     } finally {
       setSubmitting(false);
@@ -156,11 +161,11 @@ export function CreateCaseDialog({
           error={fieldErrors.subject ? tValidation(fieldErrors.subject) : undefined}
           required
         />
-        <Textarea
+        <KnowledgeMentionTextarea
           name="description"
           label={t("description")}
           value={values.description}
-          onChange={(e) => setField("description", e.target.value)}
+          onChange={(next) => setField("description", next)}
           error={
             fieldErrors.description
               ? tValidation(fieldErrors.description)

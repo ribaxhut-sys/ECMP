@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { formatDateTime } from "@/i18n/formatting";
-import type { DashboardSlaSummary } from "@/lib/api/types";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useAuth } from "@/auth/AuthProvider";
+import type { DashboardResolutionSla } from "@/lib/api/types";
+import { IconComplaints } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
 import {
-  DASHBOARD_STRIP,
   dashboardEnvironmentLabel,
   resolveSystemHealth,
-  secondsSince,
   type SystemHealthKind,
 } from "./dashboardUtils";
 
@@ -29,30 +28,56 @@ const HEALTH_TEXT: Record<SystemHealthKind, string> = {
 
 export function LiveStatusBar({
   sla,
+  waitingAssignment = 0,
+  escalatePending = 0,
+  escalateScheduled = 0,
+  inProgress = 0,
+  returnedToBranch = 0,
+  pusatQueue = 0,
+  pusatFollowUp = 0,
+  hqScheduleToday = 0,
   loading,
+  refreshing = false,
   error,
   updatedAt,
   onRefresh,
 }: {
-  sla: DashboardSlaSummary | null;
+  sla: DashboardResolutionSla | null;
+  waitingAssignment?: number;
+  escalatePending?: number;
+  escalateScheduled?: number;
+  inProgress?: number;
+  returnedToBranch?: number;
+  pusatQueue?: number;
+  pusatFollowUp?: number;
+  hqScheduleToday?: number;
+  /** First-load only — drives skeleton + "syncing" health. */
   loading: boolean;
+  /** Background / manual refresh — button label only, not health pulse. */
+  refreshing?: boolean;
   error: boolean;
   updatedAt: Date | null;
   onRefresh?: () => void;
 }) {
   const t = useTranslations("dashboard");
   const tCommon = useTranslations("common");
-  const locale = useLocale();
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const router = useRouter();
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission("complaints:create");
 
-  useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const health = resolveSystemHealth({ loading, error, sla });
-  const syncSource = updatedAt ?? (loading ? null : new Date(nowMs));
-  const ageSec = secondsSince(syncSource, nowMs);
+  const health = resolveSystemHealth({
+    loading,
+    error,
+    sla,
+    waitingAssignment,
+    escalatePending,
+    escalateScheduled,
+    inProgress,
+    returnedToBranch,
+    pusatQueue,
+    pusatFollowUp,
+    hqScheduleToday,
+  });
   const env = dashboardEnvironmentLabel();
 
   const healthLabel =
@@ -64,21 +89,26 @@ export function LiveStatusBar({
           ? t("systemSyncing")
           : t("systemDegraded");
 
+  const busy = loading || refreshing;
+
   return (
+    // Command bar: scoped to the app's own dark palette (`.dark` cascades
+    // --ecmp-* overrides to this subtree only) so it's a deliberate fixed
+    // dark accent, independent of whatever theme the rest of the page uses.
     <section
       data-testid="dashboard-live-status"
       aria-label={t("liveStatusBar")}
-      className={`${DASHBOARD_STRIP} flex h-9 items-center px-0.5`}
+      className="dark flex h-11 items-center rounded-[var(--ecmp-radius-lg)] bg-ecmp-surface px-4"
     >
       {loading && !updatedAt ? (
         <div className="w-full" aria-busy="true">
           <Skeleton rows={1} />
         </div>
       ) : (
-        <div className="flex w-full min-w-0 items-center justify-between gap-3 text-[12px]">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-0.5">
+        <div className="flex w-full min-w-0 items-center justify-between gap-3 font-mono text-[12px]">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-0.5">
             <p
-              className={`inline-flex items-center gap-1.5 font-medium ${HEALTH_TEXT[health]}`}
+              className={`inline-flex items-center gap-1.5 font-medium uppercase tracking-[0.06em] ${HEALTH_TEXT[health]}`}
             >
               <span
                 className={`size-1.5 shrink-0 rounded-full ${HEALTH_DOT[health]}`}
@@ -86,43 +116,37 @@ export function LiveStatusBar({
               />
               <span className="truncate">{healthLabel}</span>
             </p>
-
-            <p className="hidden tabular-nums text-ecmp-text-secondary sm:inline">
-              {syncSource
-                ? formatDateTime(syncSource, locale, {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : t("syncPending")}
-            </p>
-
-            <p
-              className="tabular-nums text-ecmp-text-secondary"
-              aria-live="polite"
-            >
-              {ageSec === null
-                ? t("syncPending")
-                : t("updatedSecondsAgo", { count: ageSec })}
-            </p>
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
             <p className="hidden text-ecmp-text-secondary md:inline">
-              {env === "production"
-                ? t("envProduction")
-                : t("envDevelopment")}
+              {env === "lab"
+                ? t("envLab")
+                : env === "production"
+                  ? t("envProduction")
+                  : t("envDevelopment")}
             </p>
+            {canCreate ? (
+              <button
+                type="button"
+                onClick={() => router.push("/complaints/new")}
+                className="flex items-center gap-1.5 rounded bg-ecmp-primary px-2.5 py-1 font-medium text-ecmp-primary-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
+              >
+                <IconComplaints className="size-3.5 shrink-0" aria-hidden />
+                {t("createComplaint")}
+              </button>
+            ) : null}
             {onRefresh ? (
               <button
                 type="button"
                 onClick={onRefresh}
-                disabled={loading}
-                className="rounded px-1 py-0.5 font-medium text-ecmp-primary hover:bg-ecmp-primary-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus disabled:opacity-50"
+                disabled={busy}
+                className="rounded px-1.5 py-0.5 font-medium text-ecmp-primary hover:bg-ecmp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus disabled:opacity-50"
                 aria-label={
-                  loading ? tCommon("refreshing") : tCommon("refresh")
+                  busy ? tCommon("refreshing") : tCommon("refresh")
                 }
               >
-                {loading ? tCommon("refreshing") : tCommon("refresh")}
+                {busy ? tCommon("refreshing") : tCommon("refresh")}
               </button>
             ) : null}
           </div>

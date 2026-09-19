@@ -6,26 +6,28 @@ import type {
   ListResponse,
 } from "./types";
 
+/** API-386 — GET /api/v1/attachments?aggregateType=&aggregateId= */
+export function fetchAttachments(
+  aggregateType: AttachmentAggregateType,
+  aggregateId: string,
+  pageSize = 50,
+): Promise<ListResponse<Attachment>> {
+  const params = new URLSearchParams({
+    aggregateType,
+    aggregateId,
+    pageSize: String(pageSize),
+  });
+  return apiRequest<ListResponse<Attachment>>(
+    `/api/v1/attachments?${params.toString()}`,
+  );
+}
+
 /** API-324 — GET /api/v1/attachments/{id} (metadata only; no file bytes). */
 export function fetchAttachment(
   attachmentId: string,
 ): Promise<DataResponse<Attachment>> {
   return apiRequest<DataResponse<Attachment>>(
     `/api/v1/attachments/${encodeURIComponent(attachmentId)}`,
-  );
-}
-
-/** API-387 — GET /api/v1/complaints/{id}/attachments */
-export function fetchComplaintAttachments(
-  complaintId: string,
-  pageSize = 100,
-): Promise<ListResponse<Attachment>> {
-  const params = new URLSearchParams({
-    page: "1",
-    pageSize: String(pageSize),
-  });
-  return apiRequest<ListResponse<Attachment>>(
-    `/api/v1/complaints/${encodeURIComponent(complaintId)}/attachments?${params.toString()}`,
   );
 }
 

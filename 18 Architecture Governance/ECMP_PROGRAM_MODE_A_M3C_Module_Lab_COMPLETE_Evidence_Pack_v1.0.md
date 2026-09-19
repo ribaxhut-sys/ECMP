@@ -9,7 +9,7 @@
 | Prepared by | Tech Lead / Engineering Assistant (Mode A delivery) |
 | Status | 🟢 **Evidence recorded** — Mode A Batch-1 **lab COMPLETE** (synthetic / stub) |
 | Authorization | PROGRAM-ADR-002 **BR-008** AUTHORIZED WITH CONDITIONS; DEC-019/020 |
-| Companion | `ECMP_PROGRAM_MODE_A_NEXT_WORK_PRIORITY_v0.1.md`; EX pack `GOV-EX-CM-B1-S3-001` |
+| Companion | `ECMP_PROGRAM_MODE_A_NEXT_WORK_PRIORITY_v0.1.md`; EX pack `GOV-EX-CM-B1-S3-001`; EX-C re-review `GOV-EX-CM-B1-EXC-RR-001` (pending countersign) |
 | Mode B / Batch-2 / real-customer prod | **NOT claimed** — remain CLOSED / excepted |
 
 ---
@@ -141,7 +141,7 @@ Source of truth: `18 Architecture Governance/reviews/ECMP_CM_Batch1_S3_Release_E
 | EX# | Lab posture after Mode A M3…M3b |
 |---|---|
 | EX-A / EX-B | **Still in force** — stub / enterprise UNAVAILABLE; not real-customer prod |
-| EX-C | **Still in force** — AV `STUB_ONLY` |
+| EX-C | **Still in force** — AV `STUB_ONLY`; calendar re-review GOV-EX-CM-B1-EXC-RR-001 (2026-08-26) pending countersign |
 | EX-D | **Closed (Mode A lab)** — confirm lock enforced |
 | EX-E | Accepted for single-instance lab |
 | EX-F | Accepted — outbox persist-only |

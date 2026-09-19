@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Badge, Card, CardBody } from "@/shared/ui";
 import type { MockComplaint, MockPriority } from "../mock/assignmentRepository";
 
@@ -20,6 +20,7 @@ export interface AssignmentCardProps {
 /** Queue row card for SCR-Q-02 unassigned segment (B1 mock). */
 export function AssignmentCard({ complaint, onOpen }: AssignmentCardProps) {
   const t = useTranslations("supervisorAssign");
+  const locale = useLocale();
 
   return (
     <Card
@@ -62,7 +63,7 @@ export function AssignmentCard({ complaint, onOpen }: AssignmentCardProps) {
           <p>{t("segmentUnassigned")}</p>
           <p>
             {t("registeredAt", {
-              when: new Date(complaint.registeredAt).toLocaleString(),
+              when: new Date(complaint.registeredAt).toLocaleString(locale),
             })}
           </p>
         </div>

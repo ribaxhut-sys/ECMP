@@ -6,7 +6,10 @@ info:
     Planned OpenAPI for FRD-CM-002 Draft (Escalation & Resolution under DEC-F4).
     Namespace: Aggregate `/api/v1/cm/` — separate from foundation complaint escalate APIs
     under DEC-020 controlled coexistence (not interchangeable with `/api/v1/complaints`).
-    Status: Planned — not implemented. Batch-2 / F4 execution remains Board-gated.
+    Status: Planned — API-522…526 not implemented. **API-520 lab (DEC-029)** and
+    **API-521 lab (return)** are implemented on CAP-008 Mode A (`cm-case-management.v1.yaml`):
+    escalate / return **this Case** to/from Pusat without status `ESCALATED`. Batch-2 / F4
+    queue and `result_visibility` remain Board-gated.
     Catalog IDs: API-520…526 (logical API-CM-F4-001…007).
   x-ecmp-frd: FRD-CM-002
   x-ecmp-dec: DEC-F4

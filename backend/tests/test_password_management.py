@@ -119,9 +119,20 @@ def _make_user(
     return user
 
 
-def _auth_header(user: User, *, permissions: list[str] | None = None) -> dict[str, str]:
+def _auth_header(
+    user: User,
+    *,
+    permissions: list[str] | None = None,
+    roles: list[str] | None = None,
+) -> dict[str, str]:
+    """Bearer token for ``user``.
+
+    ``roles`` must mirror the role the fixture actually gave the DB row when the
+    endpoint under test is role-sensitive (UM-SEC-P0-2: admin reset is Head
+    Office-exempt, unit-scoped otherwise).
+    """
     settings = get_settings()
-    claims: dict = {"roles": ["AGENT"]}
+    claims: dict = {"roles": roles or ["AGENT"]}
     if permissions is not None:
         claims["permissions"] = permissions
     token = create_access_token(
@@ -413,7 +424,9 @@ def test_admin_reset_password(client: TestClient, db_session: Session) -> None:
     target = _make_user(db_session, password="OldPass12!")
     resp = client.post(
         f"/api/v1/users/{target.id}/reset-password",
-        headers=_auth_header(admin, permissions=["users:reset_password"]),
+        headers=_auth_header(
+            admin, permissions=["users:reset_password"], roles=["ADMIN"]
+        ),
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()["data"]

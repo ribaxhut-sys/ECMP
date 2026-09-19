@@ -9,8 +9,9 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import { useOrgUnitCode } from "@/features/announcements/useOrgUnitCode";
 import {
   ApiError,
   fetchCmBatch1Complaints,
@@ -27,29 +28,41 @@ import {
   Input,
   PageContainer,
   PageHeader,
+  Pagination,
   Select,
   Skeleton,
   Table,
   WorkspaceToolbar,
   type TableColumn,
 } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import {
+  isPusatWorkAudience,
+  prefersComplaintNumberIdentity,
+} from "./cmBatch1ComplaintListIdentity";
 import {
   cmBatch1FiltersFromSearchParams,
   cmBatch1FiltersToSearchParams,
   defaultCmBatch1ListFilters,
+  shouldDefaultPusatUnhandledQueue,
   type CmBatch1ListFilters,
 } from "./cmBatch1ListFilters";
+import { ComplaintSlaBadge } from "./ComplaintSlaBadge";
+import {
+  expandComplaintsToCaseRows,
+  type CmBatch1ComplaintListCases,
+  type CmBatch1ComplaintListRow,
+} from "./cmBatch1ComplaintListRows";
+import { complaintWorkListIsUnread, keepPusatPengaduanListRow } from "./pusatWorkQueues";
 
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+const NUMBER_LINK_BASE =
+  "whitespace-nowrap tabular-nums text-ecmp-primary underline-offset-2 hover:underline";
+
+function numberLinkClass(unread: boolean): string {
+  return unread
+    ? `${NUMBER_LINK_BASE} font-semibold`
+    : `${NUMBER_LINK_BASE} font-medium`;
 }
 
 function customerCellLabel(
@@ -58,7 +71,7 @@ function customerCellLabel(
 ): { name: string; id: string | null } {
   const displayName = row.customerDisplayName?.trim() || "";
   const businessId = row.customerNumber?.trim() || "";
-  // Never show internal UUID as the primary customer label.
+  // Never show internal UUID as the primary taxpayer label.
   if (displayName) {
     return {
       name: displayName,
@@ -72,8 +85,9 @@ function customerCellLabel(
 }
 
 /**
- * DEC-020 coexistence — Aggregate complaint list (API-514) at `/complaints`.
- * Filters: keyword + status (server-side).
+ * CM Aggregate list API (API-514 / DEC-026) at `/complaints`.
+ * Pusat: default queue = escalated Cases never handled by Pusat.
+ * Cabang (unit-scoped): complaint number primary, Case secondary.
  */
 export function CmBatch1ComplaintListView() {
   const router = useRouter();
@@ -82,11 +96,14 @@ export function CmBatch1ComplaintListView() {
   const t = useTranslations("complaints");
   const tCases = useTranslations("cases");
   const tCommon = useTranslations("common");
-  const tTable = useTranslations("table");
   const tPriority = useTranslations("priority");
+  const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("complaints:read");
-  const canCreate = hasPermission("complaints:create");
+  const orgUnitCode = useOrgUnitCode();
+  const complaintNumberFirst = prefersComplaintNumberIdentity(orgUnitCode);
+  const pusatAudience = isPusatWorkAudience(orgUnitCode);
 
   const filters = useMemo(
     () => cmBatch1FiltersFromSearchParams(searchParams),
@@ -98,6 +115,32 @@ export function CmBatch1ComplaintListView() {
     setDraft(filters);
   }, [filters]);
 
+  // Pusat Pengaduan default = unhandled queue. Ditutup is `/ditutup`.
+  // Keep dashboard/SLA drill-downs (status, intakeDisposition, keyword).
+  useEffect(() => {
+    if (pusatAudience !== true) return;
+    const parsed = cmBatch1FiltersFromSearchParams(searchParams);
+    if (!shouldDefaultPusatUnhandledQueue(parsed)) return;
+    const params = cmBatch1FiltersToSearchParams({
+      ...parsed,
+      needsPusatHandling: true,
+    });
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [pusatAudience, searchParams, pathname, router]);
+
+  // Cabang Pengaduan = open work list. Drill-down keeps its query.
+  useEffect(() => {
+    if (pusatAudience !== false) return;
+    const parsed = cmBatch1FiltersFromSearchParams(searchParams);
+    if (parsed.status) return;
+    if (parsed.createdBy.trim() || parsed.decidedBy.trim()) return;
+    const params = cmBatch1FiltersToSearchParams({
+      ...parsed,
+      status: "OPEN",
+    });
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [pusatAudience, searchParams, pathname, router]);
+
   const [rows, setRows] = useState<CmBatch1ComplaintResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -106,6 +149,20 @@ export function CmBatch1ComplaintListView() {
   const load = useCallback(async () => {
     if (!canRead) {
       setLoading(false);
+      return;
+    }
+    if (pusatAudience === null && !filters.needsPusatHandling) {
+      return;
+    }
+    if (pusatAudience === true && !filters.needsPusatHandling) {
+      return;
+    }
+    if (
+      pusatAudience === false &&
+      !filters.status &&
+      !filters.createdBy.trim() &&
+      !filters.decidedBy.trim()
+    ) {
       return;
     }
     setLoading(true);
@@ -117,6 +174,9 @@ export function CmBatch1ComplaintListView() {
         keyword: filters.keyword,
         status: filters.status,
         intakeDisposition: filters.intakeDisposition,
+        createdBy: filters.createdBy,
+        decidedBy: filters.decidedBy,
+        needsPusatHandling: filters.needsPusatHandling || undefined,
       });
       setRows(res.data ?? []);
       setTotal(res.meta?.totalItems ?? res.data?.length ?? 0);
@@ -125,20 +185,43 @@ export function CmBatch1ComplaintListView() {
       setTotal(0);
       setError(
         err instanceof ApiError
-          ? err.message
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
           : t("unableToLoadAggregateList"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, filters, t]);
+    // i18n helpers are stable enough for error copy; omit from deps so this
+    // callback does not churn every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t/tErrors/tCommon
+  }, [canRead, filters, pusatAudience]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  // Case column uses parent-scoped `cases` embedded in API-514 list response
+  // (no N+1 /api/v1/cm/cases). Avoids false "Belum ada case" from race/visibility.
+  const casesByComplaint = useMemo(() => {
+    const next: Record<string, CmBatch1ComplaintListCases> = {};
+    for (const row of rows) {
+      next[row.complaintId] = Array.isArray(row.cases) ? row.cases : [];
+    }
+    return next;
+  }, [rows]);
+
+  const listRows = useMemo(() => {
+    const expanded = expandComplaintsToCaseRows(rows, casesByComplaint);
+    if (pusatAudience !== true) return expanded;
+    return expanded.filter(keepPusatPengaduanListRow);
+  }, [rows, casesByComplaint, pusatAudience]);
+
   function applyFilters(next: CmBatch1ListFilters): void {
-    const params = cmBatch1FiltersToSearchParams(next);
+    let pinned = next;
+    if (pusatAudience === true) {
+      pinned = { ...next, needsPusatHandling: true };
+    }
+    const params = cmBatch1FiltersToSearchParams(pinned);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
   }
@@ -149,7 +232,10 @@ export function CmBatch1ComplaintListView() {
   }
 
   function onResetFilters(): void {
-    const next = defaultCmBatch1ListFilters();
+    const next = defaultCmBatch1ListFilters({
+      pusatUnhandledQueue: pusatAudience === true,
+      openOnly: pusatAudience === false,
+    });
     setDraft(next);
     applyFilters(next);
   }
@@ -158,6 +244,7 @@ export function CmBatch1ComplaintListView() {
     () => [
       { value: "", label: t("statusFilterAll") },
       { value: "REGISTERED", label: t("statusOpen") },
+      { value: "IN_PROGRESS", label: t("statusInProgress") },
       { value: "CLOSED", label: t("statusClosed") },
     ],
     [t],
@@ -166,9 +253,13 @@ export function CmBatch1ComplaintListView() {
   const intakeDispositionFilterOptions = useMemo(
     () => [
       { value: "", label: t("intakeDispositionFilterAll") },
+      { value: "UNESCALATED", label: t("intakeUnescalated") },
       { value: "ESCALATE_PENDING_APPROVAL", label: t("awaitingApproval") },
       { value: "ESCALATE_APPROVED", label: t("escalationApproved") },
       { value: "ESCALATE_REJECTED", label: t("escalationRejected") },
+      { value: "ESCALATE_CANCELLED", label: t("escalationCancelled") },
+      { value: "RETURNED_TO_BRANCH", label: t("returnedToBranch") },
+      { value: "HQ_SCHEDULED", label: t("hqScheduled") },
     ],
     [t],
   );
@@ -195,55 +286,115 @@ export function CmBatch1ComplaintListView() {
     );
   }
 
-  const columns: TableColumn<CmBatch1ComplaintResponse>[] = [
+  const columns: TableColumn<CmBatch1ComplaintListRow>[] = [
     {
-      key: "complaintNumber",
-      header: t("complaintNumber"),
-      cell: (row) => (
-        <Link
-          href={`/complaints/cm/${encodeURIComponent(row.complaintId)}`}
-          className="font-medium text-ecmp-primary underline-offset-2 hover:underline"
-        >
-          {row.complaintNumber}
-        </Link>
-      ),
+      key: "caseNumber",
+      header: complaintNumberFirst
+        ? t("listComplaintNumberColumn")
+        : t("listCaseColumn"),
+      className: "whitespace-nowrap",
+      headerClassName: "whitespace-nowrap",
+      cell: (row) => {
+        const caseItem = row.caseItem;
+        const complaintHref = `/complaints/cm/${encodeURIComponent(row.complaint.complaintId)}`;
+        const caseHref = caseItem
+          ? `/complaints/cm/cases/${encodeURIComponent(caseItem.caseId)}`
+          : complaintHref;
+        const caseLabel =
+          row.casesState === "loading"
+            ? tCommon("emDash")
+            : row.casesState === "error"
+              ? t("penangananListUnavailable")
+              : caseItem?.caseNumber
+                ? caseItem.caseNumber
+                : row.complaint.caseCreated
+                  ? // Cases exist but none are in this viewer's scope (e.g. Pusat
+                    // after filtering branch-closed siblings) — not "no Case yet".
+                    tCommon("emDash")
+                  : t("noCaseYet");
+        const complaintLabel = row.complaint.complaintNumber;
+        const unread = complaintWorkListIsUnread(
+          row.complaint,
+          pusatAudience,
+          row.caseItem,
+        );
+        const secondaryClass = unread
+          ? "mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] font-semibold text-ecmp-primary underline-offset-2 hover:underline"
+          : "mt-0.5 block truncate font-mono text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary underline-offset-2 hover:underline hover:text-ecmp-primary";
+        if (complaintNumberFirst) {
+          return (
+            <div className="min-w-0">
+              <Link
+                href={complaintHref}
+                className={numberLinkClass(unread)}
+              >
+                {complaintLabel}
+              </Link>
+              <Link href={caseHref} className={secondaryClass}>
+                {caseLabel}
+              </Link>
+            </div>
+          );
+        }
+        return (
+          <div className="min-w-0">
+            <Link
+              href={caseHref}
+              className={numberLinkClass(unread)}
+            >
+              {caseLabel}
+            </Link>
+            <Link href={complaintHref} className={secondaryClass}>
+              {complaintLabel}
+            </Link>
+          </div>
+        );
+      },
     },
     {
       key: "subject",
       header: t("subject"),
-      cell: (row) => row.subject?.trim() || "—",
+      cell: (row) =>
+        row.caseItem?.subject?.trim() ||
+        row.complaint.subject?.trim() ||
+        "—",
     },
     {
       key: "status",
       header: t("status"),
       cell: (row) => (
-        <div className="flex flex-col items-start gap-1">
-          <Badge tone={row.status === "CLOSED" ? "success" : "info"}>
-            {row.status === "CLOSED"
-              ? t("statusClosed")
+        <Badge
+          tone={
+            row.complaint.status === "CLOSED"
+              ? "success"
+              : row.complaint.status === "IN_PROGRESS"
+                ? "warning"
+                : "info"
+          }
+        >
+          {row.complaint.status === "CLOSED"
+            ? t("statusClosed")
+            : row.complaint.status === "IN_PROGRESS"
+              ? t("statusInProgress")
               : t("statusOpen")}
-          </Badge>
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_PENDING_APPROVAL" ? (
-            <Badge tone="warning">{t("awaitingApproval")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_APPROVED" ? (
-            <Badge tone="info">{t("escalationApproved")}</Badge>
-          ) : null}
-          {row.status !== "CLOSED" &&
-          row.intakeDisposition === "ESCALATE_REJECTED" ? (
-            <Badge tone="neutral">{t("escalationRejected")}</Badge>
-          ) : null}
-        </div>
+        </Badge>
+      ),
+    },
+    {
+      // DEC-031 — 30 calendar-day resolution target. Server-computed; the
+      // column is blank for complaints the server did not measure.
+      key: "sla",
+      header: t("slaColumn"),
+      cell: (row) => (
+        <ComplaintSlaBadge sla={row.complaint.sla} />
       ),
     },
     {
       key: "priority",
       header: t("priority"),
       cell: (row) => {
-        const p = (row.priority || "").toUpperCase();
-        if (!p || row.status === "CLOSED") {
+        const p = (row.caseItem?.priority || row.complaint.priority || "").toUpperCase();
+        if (!p || row.complaint.status === "CLOSED") {
           return (
             <span className="text-ecmp-text-secondary">{tCommon("emDash")}</span>
           );
@@ -263,7 +414,10 @@ export function CmBatch1ComplaintListView() {
       key: "customer",
       header: t("customer"),
       cell: (row) => {
-        const { name, id } = customerCellLabel(row, tCommon("emDash"));
+        const { name, id } = customerCellLabel(
+          row.complaint,
+          tCommon("emDash"),
+        );
         return (
           <div className="min-w-0">
             <div className="truncate font-medium text-ecmp-text-primary">
@@ -281,78 +435,76 @@ export function CmBatch1ComplaintListView() {
     {
       key: "createdAt",
       header: t("createdAt"),
-      cell: (row) => formatWhen(row.createdAt),
-    },
-    {
-      key: "open",
-      header: tCommon("actions"),
-      cell: (row) => (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            router.push(
-              `/complaints/cm/${encodeURIComponent(row.complaintId)}`,
-            )
-          }
-        >
-          {t("openComplaint")}
-        </Button>
-      ),
+      cell: (row) =>
+        formatDateTime24(row.complaint.createdAt, locale, tCommon("emDash")),
     },
   ];
 
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+  const rangeFrom =
+    total === 0 ? 0 : (filters.page - 1) * filters.pageSize + 1;
+  const rangeTo = Math.min(filters.page * filters.pageSize, total);
+  const pinnedStatus = pusatAudience === false ? "OPEN" : "";
   const hasActiveFilters = Boolean(
-    filters.keyword.trim() || filters.status || filters.intakeDisposition,
+    filters.keyword.trim() ||
+      (filters.status && filters.status !== pinnedStatus) ||
+      filters.intakeDisposition,
   );
 
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
         overline={t("overline")}
-        title={t("aggregateListTitle")}
+        title={
+          pusatAudience === true
+            ? t("aggregateListTitlePusat")
+            : t("aggregateListTitle")
+        }
+        description={
+          pusatAudience === true ? t("aggregateListDescriptionPusat") : undefined
+        }
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
         ]}
-        description={t("aggregateListDescription")}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints/cm/cases")}
-            >
-              {tCases("inboxTitle")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push("/complaints/cm/supervisor")}
-            >
-              {t("supervisorQueue")}
-            </Button>
-            {canCreate ? (
+            {complaintNumberFirst ? (
               <Button
                 type="button"
-                onClick={() => router.push("/complaints/new")}
+                variant="outline"
+                onClick={() => router.push("/complaints/cm/cases")}
               >
-                {t("create")}
+                {tCases("inboxTitle")}
               </Button>
             ) : null}
+            {canRead ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/complaints/cm/supervisor")}
+              >
+                {t("supervisorQueue")}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => router.push("/complaints/new")}
+            >
+              {t("create")}
+            </Button>
           </div>
         }
       />
 
       <form onSubmit={onSubmitFilters} aria-label={t("filtersAriaLabel")}>
         <FilterBar
+          inline
           search={
             <Input
               name="keyword"
               label={tCommon("search")}
-              placeholder={t("searchPlaceholder")}
+              placeholder={t("aggregateSearchPlaceholder")}
               value={draft.keyword}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, keyword: e.target.value }))
@@ -362,32 +514,62 @@ export function CmBatch1ComplaintListView() {
           }
           filters={
             <>
-              <Select
-                name="status"
-                label={t("status")}
-                options={statusFilterOptions}
-                value={draft.status}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, status: e.target.value }))
-                }
-              />
-              <Select
-                name="intakeDisposition"
-                label={t("intakeDispositionFilter")}
-                options={intakeDispositionFilterOptions}
-                value={draft.intakeDisposition}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    intakeDisposition: e.target.value,
-                  }))
-                }
-              />
+              <div className="w-[11.5rem] shrink-0">
+                <Select
+                  name="status"
+                  label={t("status")}
+                  options={statusFilterOptions}
+                  value={draft.status}
+                  onChange={(e) =>
+                    setDraft((prev) => ({ ...prev, status: e.target.value }))
+                  }
+                  data-testid="cm-batch1-status-filter"
+                />
+              </div>
+              <div className="w-[14rem] shrink-0">
+                <Select
+                  name="intakeDisposition"
+                  label={t("intakeDispositionFilter")}
+                  options={intakeDispositionFilterOptions}
+                  value={draft.intakeDisposition}
+                  onChange={(e) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      intakeDisposition: e.target.value,
+                    }))
+                  }
+                />
+              </div>
             </>
           }
           actions={<Button type="submit">{t("applyFilters")}</Button>}
         />
       </form>
+
+      {filters.createdBy || filters.decidedBy ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken px-4 py-2 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+          <span>
+            {filters.decidedBy
+              ? t("workStatsFilterActiveDecided")
+              : t("workStatsFilterActiveCreated")}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              applyFilters({
+                ...filters,
+                createdBy: "",
+                decidedBy: "",
+                page: 1,
+              })
+            }
+          >
+            {tCommon("clear")}
+          </Button>
+        </div>
+      ) : null}
 
       {error ? (
         <ErrorState
@@ -403,11 +585,17 @@ export function CmBatch1ComplaintListView() {
             <Skeleton rows={6} />
           ) : !error && rows.length === 0 ? (
             <Empty
-              title={t("aggregateListEmpty")}
+              title={
+                pusatAudience === true
+                  ? t("aggregateListEmptyPusat")
+                  : t("aggregateListEmpty")
+              }
               description={
                 hasActiveFilters
                   ? t("aggregateListEmptyFiltered")
-                  : t("aggregateListEmptyDescription")
+                  : pusatAudience === true
+                    ? t("aggregateListEmptyDescriptionPusat")
+                    : t("aggregateListEmptyDescription")
               }
               primaryAction={
                 hasActiveFilters
@@ -415,18 +603,15 @@ export function CmBatch1ComplaintListView() {
                       label: t("clearFilters"),
                       onClick: onResetFilters,
                     }
-                  : canCreate
-                    ? {
+                  : pusatAudience === true
+                    ? undefined
+                    : {
                         label: t("create"),
                         onClick: () => router.push("/complaints/new"),
                       }
-                    : {
-                        label: tCommon("refresh"),
-                        onClick: () => void load(),
-                      }
               }
               secondaryAction={
-                hasActiveFilters && canCreate
+                hasActiveFilters && pusatAudience !== true
                   ? {
                       label: t("create"),
                       onClick: () => router.push("/complaints/new"),
@@ -437,7 +622,11 @@ export function CmBatch1ComplaintListView() {
           ) : (
             <>
               <WorkspaceToolbar
-                summary={tTable("itemsInView", { count: rows.length })}
+                summary={tCommon("showingItems", {
+                  from: rangeFrom,
+                  to: rangeTo,
+                  total,
+                })}
                 actions={
                   <Button
                     type="button"
@@ -451,45 +640,43 @@ export function CmBatch1ComplaintListView() {
               />
               <Table
                 columns={columns}
-                rows={rows}
-                getRowKey={(row) => row.complaintId}
+                rows={listRows}
+                getRowKey={(row) => row.key}
+                density="compact"
                 stickyHeader
+                className="[--ecmp-font-table-size:0.9375rem]"
+                getRowClassName={(row) =>
+                  complaintWorkListIsUnread(
+                    row.complaint,
+                    pusatAudience,
+                    row.caseItem,
+                  )
+                    ? "font-semibold"
+                    : undefined
+                }
               />
-              {totalPages > 1 ? (
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={filters.page <= 1 || loading}
-                    onClick={() =>
-                      applyFilters({
-                        ...filters,
-                        page: Math.max(1, filters.page - 1),
-                      })
-                    }
-                  >
-                    {tCommon("previous")}
-                  </Button>
-                  <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                    {tCommon("pageOf", { page: filters.page, totalPages })}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={filters.page >= totalPages || loading}
-                    onClick={() =>
-                      applyFilters({
-                        ...filters,
-                        page: Math.min(totalPages, filters.page + 1),
-                      })
-                    }
-                  >
-                    {tCommon("next")}
-                  </Button>
-                </div>
-              ) : null}
+              <Pagination
+                summary={tCommon("pageOf", {
+                  page: filters.page,
+                  totalPages,
+                })}
+                previousLabel={tCommon("previous")}
+                nextLabel={tCommon("next")}
+                previousDisabled={filters.page <= 1 || loading}
+                nextDisabled={filters.page >= totalPages || loading}
+                onPrevious={() =>
+                  applyFilters({
+                    ...filters,
+                    page: Math.max(1, filters.page - 1),
+                  })
+                }
+                onNext={() =>
+                  applyFilters({
+                    ...filters,
+                    page: Math.min(totalPages, filters.page + 1),
+                  })
+                }
+              />
             </>
           )}
         </CardBody>

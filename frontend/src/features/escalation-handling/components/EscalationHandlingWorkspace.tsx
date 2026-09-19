@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Alert,
   Badge,
@@ -38,6 +38,7 @@ export function EscalationHandlingWorkspace({
   const t = useTranslations("escalationHandling");
   const tShell = useTranslations("shell");
   const tAssign = useTranslations("supervisorAssign");
+  const locale = useLocale();
   const router = useRouter();
   const {
     getById,
@@ -225,9 +226,13 @@ export function EscalationHandlingWorkspace({
                 </dt>
                 <dd className="text-ecmp-text-primary">
                   {complaint.slaDueAt
-                    ? new Intl.DateTimeFormat(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
+                    ? new Intl.DateTimeFormat(locale, {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
                       }).format(new Date(complaint.slaDueAt))
                     : "—"}
                 </dd>

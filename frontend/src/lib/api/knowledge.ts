@@ -1,0 +1,147 @@
+import { apiRequest } from "./client";
+import type {
+  DataResponse,
+  Knowledge,
+  KnowledgeCreateRequest,
+  KnowledgeFileRole,
+  KnowledgeHistoryEntry,
+  KnowledgeSearchParams,
+  KnowledgeTypeCounts,
+  KnowledgeUpdateRequest,
+} from "./types";
+
+/** Single shared list — search/filter. Default status=ACTIVE narrows to the
+ * effective window for non-managers; status=DRAFT requires knowledge:manage. */
+export function searchKnowledge(
+  params: KnowledgeSearchParams = {},
+): Promise<DataResponse<Knowledge[]>> {
+  const query = new URLSearchParams();
+  if (params.q?.trim()) query.set("q", params.q.trim());
+  if (params.type) query.set("type", params.type);
+  if (params.status) query.set("status", params.status);
+  if (params.referenceOnly) query.set("referenceOnly", "true");
+  if (params.limit != null) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return apiRequest<DataResponse<Knowledge[]>>(
+    `/api/v1/knowledge${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export function fetchKnowledgeTypeCounts(): Promise<
+  DataResponse<KnowledgeTypeCounts>
+> {
+  return apiRequest<DataResponse<KnowledgeTypeCounts>>(
+    "/api/v1/knowledge/type-counts",
+  );
+}
+
+export function fetchKnowledge(id: string): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}`,
+  );
+}
+
+export function createKnowledge(
+  body: KnowledgeCreateRequest,
+): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>("/api/v1/knowledge", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateKnowledge(
+  id: string,
+  body: KnowledgeUpdateRequest,
+): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify(body) },
+  );
+}
+
+export function publishKnowledge(id: string): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}/publish`,
+    { method: "PUT" },
+  );
+}
+
+export function archiveKnowledge(id: string): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}/archive`,
+    { method: "PUT" },
+  );
+}
+
+export function unarchiveKnowledge(id: string): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}/unarchive`,
+    { method: "PUT" },
+  );
+}
+
+/** Who changed what — same knowledge:read gate as ``fetchKnowledge`` (a
+ * DRAFT record's history is invisible to a non-manager, same as the record). */
+export function fetchKnowledgeHistory(
+  id: string,
+): Promise<DataResponse<KnowledgeHistoryEntry[]>> {
+  return apiRequest<DataResponse<KnowledgeHistoryEntry[]>>(
+    `/api/v1/knowledge/${encodeURIComponent(id)}/history`,
+  );
+}
+
+export function deleteKnowledge(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/knowledge/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+/** Pin a Knowledge record to the top of the caller's own list (max 10). */
+export function pinKnowledge(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/knowledge/${encodeURIComponent(id)}/pin`, {
+    method: "PUT",
+  });
+}
+
+export function unpinKnowledge(id: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/knowledge/${encodeURIComponent(id)}/pin`, {
+    method: "DELETE",
+  });
+}
+
+// --- Files (knowledge:manage, DRAFT only) -----------------------------
+
+export function uploadKnowledgeFile(
+  knowledgeId: string,
+  file: File,
+  role: KnowledgeFileRole,
+): Promise<DataResponse<Knowledge>> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("role", role);
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(knowledgeId)}/files`,
+    { method: "POST", body: form },
+  );
+}
+
+export function setPrimaryKnowledgeFile(
+  knowledgeId: string,
+  attachmentId: string,
+): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(knowledgeId)}/files/${encodeURIComponent(attachmentId)}/primary`,
+    { method: "PUT" },
+  );
+}
+
+export function removeKnowledgeFile(
+  knowledgeId: string,
+  attachmentId: string,
+): Promise<DataResponse<Knowledge>> {
+  return apiRequest<DataResponse<Knowledge>>(
+    `/api/v1/knowledge/${encodeURIComponent(knowledgeId)}/files/${encodeURIComponent(attachmentId)}`,
+    { method: "DELETE" },
+  );
+}

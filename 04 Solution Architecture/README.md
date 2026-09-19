@@ -68,6 +68,7 @@ Lifecycle **DRAFT** (PROGRAM-ADR-002 BR-002). Pack: [`../18 Architecture Governa
 
 ## Related
 - `../05 Architecture Decision Records`
+- CAP-006 Time Source fulfillment (read-time Fase 1 already in CM Batch-1; scheduled-command pattern **Accepted with Conditions** B2-25 — **no crontab installed in this cut**): [`../05 Architecture Decision Records/ADR-CAP006-002_Time_Source_Fulfillment_Pattern.md`](../05%20Architecture%20Decision%20Records/ADR-CAP006-002_Time_Source_Fulfillment_Pattern.md)
 - `../07 API Catalog`
 - `../08 Event Catalog`
 - `../09 Integration Catalog`

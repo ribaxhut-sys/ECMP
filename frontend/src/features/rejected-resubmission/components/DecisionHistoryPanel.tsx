@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { formatShortDateTime24 } from "@/shared/utils/datetime";
 import {
   Alert,
   Badge,
@@ -30,16 +31,6 @@ export interface DecisionHistoryPanelProps {
   variant?: "reject" | "reopen";
 }
 
-function formatWhen(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
 
 /**
  * SCR-HX-01 — Decision History (Officer), embedded portion for WF-001-09.
@@ -52,6 +43,7 @@ export function DecisionHistoryPanel({
   variant = "reject",
 }: DecisionHistoryPanelProps) {
   const t = useTranslations("rejectedResubmission");
+  const locale = useLocale();
   const history = useMemo(
     () => complaint.decisionHistory ?? [],
     [complaint.decisionHistory],
@@ -68,8 +60,8 @@ export function DecisionHistoryPanel({
       [...history]
         .slice()
         .reverse()
-        .map((entry) => toTimelineItem(entry, t, expandedId === entry.id)),
-    [history, t, expandedId],
+        .map((entry) => toTimelineItem(entry, t, locale, expandedId === entry.id)),
+    [history, t, locale, expandedId],
   );
 
   if (history.length === 0) {
@@ -144,6 +136,7 @@ export function DecisionHistoryPanel({
 function toTimelineItem(
   entry: MockDecisionHistoryEntry,
   t: ReturnType<typeof useTranslations>,
+  locale: string,
   expanded: boolean,
 ): TimelineItem {
   const titleKey =
@@ -171,7 +164,7 @@ function toTimelineItem(
   return {
     id: entry.id,
     title: t(titleKey),
-    time: formatWhen(entry.at),
+    time: formatShortDateTime24(entry.at, locale),
     actor: entry.actorName,
     status: entry.type,
     statusTone:

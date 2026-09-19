@@ -47,7 +47,9 @@ _(none for ADR-016…018 — Accepted with Conditions under PROGRAM-BOARD-006; M
 Non-ADR decisions that bind implementation sequencing. Canonical files live under `27 Project Decisions/`.
 
 - **DEC-019** Engineering Foundation Canonical Trees — Accepted (`backend/` + `frontend/` production)
-- **DEC-020** Complaint Implementation SoT & Namespace Remapping — **Accepted** (closes OQ-CM-B1-001; dual SoT `/api/v1/cm` vs `/api/v1/complaints`; controlled coexistence; cutover only via future Retirement DEC). Orthogonal to PROGRAM-BOARD-004; Mode B / Batch-2 remain **CLOSED**.
+- **DEC-020** Complaint Implementation SoT & Namespace Remapping — **Accepted** (body unchanged). Foundation namespace coexistence **ended** after DEC-026 M-026 execution (superseded for Foundation coexistence only). Orthogonal to PROGRAM-BOARD-004; Mode B / Batch-2 remain **CLOSED**.
+- **DEC-025** CM Target Single SoT + Mode A Complaint Closure — **Accepted** (2026-08-13). Target = CM Aggregate + Case. H1 data. Slices M-025-1…6 executed.
+- **DEC-026** Foundation `/api/v1/complaints` Namespace Retirement — **Accepted with Conditions** (2026-08-13). M-026-1…3 executed (FE redirect + HTTP unmount + DROP 0072). CA BC out of retire set. Mode B CLOSED.
 
 ## Index table
 

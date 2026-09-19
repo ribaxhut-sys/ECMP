@@ -21,7 +21,7 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} className="h-full overflow-clip">
       <head>
         {/* Runtime font load — avoids next/font Google fetch during Docker builds. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -36,7 +36,7 @@ export default async function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-ecmp">
+      <body className="font-ecmp h-full overflow-clip overscroll-none">
         <AppProviders locale={locale} messages={messages}>
           {children}
         </AppProviders>

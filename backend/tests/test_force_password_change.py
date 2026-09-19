@@ -19,6 +19,7 @@ def _user_row(**overrides: object) -> SimpleNamespace:
         "username": "jdoe",
         "email": "jdoe@example.com",
         "full_name": "Jane Doe",
+        "initials": "JDO",
         "password_hash": hash_password("OldPass12!"),
         "role_id": uuid.uuid4(),
         "branch_id": None,
@@ -41,6 +42,7 @@ def test_admin_create_user_sets_force_password_change() -> None:
     repo = MagicMock()
     repo.username_exists.return_value = False
     repo.email_exists.return_value = False
+    repo.list_taken_initials.return_value = set()
     repo.role_exists.return_value = True
     repo.branch_exists.return_value = True
     repo.get_role_code.return_value = "AGENT"

@@ -17,8 +17,8 @@
 | Related Delta Review | GOV-DELTA-FRD-CM-001 |
 | Related Release Notes | GOV-RN-FRD-CM-001 |
 | Related S0 Pack | `18 Architecture Governance/reviews/ECMP_CM_Batch1_S0_Contract_Pack_v1.0.md` |
-| Related DEC | DEC-020 (Accepted — dual SoT / namespace ownership; closes OQ-CM-B1-001) |
-| Namespace | FRD-CM-001 / BR-CM-CAT-001 Aggregate (`/api/v1/cm`) — coexistence with Sprint/foundation (`/api/v1/complaints`) per DEC-020 |
+| Related DEC | DEC-020 (Accepted — dual SoT / namespace ownership; closes OQ-CM-B1-001); DEC-026 (Foundation namespace retired) |
+| Namespace | FRD-CM-001 / BR-CM-CAT-001 Aggregate (`/api/v1/cm`) — Mode A Single SoT after DEC-026 (Foundation `/api/v1/complaints` retired; CA BC out of retire set) |
 
 > This RTM does **not** modify the FRD, Business Rules, Architecture Decisions, or Batch 1 scope. It consolidates locked FRD mappings into the single Batch 1 traceability source for implementation planning and test design.
 
@@ -200,7 +200,7 @@ Business Rule
 | API-CM-B1-007 | Record duplicate decision / linkage | `API-506` `POST /api/v1/cm/duplicates/decisions` | FR-003 | UC-CM-003, UC-CM-006, UC-CM-007 | **Implemented (lab)** |
 | API-CM-B1-008 | Upload attachment | `API-323` / `API-507` `POST /api/v1/attachments` | FR-004 | UC-CM-004, UC-CM-005, UC-CM-007 | **Implemented (lab; shared CAP)** |
 | API-CM-B1-009 | Transfer staged attachments | `API-508` `POST /api/v1/cm/attachments/transfer` | FR-004 | UC-CM-007 | **Implemented (lab)** |
-| API-CM-B1-010 | List attachments for Complaint | `API-387` / `API-509` `GET /api/v1/complaints/{id}/attachments` | FR-004 | UC-CM-004 | **Implemented (lab; shared listing)** |
+| API-CM-B1-010 | List attachments for Complaint | `API-509` `GET /api/v1/cm/complaints/{complaintId}/attachments` (align API-387) | FR-004 | UC-CM-004 | **Implemented (lab; empty list is 200)** |
 | API-CM-B1-011 | Get attachment metadata | `API-324` / `API-510` `GET /api/v1/attachments/{id}` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
 | API-CM-B1-012 | Download attachment | `API-325` / `API-511` `GET /api/v1/attachments/{id}/download` | FR-004 | UC-CM-004 | **Implemented (lab; shared)** |
 | API-CM-B1-013 | Logical void | `API-326` / `API-512` (semantics MUST match BR-012 void) | FR-004 | UC-CM-004 | **Implemented (lab; shared void)** |
@@ -213,6 +213,35 @@ Business Rule
 | Rule | Result |
 |---|---|
 | Every Batch 1 API maps to ≥1 Use Case | ✅ PASS |
+
+### 7.2 Lab addendum (2026-08-17) — HQ arrival advisory
+
+> Not a change to the locked Batch-1 FRD matrix above. Documents Mode A lab
+> APIs for branch-proposed HQ arrival slots. Pusat remains SoT for
+> `hqArrivalDate` / `hqArrivalTime`. Catalog: `hq-schedule.v1.yaml`.
+> Trace link: `TRC-L-017`.
+
+| API ID | Logical ID | Path | FR | Status |
+|---|---|---|---|---|
+| API-540 | API-CM-HQ-001 | `GET /api/v1/hq-schedule/availability` | FR-001 (intake/escalation advisory) | Implemented (lab) |
+| API-541 | API-CM-HQ-002 | `GET /api/v1/hq-schedule/availability/detail` | FR-001 | Implemented (lab; `require_hq_intake_action`) |
+| API-542 | API-CM-HQ-003 | `GET /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab) |
+| API-543 | API-CM-HQ-004 | `POST /api/v1/hq-schedule/holidays` | FR-001 | Implemented (lab; upsert 200) |
+| API-544 | API-CM-HQ-005 | `DELETE /api/v1/hq-schedule/holidays/{holidayDate}` | FR-001 | Implemented (lab) |
+| API-548 | API-CM-HQ-006 | `GET /api/v1/hq-schedule/holidays/catalog` | FR-001 | Implemented (lab; vendored SKB) |
+| API-549 | API-CM-HQ-007 | `POST /api/v1/hq-schedule/holidays/import` | FR-001 | Implemented (lab; selected dates) |
+
+### 7.3 Lab addendum (2026-08-20) — HQ complete visit (Penyelesaian Pusat)
+
+> Not a change to the locked Batch-1 FRD matrix above. Documents Mode A lab
+> close-after-visit: `POST /api/v1/cm/complaints/{complaintId}/hq-complete`
+> (`API-CM-B1-025`) emits `EVT-CM-045` `HqCompleted`. Aggregate becomes
+> `CLOSED` / `HQ_CLOSED`; the HQ calendar keeps the visit listed that day
+> with `completed=true` and frees live occupancy. Trace link: `TRC-L-018`.
+
+| API ID | Logical ID | Path | FR | Event | Status |
+|---|---|---|---|---|---|
+| — | API-CM-B1-025 | `POST /api/v1/cm/complaints/{complaintId}/hq-complete` | FR-001 | EVT-CM-045 | Implemented (lab) |
 
 ---
 
@@ -275,6 +304,7 @@ Business Rule
 | EVT-CM-032 | AttachmentVoided | FR-004 | Void-with-reason | Planned |
 | EVT-CM-033 | AttachmentTransferred | FR-004 | Staged → surviving Complaint (D-06) | Planned; OQ-014 |
 | EVT-CM-034 | AttachmentAccess | FR-004 | Sensitive download/access | Planned |
+| EVT-CM-045 | HqCompleted | FR-001 | HQ visit complete → CLOSED / HQ_CLOSED (lab; not DEC-F4 Case resolve) | Implemented (lab) |
 
 **Removed from Batch 1:** `ResolvedAsCaseOnExisting` (CTO D-02).
 

@@ -1,0 +1,20 @@
+---
+description: Setiap perubahan UI/API/AuthZ wajib disebut untuk login Cabang atau login Pusat — role code saja tidak membedakan
+alwaysApply: true
+---
+
+# Cabang vs Pusat — sebut aktor di setiap perubahan
+
+AGENT / SUPERVISOR / MANAGER memakai **kode role yang sama** di cabang dan di Pusat. Yang membedakan adalah **unit keanggotaan** (kode cabang vs `PUSAT` / `PUSAT-CRO` / …), bukan nama role. Admin lab sering tanpa cabang (tetap aktor Pusat).
+
+## Wajib di jawaban ke user
+
+Jika ada perubahan perilaku, tombol, antrian, atau gate: sebut eksplisit **untuk login Cabang**, **untuk login Pusat**, atau **keduanya**. Jangan tulis “user” / “petugas” tanpa unit.
+
+## Saat merancang CTA / AuthZ
+
+- Cabang: ajukan/batalkan eskalasi, tangani Case di unit sendiri — jangan Terima & jadwalkan.
+- Pusat: Terima & jadwalkan / ubah jadwal / kembalikan — jangan klaim **Terima pengaduan** pada Case yang sudah di Pusat.
+- Role `SUPERVISOR` di UPPPD ≠ `SUPERVISOR` di PUSAT.
+
+Contoh lab: `31206` Teguh = Agent **Pusat**; petugas UPPPD-Koja = Agent **Cabang**.

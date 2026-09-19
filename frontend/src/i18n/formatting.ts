@@ -1,3 +1,4 @@
+import { formatShortDate } from "@/shared/utils/datetime";
 import {
   LOCALE_META,
   type AppLocale,
@@ -10,7 +11,14 @@ function meta(locale: string | AppLocale) {
   return LOCALE_META[code];
 }
 
-/** Format a Date (or ISO string) using locale date pattern. */
+/**
+ * Format a Date (or ISO string) for display.
+ *
+ * With no `options`, this is the app-wide short date — always `DD-MM-YYYY`,
+ * the same in every locale (see `formatShortDate`), never the locale-native
+ * field order. Pass `options` for a narrative form (e.g. `month: "long"`);
+ * that path still follows the locale's own conventions.
+ */
 export function formatDate(
   value: Date | string | number | null | undefined,
   locale: AppLocale | string,
@@ -19,12 +27,12 @@ export function formatDate(
   if (value == null || value === "") return "";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const { bcp47, dateFormat } = meta(locale);
-  const defaults: Intl.DateTimeFormatOptions =
-    dateFormat === "dd/MM/yyyy"
-      ? { day: "2-digit", month: "2-digit", year: "numeric" }
-      : { month: "2-digit", day: "2-digit", year: "numeric" };
-  return new Intl.DateTimeFormat(bcp47, { ...defaults, ...options }).format(date);
+  if (!options) return formatShortDate(date);
+  const { bcp47 } = meta(locale);
+  return new Intl.DateTimeFormat(bcp47, {
+    timeZone: "Asia/Jakarta",
+    ...options,
+  }).format(date);
 }
 
 export function formatDateTime(
@@ -44,6 +52,7 @@ export function formatDateTime(
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         }
       : {
           month: "2-digit",
@@ -51,8 +60,15 @@ export function formatDateTime(
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         };
-  return new Intl.DateTimeFormat(bcp47, { ...defaults, ...options }).format(date);
+  return new Intl.DateTimeFormat(bcp47, {
+    timeZone: "Asia/Jakarta",
+    ...defaults,
+    ...options,
+    // Operator-facing clocks are always 24h (never AM/PM), even for en-US.
+    hour12: options?.hour12 ?? false,
+  }).format(date);
 }
 
 /** id → 1.000,50 ; en → 1,000.50 */

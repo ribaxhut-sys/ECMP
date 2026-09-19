@@ -28,6 +28,8 @@ def _to_orm(entity: Attachment) -> AttachmentORM:
         uploaded_by=entity.uploaded_by,
         uploaded_at=entity.uploaded_at,
         status=entity.status,
+        access_level=entity.access_level,
+        uploaded_org_unit_id=entity.uploaded_org_unit_id,
     )
 
 
@@ -47,6 +49,8 @@ def _to_entity(row: AttachmentORM) -> Attachment:
         uploaded_by=row.uploaded_by,
         uploaded_at=row.uploaded_at,
         status=row.status,
+        access_level=row.access_level,
+        uploaded_org_unit_id=row.uploaded_org_unit_id,
     )
 
 
@@ -134,6 +138,8 @@ class AttachmentRepository:
         row.uploaded_by = entity.uploaded_by
         row.uploaded_at = entity.uploaded_at
         row.status = entity.status
+        row.access_level = entity.access_level
+        row.uploaded_org_unit_id = entity.uploaded_org_unit_id
         self._session.flush()
         return _to_entity(row)
 
@@ -154,3 +160,6 @@ class AttachmentRepository:
 
     def rollback(self) -> None:
         self._session.rollback()
+
+    def flush(self) -> None:
+        self._session.flush()

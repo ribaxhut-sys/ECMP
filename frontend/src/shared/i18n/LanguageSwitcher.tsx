@@ -12,6 +12,13 @@ interface LanguageSwitcherProps {
   id?: string;
 }
 
+function localeDisplayName(
+  locale: AppLocale,
+  t: ReturnType<typeof useTranslations<"common">>,
+): string {
+  return locale === "id" ? t("localeId") : t("localeEn");
+}
+
 function FlagIcon({
   locale,
   className = "h-3.5 w-5",
@@ -92,16 +99,16 @@ export function LanguageSwitcher({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${rootId}-list`}
-        aria-label={`${tCommon("language")}: ${current.label}`}
+        aria-label={`${tCommon("language")}: ${localeDisplayName(locale, tCommon)}`}
         onClick={() => setOpen((prev) => !prev)}
         className={
           variant === "full"
-            ? "ecmp-touch inline-flex w-full max-w-[8rem] items-center gap-1.5 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-2.5 py-2 text-left text-[length:var(--ecmp-font-body-size)] font-semibold tracking-wide text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
+            ? "ecmp-touch inline-flex w-full max-w-xs items-center gap-1.5 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-2.5 py-2 text-left text-[length:var(--ecmp-font-body-size)] font-semibold tracking-wide text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
             : "ecmp-touch inline-flex items-center gap-1.5 rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-2 py-1.5 text-[length:var(--ecmp-font-caption-size)] font-semibold tracking-wide text-ecmp-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ecmp-focus"
         }
       >
         <FlagIcon locale={locale} />
-        <span>{current.flag}</span>
+        <span>{variant === "full" ? localeDisplayName(locale, tCommon) : current.flag}</span>
         <span className="text-ecmp-text-secondary" aria-hidden="true">
           ▾
         </span>
@@ -115,13 +122,13 @@ export function LanguageSwitcher({
           className="absolute top-full right-0 z-50 mt-1 min-w-full overflow-hidden rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface py-1 shadow-ecmp-md"
         >
           {LOCALES.map((code) => {
-            const meta = LOCALE_META[code];
             const selected = code === locale;
+            const name = localeDisplayName(code, tCommon);
             return (
               <li key={code} role="option" aria-selected={selected}>
                 <button
                   type="button"
-                  aria-label={meta.label}
+                  aria-label={name}
                   className={
                     selected
                       ? "ecmp-touch flex w-full items-center gap-1.5 bg-ecmp-primary-muted px-2.5 py-2 text-left text-[length:var(--ecmp-font-body-size)] font-semibold tracking-wide text-ecmp-primary"
@@ -132,7 +139,7 @@ export function LanguageSwitcher({
                   }}
                 >
                   <FlagIcon locale={code} />
-                  <span>{meta.flag}</span>
+                  <span>{variant === "full" ? name : LOCALE_META[code].flag}</span>
                 </button>
               </li>
             );

@@ -61,7 +61,7 @@ async def create_ticket(
     payload: CreateTicketRequest,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
-    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
+    principal: Annotated[Principal, Depends(require_permissions("queue:manage"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-365 — Issue Ticket (CRUD path)."""
     _ = principal
@@ -167,7 +167,7 @@ async def issue_ticket_operation(
     payload: CreateTicketRequest,
     controller: Annotated[TicketController, Depends(get_ticket_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
-    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
+    principal: Annotated[Principal, Depends(require_permissions("queue:manage"))],
 ) -> DataResponse[QueueTicketResponse]:
     """API-376 — Issue Ticket (operation)."""
     _ = principal

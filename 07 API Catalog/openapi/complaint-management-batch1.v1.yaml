@@ -10,13 +10,16 @@ info:
     `cm_batch1_*` persistence (Alembic 0040…0043). Residual lab exceptions remain under
     EPIC-CM-B1-OPS / EX pack — not a Batch-2 or Mode B unlock.
     Logical IDs API-CM-B1-xxx map to catalog IDs API-500…API-515.
-    Controlled coexistence with foundation `/api/v1/complaints` (complaint-service) —
-    namespaces MUST NOT be treated as interchangeable (DEC-020). Cutover/retirement
-    requires a separate Board Decision.
+    Canonical Mode A complaint namespace after DEC-026 M-026-2 (Foundation
+    `/api/v1/complaints` lifecycle unmounted). Not interchangeable with retired
+    foundation paths. CA BC ticket-nested remains separate.
   x-ecmp-frd: FRD-CM-001
   x-ecmp-rtm: RTM-CM-B1-001
   x-ecmp-dec: DEC-020
-  x-ecmp-status: Implemented (lab) — coexistence per DEC-020
+  x-ecmp-related-dec:
+    - DEC-025
+    - DEC-026
+  x-ecmp-status: Implemented (lab) — canonical after DEC-026 M-026-2; DEC-025 status model
   x-ecmp-ownership: CM Batch 1 Aggregate (`backend/app/modules/cm_batch1/`)
 servers:
   - url: http://localhost:8000
@@ -44,7 +47,15 @@ paths:
       description: |
         Read-only list of CM Batch-1 Aggregate complaints (DEC-020 coexistence).
         Not interchangeable with foundation GET /api/v1/complaints.
+        Optional `keyword` is a case-insensitive substring on complaint
+        number, subject, description, customerId, or local customer-cache
+        name / external id (ADR-002; not Customer Master SoR). Applied after
+        visibility — cannot leak rows outside DEC-024.
         Enables agents to reopen REGISTERED complaints (detail, attachments).
+        Server applies DEC-024-style row visibility (SELF / UNIT / PUSAT / ALL):
+        Agent sees own creates; branch supervisor/manager sees owningUnitId = unit;
+        Pusat handlers see owningUnitId in Pusat codes OR ESCALATE_APPROVED OR
+        hqAcceptedAt set (DEC-024 OQ-2). Not a Mode B unlock.
       parameters:
         - name: page
           in: query
@@ -62,23 +73,33 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: Search complaint number, subject, or customerId (case-insensitive substring)
+          description: |
+            Case-insensitive substring on complaint number, subject,
+            description, customerId, or local customer cache full name /
+            external id (ADR-002 reference cache — not Customer Master SoR).
+            Max 200. Visibility still applies (DEC-024).
           schema:
             type: string
             maxLength: 200
         - name: status
           in: query
           required: false
-          description: Filter by Aggregate status (omit = all)
+          description: |
+            Filter by Aggregate status (omit = all). `OPEN` = REGISTERED or
+            IN_PROGRESS (DEC-025 dashboard drill-down).
           schema:
             type: string
-            enum: [REGISTERED, CLOSED]
+            enum: [REGISTERED, IN_PROGRESS, CLOSED, OPEN]
         - name: intakeDisposition
           in: query
           required: false
           description: |
             Filter by intake path label (omit = all). Useful for supervisor
             triage of escalate-pending Approvals (Mode A).
+            `ESCALATED` = any escalate-family state; `UNESCALATED` = not in
+            that family (dashboard waiting-assignment).
+            `HQ_CLOSED` = closed after HQ visit. `COMPLETED` = `BRANCH_CLOSED`
+            or `HQ_CLOSED` (Ditutup cabang archive; excludes cancelled).
           schema:
             type: string
             enum:
@@ -86,6 +107,14 @@ paths:
               - ESCALATE_PENDING_APPROVAL
               - ESCALATE_APPROVED
               - ESCALATE_REJECTED
+              - ESCALATE_CANCELLED
+              - RETURNED_TO_BRANCH
+              - HQ_SCHEDULED
+              - HQ_CLOSED
+              - ALL_CASES_CANCELLED
+              - ESCALATED
+              - UNESCALATED
+              - COMPLETED
         - name: priority
           in: query
           required: false
@@ -100,6 +129,16 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - name: needsPusatHandling
+          in: query
+          required: false
+          description: |
+            When true, list only complaints that still need a Pusat handler
+            (unclaimed escalated Case, or ESCALATE_APPROVED waiting HQ accept).
+            Mode A sidebar queue filter. Not a Mode B unlock.
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: OK
@@ -137,7 +176,12 @@ paths:
         Creates Complaint Aggregate.
         Default status REGISTERED. When `intakeDisposition=BRANCH_CLOSED`, creates
         as CLOSED with resolution evidence in description (branch walk-away —
-        thin BR-009 lab path; MUST NOT create Case — CTO D-02 / BQ-011).
+        thin BR-009 lab path).
+        When `intakeDisposition=ESCALATE_PENDING_APPROVAL`, Agent stays pending
+        supervisor approval. Supervisor/Manager with `complaints:escalate`
+        auto-promotes to `ESCALATE_APPROVED` (four-eyes is Agent→Supervisor).
+        A bound Case may exist afterwards (Complaint↔Case identity stays);
+        HQ routing uses intakeDisposition / hqAcceptedAt, not absence of Case.
         Requires Request Id; Channel Message Id when channel-sourced (D-03).
       parameters:
         - $ref: "#/components/parameters/RequestId"
@@ -172,6 +216,10 @@ paths:
   /api/v1/cm/complaints/{complaintId}:
     get:
       summary: Get Complaint confirmation/detail
+      description: |
+        For a Pusat caller this read also records a queue read receipt, so the
+        complaint stops counting in that caller's sidebar badge until the
+        branch moves it again (Mode A in-app signal, not CAP-005).
       operationId: cmB1GetComplaint
       x-ear-id: API-501
       x-ecmp-logical-id: API-CM-B1-002
@@ -190,6 +238,67 @@ paths:
                 $ref: "#/components/schemas/ComplaintBatch1Response"
         "404":
           $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/history:
+    get:
+      summary: Chronological intake history (append-only event log projection)
+      operationId: cmB1GetComplaintHistory
+      x-ear-id: API-517
+      x-ecmp-logical-id: API-CM-B1-018
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IntakeHistoryEntry"
+        "404":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/attachments:
+    get:
+      summary: List attachments for Aggregate complaint
+      operationId: cmB1ListComplaintAttachments
+      x-ear-id: API-509
+      x-ecmp-logical-id: API-CM-B1-010
+      x-ecmp-fr: FR-004
+      x-ecmp-aligns-with: API-387
+      tags: [Batch1-Attachment]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        "200":
+          description: Attachment list (empty array when none bound)
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /api/v1/cm/complaints/{complaintId}/intake-escalation/decision:
     post:
       summary: Approve or reject intake escalation (supervisor)
@@ -202,10 +311,16 @@ paths:
         - bearerAuth: []
       description: |
         Mode A Batch-1 supervisor decision on intake escalate request.
-        Requires current intakeDisposition=ESCALATE_PENDING_APPROVAL and status=REGISTERED.
-        APPROVE → intakeDisposition=ESCALATE_APPROVED; REJECT → ESCALATE_REJECTED.
-        Aggregate status stays REGISTERED. MUST NOT create Case (CTO D-02).
         Distinct from foundation Case escalation approve/reject (API-303/304).
+        Bound Case (status IN_PROGRESS / caseCreated) does not block these
+        decisions; Complaint↔Case identity stays. CLOSED blocks.
+
+        - From ESCALATE_PENDING_APPROVAL (REGISTERED or IN_PROGRESS):
+          APPROVE → ESCALATE_APPROVED (note ≥20 + priority required; Catatan Supervisor history);
+          REJECT → ESCALATE_REJECTED (note ≥20; Penolakan Eskalasi history).
+        - From ESCALATE_APPROVED (before HQ accepted — hqAcceptedAt null):
+          CANCEL → ESCALATE_CANCELLED (note ≥20; Batalkan Eskalasi history).
+          Blocked when hqAcceptedAt is set. Case remains bound to the complaint.
       parameters:
         - $ref: "#/components/parameters/ComplaintId"
       requestBody:
@@ -217,6 +332,263 @@ paths:
       responses:
         "200":
           description: Decision applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/intake-escalation/request:
+    post:
+      summary: Re-request intake escalation after cancel or reject
+      operationId: cmB1RequestIntakeEscalation
+      x-ear-id: API-518
+      x-ecmp-logical-id: API-CM-B1-017
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 re-ajukan eskalasi on an existing Aggregate (no new create).
+        From ESCALATE_CANCELLED, ESCALATE_REJECTED, or RETURNED_TO_BRANCH
+        → ESCALATE_PENDING_APPROVAL (Agent) or ESCALATE_APPROVED (Supervisor/Manager
+        with complaints:escalate).
+        Appends alasan (ajuan ulang) to Alasan eskalasi; refreshes Ajuan eskalasi
+        marker. Prior Batalkan Eskalasi / Penolakan Eskalasi / Catatan Supervisor /
+        Pengembalian Pusat sections MUST remain (append-only history).
+        Bound Case stays. Blocked when hqAcceptedAt is set or complaint is CLOSED.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntakeEscalationRequestBody"
+      responses:
+        "200":
+          description: Re-request applied — awaiting supervisor approval again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-accept:
+    post:
+      summary: HQ accept approved intake escalation
+      operationId: cmB1HqAcceptEscalation
+      x-ear-id: API-516
+      x-ecmp-logical-id: API-CM-B1-021
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1: Pusat menerima eskalasi yang sudah ESCALATE_APPROVED
+        **without** scheduling. Prefer hq-accept-and-schedule for the happy path
+        (sets HQ_SCHEDULED for branch customer notify). Gate: escalations:review
+        + HO Scheduler/Admin, or Agent-family on unit PUSAT.
+        Allowed while Aggregate is open (REGISTERED or IN_PROGRESS). Bound Case
+        stays; this call does not create a new Case. Blocked after hqAcceptedAt.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqAcceptRequest"
+      responses:
+        "200":
+          description: Accepted at HQ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-accept-and-schedule:
+    post:
+      summary: HQ accept and schedule arrival (branch notify)
+      operationId: cmB1HqAcceptAndSchedule
+      x-ecmp-logical-id: API-CM-B1-024
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 lab happy path: Terima + jadwalkan sekaligus.
+        Sets hqAcceptedAt, arrival date/time, destination unit, and
+        intakeDisposition=HQ_SCHEDULED (distinct from RETURNED_TO_BRANCH).
+        The branch only ever proposes a slot: Pusat may keep or override the
+        time, picks which of its units (CRO / Sekretariat / Suban) receives the
+        taxpayer, and informs the taxpayer itself. The originating branch reads
+        the schedule but no longer relays it.
+        Mandatory note (≥10) is what Pusat tells the taxpayer.
+        Same HQ gate as API-516. Open REGISTERED or IN_PROGRESS; bound Case stays.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqAcceptAndScheduleRequest"
+      responses:
+        "200":
+          description: Accepted and scheduled (HQ_SCHEDULED)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-return:
+    post:
+      summary: HQ return approved escalation to branch
+      operationId: cmB1HqReturnEscalation
+      x-ear-id: API-519
+      x-ecmp-logical-id: API-CM-B1-022
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 / DEC-F4 lab: Pusat menolak/mengembalikan eskalasi
+        ESCALATE_APPROVED ke cabang asal (sebelum hqAcceptedAt).
+        → RETURNED_TO_BRANCH. Mandatory reasonCode + note (≥10). Cabang may
+        re-request via API-518. Same HQ gate as API-516. Open REGISTERED or
+        IN_PROGRESS; bound Case stays.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqReturnRequest"
+      responses:
+        "200":
+          description: Returned to branch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-schedule-arrival:
+    post:
+      summary: Schedule customer arrival at HQ (lab)
+      operationId: cmB1HqScheduleArrival
+      x-ecmp-logical-id: API-CM-B1-023
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 lab: after HQ accept (hqAcceptedAt set), schedule/reschedule
+        customer visit (arrivalDate + arrivalTime HH:MM). Allowed when disposition
+        is ESCALATE_APPROVED (legacy two-step) or HQ_SCHEDULED (reschedule).
+        Always leaves/sets intakeDisposition=HQ_SCHEDULED so branch can notify
+        the customer. Same HQ gate as API-516.
+        Note: Chronological history read model remains API-517; this path is the
+        HQ schedule write (historically tagged "API-517 lab" in router — not the
+        same EAR as history). MUST NOT create Case.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqScheduleArrivalRequest"
+      responses:
+        "200":
+          description: Arrival scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplaintBatch1Response"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/v1/cm/complaints/{complaintId}/hq-complete:
+    post:
+      summary: HQ complete visit and close complaint (lab)
+      operationId: cmB1HqCompleteVisit
+      x-ecmp-logical-id: API-CM-B1-025
+      x-ecmp-fr: FR-001
+      tags: [Batch1-Registration]
+      security:
+        - bearerAuth: []
+      description: |
+        Mode A Batch-1 lab: after HQ accepted the escalation (typically
+        HQ_SCHEDULED taxpayer visit), Pusat records the visit outcome and
+        closes the Aggregate. Sets status=CLOSED and intakeDisposition=HQ_CLOSED.
+        Open Cases under the complaint become CLOSED. The HQ arrival calendar
+        keeps the visit on that day's slot with completed=true; occupancy
+        (scheduledCount) is live HQ_SCHEDULED only so another WP can book.
+        Same HQ gate as API-516. Mandatory note (≥10). Arrival date/time stay
+        on the record for history.
+      parameters:
+        - $ref: "#/components/parameters/ComplaintId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HqCompleteRequest"
+      responses:
+        "200":
+          description: Completed at HQ (CLOSED / HQ_CLOSED)
           content:
             application/json:
               schema:
@@ -374,6 +746,35 @@ paths:
         void-not-delete, and Aggregate anchor rules per FR-004 / BR-012.
         Optional form field `customerId` scopes duplicate-checksum rejection
         to the same customer (identical bytes for a different customer are allowed).
+        Optional form field `caseId` pins the file to a Case that MUST belong
+        to `complaintId` (FR-004 E7). Staging uploads MUST omit `caseId`.
+        Omitted `caseId` = shared complaint evidence.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                classification:
+                  type: string
+                stagingToken:
+                  type: string
+                complaintId:
+                  type: string
+                customerId:
+                  type: string
+                caseId:
+                  type: string
+                  description: |
+                    Optional Case pin. Rejected when Case is missing, belongs
+                    to another Complaint, or the upload is still staging.
+                supersedesAttachmentId:
+                  type: string
       responses:
         "201":
           description: Uploaded / staged
@@ -466,26 +867,6 @@ paths:
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/Error"
-  /api/v1/complaints/{id}/attachments:
-    get:
-      summary: List attachments for Complaint
-      operationId: cmB1ListComplaintAttachments
-      x-ear-id: API-509
-      x-ecmp-logical-id: API-CM-B1-010
-      x-ecmp-fr: FR-004
-      x-ecmp-aligns-with: API-387
-      tags: [Batch1-Attachment]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Attachment list
   /api/v1/attachments/{id}:
     get:
       summary: Get attachment metadata
@@ -625,9 +1006,116 @@ components:
           enum: [BRANCH_CLOSED, ESCALATE_PENDING_APPROVAL]
           description: |
             Optional. BRANCH_CLOSED = handled and closed at branch on intake
-            (resolution note MUST appear in description). ESCALATE_PENDING_APPROVAL =
-            registered and awaiting supervisor/manager approval for HQ escalation.
-            No Case is created.
+            (section `Penyelesaian:` MUST appear in description). ESCALATE_PENDING_APPROVAL =
+            registered and awaiting supervisor/manager approval for HQ escalation
+            (section `Alasan eskalasi:` MUST appear in description — becomes history for HQ).
+            Supervisor/Manager create with this value is auto-promoted to ESCALATE_APPROVED.
+            A later bound Case does not change HQ routing.
+        proposedArrivalDate:
+          type: string
+          format: date
+          description: |
+            Optional. Branch-proposed HQ arrival date — advisory only; Pusat still
+            decides hqArrivalDate/hqArrivalTime via accept-and-schedule / schedule.
+            Only allowed when intakeDisposition=ESCALATE_PENDING_APPROVAL. Must be
+            provided together with proposedArrivalTime (both or neither) and must
+            not be before the Asia/Jakarta calendar date (operator timezone).
+        proposedArrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: |
+            HH:MM (24h), paired with proposedArrivalDate. See proposedArrivalDate
+            for pairing/eligibility rules.
+    IntakeHistoryEntry:
+      type: object
+      required: [entryId, eventCode, eventType, occurredAt]
+      properties:
+        entryId:
+          type: string
+        eventCode:
+          type: string
+          description: >-
+            Stable UI code (REGISTERED, ESCALATION_REQUESTED, ESCALATION_APPROVED,
+            ESCALATION_REJECTED, ESCALATION_CANCELLED, ESCALATION_RE_REQUESTED,
+            BRANCH_CLOSED, HQ_ACCEPTED, HQ_ARRIVAL_SCHEDULED, …). Labels are client-side.
+        eventType:
+          type: string
+          description: Raw timeline event type, for codes the client does not know yet
+        occurredAt:
+          type: string
+          format: date-time
+        actorId:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+          description: Resolved via user directory — identity is not ECMP SoR
+        priority:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+          description: Operator note captured with this event; null for pre-API-517 rows
+        caseNumber:
+          type: string
+          nullable: true
+          description: Case number when this event is scoped to one Case
+        intakeAction:
+          type: string
+          nullable: true
+          description: Intake putusan on CaseCreated (register, close, escalate)
+        arrivalDate:
+          type: string
+          nullable: true
+          description: >
+            Taxpayer-visit calendar date (YYYY-MM-DD, Asia/Jakarta) for
+            HQ_ARRIVAL_SCHEDULED. Distinct from occurredAt (when HQ saved the slot).
+            Null on other event codes and on rows logged before the field existed.
+        arrivalTime:
+          type: string
+          nullable: true
+          description: >
+            Taxpayer-visit clock time (HH:MM, 24h Asia/Jakarta) paired with
+            arrivalDate. Null when arrivalDate is null.
+    ComplaintCaseListItem:
+      type: object
+      required: [caseId, caseNumber, complaintId, status]
+      properties:
+        caseId:
+          type: string
+        caseNumber:
+          type: string
+        complaintId:
+          type: string
+        status:
+          type: string
+        subject:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          nullable: true
+        escalatedToPusat:
+          type: boolean
+        handlingClaimedBy:
+          type: string
+          nullable: true
+        handlingClaimedByName:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+          nullable: true
+          description: |
+            Cabang inbox: false when the caller has an unread return /
+            HQ-schedule receipt. Same grain as Case list `isRead`.
+        unreadReason:
+          type: string
+          nullable: true
+          description: RETURNED or HQ_SCHEDULED when isRead is false.
     ComplaintBatch1Response:
       type: object
       required: [complaintId, complaintNumber, status, customerId]
@@ -638,7 +1126,7 @@ components:
           type: string
         status:
           type: string
-          enum: [REGISTERED, CLOSED]
+          enum: [REGISTERED, IN_PROGRESS, CLOSED]
         customerId:
           type: string
         customerDisplayName:
@@ -649,6 +1137,14 @@ components:
           type: string
           nullable: true
           description: External/business customer id from provider (not internal UUID)
+        createdBy:
+          type: string
+          nullable: true
+          description: Actor id of the intake officer (PIC) — identity is not ECMP SoR
+        createdByName:
+          type: string
+          nullable: true
+          description: Operator-facing name of the intake officer, resolved via directory
         intakeDisposition:
           type: string
           nullable: true
@@ -657,9 +1153,14 @@ components:
             - ESCALATE_PENDING_APPROVAL
             - ESCALATE_APPROVED
             - ESCALATE_REJECTED
+            - ESCALATE_CANCELLED
+            - RETURNED_TO_BRANCH
+            - HQ_SCHEDULED
           description: |
             Intake path label (not Aggregate status). Pending = await supervisor;
-            APPROVED/REJECTED after API-515 decision.
+            APPROVED/REJECTED/CANCELLED after API-515 decision;
+            RETURNED_TO_BRANCH after HQ return (API-519);
+            HQ_SCHEDULED after accept-and-schedule (branch notify customer).
         category:
           type: string
           nullable: true
@@ -669,6 +1170,112 @@ components:
         subject:
           type: string
           nullable: true
+        description:
+          type: string
+          nullable: true
+          description: |
+            Full intake narrative blob. Structured sections (Penyelesaian /
+            Alasan eskalasi / Ajuan eskalasi / Catatan Supervisor /
+            Penolakan Eskalasi / Batal Eskalasi) are history for Supervisor and HQ.
+        intakeNarrative:
+          type: string
+          nullable: true
+          description: Customer complaint body parsed from description
+        branchResolution:
+          type: string
+          nullable: true
+          description: Branch close note (Penyelesaian section)
+        escalationReason:
+          type: string
+          nullable: true
+          description: Why escalate to HQ (Alasan eskalasi section) — HQ history
+        supervisorNote:
+          type: string
+          nullable: true
+          description: |
+            Supervisor/Manager note for HQ (Catatan Supervisor section).
+            Required on APPROVE via API-515; retained as history for Pusat.
+        rejectionNote:
+          type: string
+          nullable: true
+          description: Reject reason (Penolakan Eskalasi section) — history
+        cancellationNote:
+          type: string
+          nullable: true
+          description: Batalkan Eskalasi reason — history when CANCEL before HQ accepted
+        hqReturnNote:
+          type: string
+          nullable: true
+          description: |
+            Pengembalian Pusat note (reason code + free text) when HQ returned
+            escalation to branch (API-519).
+        hqCompletionNote:
+          type: string
+          nullable: true
+          description: |
+            Penyelesaian Pusat note when HQ completed the visit (API-CM-B1-025).
+        hqAcceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When set, Pusat has accepted/claimed — Batalkan Eskalasi blocked.
+        needsPusatHandling:
+          type: boolean
+          description: |
+            True when this complaint still needs a Pusat handler (unclaimed
+            escalated Case, or ESCALATE_APPROVED waiting HQ accept). Drives
+            the Pusat Pengaduan sidebar queue. Mode A lab UX.
+        pusatUnread:
+          type: boolean
+          description: |
+            True when this Pusat caller has not opened the parent (complaint
+            or Case) since the last movement. Same `cm_pusat_queue_seen`
+            receipt as the Pengaduan / Tindak lanjut badges. Always false for
+            Cabang callers. Drives list typography (unread = semibold).
+        hqAcceptanceNote:
+          type: string
+          nullable: true
+          description: Optional note from HQ accept (API-516)
+        hqArrivalDate:
+          type: string
+          format: date
+          nullable: true
+          description: Scheduled customer arrival date at HQ
+        hqArrivalTime:
+          type: string
+          nullable: true
+          description: Scheduled arrival time HH:MM (24h)
+        hqArrivalNote:
+          type: string
+          nullable: true
+          description: Optional note with HQ arrival schedule
+        proposedArrivalDate:
+          type: string
+          format: date
+          nullable: true
+          description: |
+            Branch-proposed HQ arrival date, still awaiting Pusat decision.
+            Advisory only — cleared whenever Pusat accepts/schedules/returns the
+            escalation, or the escalation is rejected/cancelled/re-escalated.
+        proposedArrivalTime:
+          type: string
+          nullable: true
+          description: HH:MM (24h), paired with proposedArrivalDate.
+        proposedBy:
+          type: string
+          nullable: true
+          description: Actor id of the branch officer who proposed the slot
+        proposedAt:
+          type: string
+          format: date-time
+          nullable: true
+        owningUnitId:
+          type: string
+          nullable: true
+          description: |
+            Organization unit key for the Aggregate (Branch.code or PUSAT).
+            Server-side list visibility SoT (DEC-024 pattern).
         priority:
           type: string
           nullable: true
@@ -678,8 +1285,14 @@ components:
           nullable: true
         caseCreated:
           type: boolean
-          enum: [false]
-          description: Batch 1 MUST always be false
+          description: True after the first Case exists under this Aggregate (DEC-025)
+        cases:
+          type: array
+          description: |
+            Nested Cases for list display (parent-scoped). Includes Cabang
+            inbox `isRead` so Pengaduan typography matches the Case list.
+          items:
+            $ref: "#/components/schemas/ComplaintCaseListItem"
         replayed:
           type: boolean
         duplicateCheckResult:
@@ -690,12 +1303,129 @@ components:
       properties:
         decision:
           type: string
-          enum: [APPROVE, REJECT]
+          enum: [APPROVE, REJECT, CANCEL]
         note:
           type: string
           description: |
-            Optional on APPROVE. Required on REJECT (min 20 characters after trim).
+            Required on APPROVE / REJECT / CANCEL (min 20 characters after trim).
+            Persisted as history sections:
+            APPROVE → Catatan Supervisor; REJECT → Penolakan Eskalasi;
+            CANCEL → Batalkan Eskalasi.
           maxLength: 2000
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: |
+            Required on APPROVE — Supervisor/Manager sets HQ triage priority
+            after the note for Pusat. Ignored on REJECT and CANCEL.
+    IntakeEscalationRequestBody:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: |
+            Alasan eskalasi for ajuan ulang (min 20 characters after trim).
+            Appended under Alasan eskalasi; prior cancel/reject history kept.
+          maxLength: 2000
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Optional priority refresh on re-request.
+        proposedArrivalDate:
+          type: string
+          format: date
+          description: |
+            Optional. Branch-proposed HQ arrival date on re-request — advisory
+            only; Pusat still decides hqArrivalDate/hqArrivalTime. Must be
+            provided together with proposedArrivalTime (both or neither) and
+            must not be before the Asia/Jakarta calendar date. Re-request always drops any stale prior
+            proposal first, then applies this one if given.
+        proposedArrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: HH:MM (24h), paired with proposedArrivalDate.
+    HqAcceptRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 2000
+          description: Optional note (≥20 if provided) — Penerimaan Pusat history
+    HqAcceptAndScheduleRequest:
+      type: object
+      required: [arrivalDate, arrivalTime, destinationUnitId, note]
+      properties:
+        arrivalDate:
+          type: string
+          format: date
+        arrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: HH:MM (24h)
+        destinationUnitId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: >-
+            Pusat unit the taxpayer reports to (PUSAT-CRO only — Suban /
+            Sekretariat are not schedule destinations). Mandatory — Pusat is not one door. Must resolve to
+            an active organization unit under Pusat.
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mandatory info for the taxpayer (min 10 after trim)
+    HqReturnRequest:
+      type: object
+      required: [reasonCode, note]
+      properties:
+        reasonCode:
+          type: string
+          enum:
+            - MISSING_ATTACHMENT
+            - INCOMPLETE_CHRONOLOGY
+            - UNCLEAR_CUSTOMER_DATA
+            - WRONG_CATEGORY_OR_ROUTING
+            - ADDITIONAL_EVIDENCE_REQUIRED
+            - OTHER
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mandatory free-text note (min 10 after trim)
+    HqScheduleArrivalRequest:
+      type: object
+      required: [arrivalDate, arrivalTime]
+      properties:
+        arrivalDate:
+          type: string
+          format: date
+        arrivalTime:
+          type: string
+          minLength: 4
+          maxLength: 5
+          description: HH:MM (24h)
+        destinationUnitId:
+          type: string
+          maxLength: 128
+          description: >-
+            Redirect the taxpayer to another Pusat unit; omit to keep the
+            current destination.
+        note:
+          type: string
+          maxLength: 2000
+    HqCompleteRequest:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Mandatory completion note (min 10 after trim) — Penyelesaian Pusat
     CustomerSearchRequest:
       type: object
       description: Supply exactly one key
@@ -881,4 +1611,3 @@ components:
           type: number
         caseCreated:
           type: boolean
-          enum: [false]

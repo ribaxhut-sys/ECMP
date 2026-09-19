@@ -847,7 +847,7 @@ nodes:
 - id: API-509
   type: API
   label: List attachments for Complaint
-  path: /api/v1/complaints/{id}/attachments
+  path: /api/v1/cm/complaints/{complaintId}/attachments
   method: GET
 - id: API-510
   type: API

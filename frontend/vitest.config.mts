@@ -28,7 +28,6 @@ export default defineConfig({
       // Skip HTML report in CI — large sourcemap walk caused OOM after i18n catalogs.
       reporter: ["text", "json-summary"],
       include: [
-        "src/features/**/statusTransitions.ts",
         "src/features/**/createComplaintForm.ts",
         "src/features/**/cmBatch1Attachments.ts",
         "src/features/**/cmBatch1SupervisorQueue.ts",

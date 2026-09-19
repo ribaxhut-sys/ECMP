@@ -57,7 +57,7 @@ async def create_queue(
     payload: CreateQueueRequest,
     controller: Annotated[QueueController, Depends(get_queue_controller)],
     ctx: Annotated[RequestContext, Depends(get_request_context)],
-    principal: Annotated[Principal, Depends(require_permissions("complaints:create"))],
+    principal: Annotated[Principal, Depends(require_permissions("queue:manage"))],
 ) -> DataResponse[QueueResponse]:
     """API-360 — Create Queue."""
     _ = principal

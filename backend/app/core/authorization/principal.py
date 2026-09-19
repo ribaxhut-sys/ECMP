@@ -5,6 +5,12 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 
+# Owner: Admin may do everything except register or close a complaint (WP).
+# Wildcard ``*`` must not imply these codes — otherwise revoking the grant is a no-op.
+WILDCARD_EXCLUDED_PERMISSIONS: frozenset[str] = frozenset(
+    {"complaints:create", "complaints:close"}
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Principal:
@@ -18,7 +24,11 @@ class Principal:
     org_unit_id: str | None = None
 
     def has_permission(self, permission: str) -> bool:
-        return "*" in self.permissions or permission in self.permissions
+        if permission in self.permissions:
+            return True
+        if permission in WILDCARD_EXCLUDED_PERMISSIONS:
+            return False
+        return "*" in self.permissions
 
     def has_any_role(self, *roles: str) -> bool:
         mine = {role.upper() for role in self.roles}

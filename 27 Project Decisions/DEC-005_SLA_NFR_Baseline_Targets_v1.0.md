@@ -24,6 +24,9 @@ Dua artefak enterprise masih terblokir karena tidak ada target numerik: (1) SLA 
 Seluruh target numerik SLA dan NFR ditutup dengan **nilai baseline konservatif** (reviewed ARB 2026-07-21). Setiap nilai ditandai di dokumen turunan dengan "(baseline ARB 2026-07-21 — dapat direvisi BO via DEC)".
 
 ### (a) SLA respon/resolusi case per prioritas
+
+> ⚠️ **Kolom *Resolution Target* disupersede oleh [DEC-031](./DEC-031_SLA_Resolution_Target_30_Calendar_Days_v0.1.md)** (2026-08-23, 🟡 Draft) — satu target seragam **30 hari kalender**, diukur pada Complaint. Kolom *First Response Target* dan seluruh nilai NFR di §(c) **tidak** tersentuh.
+
 Kalender: **24x7** (baseline BR-ECMF-05 per DEC-004) — semua durasi adalah waktu kalender; saat kalender kerja dikonfigurasi (fase berikut), durasi hari dibaca sebagai hari kerja.
 
 | Priority | First Response Target | Resolution Target |

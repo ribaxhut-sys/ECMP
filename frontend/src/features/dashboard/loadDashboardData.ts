@@ -1,57 +1,251 @@
-import {
-  fetchDashboardSummary,
-  fetchReportByBranch,
-  fetchReportByStatus,
-  searchComplaints,
-} from "@/lib/api";
+import { fetchDashboardAggregateKpis, fetchDashboardTrends } from "@/lib/api";
 import type {
-  BranchCount,
-  Complaint,
   DashboardHeader,
-  DashboardRecentActivityItem,
-  DashboardSlaSummary,
+  DashboardResolutionSla,
+  DashboardTrendItem,
   StatusCount,
+  StatusCountStatus,
 } from "@/lib/api/types";
+
+/**
+ * Mode A operational KPI from CM Aggregate (DEC-026 Single SoT).
+ * Gated by dashboard:read so MANAGER (BC-8.4) can see own-branch KPIs without
+ * complaints:read / unscoped list access.
+ */
+export type AggregateDashboardKpis = {
+  total: number;
+  open: number;
+  closed: number;
+  escalatePending: number;
+  waitingAssignment: number;
+  escalateApproved: number;
+  escalateScheduled: number;
+  /** Open rows already accepted by Pusat — cabang book subtracts these. */
+  hqAcceptedOpen: number;
+  /** Open rows HQ returned to the branch — cabang queue health only. */
+  returnedToBranch: number;
+  inProgress: number;
+  /** Mutually exclusive operational slices — sum equals total. */
+  byStatus: StatusCount[];
+  header: DashboardHeader;
+  /** DEC-031 rollup as returned by the API; null when not measured. */
+  sla: DashboardResolutionSla | null;
+};
 
 export type DashboardData = {
   header: DashboardHeader | null;
-  sla: DashboardSlaSummary | null;
-  recentActivity: DashboardRecentActivityItem[] | null;
+  /**
+   * DEC-031 resolution-SLA rollup, computed server-side on the same call as
+   * the KPI counts. Null when measurement is switched off
+   * (COMPLAINT_RESOLUTION_TARGET_DAYS=0).
+   */
+  sla: DashboardResolutionSla | null;
   byStatus: StatusCount[] | null;
-  byBranch: BranchCount[] | null;
-  latestComplaints: Complaint[] | null;
+  /** 30-day daily complaint-count trend from CM Aggregate. */
+  trend: DashboardTrendItem[] | null;
+  /**
+   * Open + accepted by Pusat. Cabang dashboard subtracts this from its
+   * work book; Pusat leaves the raw Aggregate counts alone.
+   */
+  hqAcceptedOpen: number;
+  /** Open + returned to the branch. Cabang queue health, not the donut. */
+  returnedToBranch: number;
 };
 
+export function buildAggregateKpis(input: {
+  total: number;
+  open: number;
+  closed: number;
+  escalatePending: number;
+  waitingAssignment?: number;
+  escalateApproved?: number;
+  escalateScheduled?: number;
+  hqAcceptedOpen?: number;
+  returnedToBranch?: number;
+  inProgress?: number;
+  sla?: DashboardResolutionSla | null;
+}): AggregateDashboardKpis {
+  const escalateApproved = input.escalateApproved ?? 0;
+  const escalateScheduled = input.escalateScheduled ?? 0;
+  const hqAcceptedOpen = input.hqAcceptedOpen ?? 0;
+  const returnedToBranch = input.returnedToBranch ?? 0;
+  const inProgress = input.inProgress ?? 0;
+  const waitingAssignment =
+    input.waitingAssignment ??
+    Math.max(
+      0,
+      input.open -
+        input.escalatePending -
+        escalateApproved -
+        escalateScheduled -
+        inProgress,
+    );
+  // Mutually exclusive slices. Keys are Aggregate statuses or operational
+  // slice ids — never Foundation NEW / ASSIGNED / PENDING / ESCALATED.
+  const byStatus: StatusCount[] = [
+    {
+      status: "waitingAssignment",
+      count: waitingAssignment,
+      labelKey: "openUnescalated",
+    },
+    {
+      status: "escalatePending",
+      count: input.escalatePending,
+      labelKey: "waitingEscalationApproval",
+    },
+    {
+      status: "escalateApproved",
+      count: escalateApproved,
+      labelKey: "escalationApproved",
+    },
+    {
+      status: "escalateScheduled",
+      count: escalateScheduled,
+      labelKey: "escalationScheduled",
+    },
+    {
+      status: "IN_PROGRESS",
+      count: inProgress,
+      labelKey: "queueInProgress",
+    },
+    {
+      status: "CLOSED",
+      count: input.closed,
+      labelKey: "closedComplaints",
+    },
+  ];
+  return {
+    total: input.total,
+    open: input.open,
+    closed: input.closed,
+    escalatePending: input.escalatePending,
+    waitingAssignment,
+    escalateApproved,
+    escalateScheduled,
+    hqAcceptedOpen,
+    returnedToBranch,
+    inProgress,
+    byStatus,
+    header: {
+      totalComplaints: input.total,
+      openComplaints: input.open,
+      closedComplaints: input.closed,
+    },
+    sla: input.sla ?? null,
+  };
+}
+
+async function loadAggregateKpis(): Promise<AggregateDashboardKpis> {
+  const res = await fetchDashboardAggregateKpis();
+  const data = res.data;
+  return buildAggregateKpis({
+    total: data.total,
+    open: data.open,
+    closed: data.closed,
+    escalatePending: data.escalatePending,
+    waitingAssignment: data.waitingAssignment,
+    escalateApproved: data.escalateApproved,
+    escalateScheduled: data.escalateScheduled,
+    hqAcceptedOpen: data.hqAcceptedOpen ?? 0,
+    returnedToBranch: data.returnedToBranch ?? 0,
+    inProgress: data.inProgress,
+    sla: data.sla ?? null,
+  });
+}
+
+const CABANG_HANDOFF_SLICE_ORDER: StatusCountStatus[] = [
+  "escalateScheduled",
+  "IN_PROGRESS",
+  "escalateApproved",
+];
+
+function sliceCount(
+  rows: StatusCount[] | null | undefined,
+  status: StatusCountStatus,
+): number {
+  return rows?.find((row) => row.status === status)?.count ?? 0;
+}
+
 /**
- * Dashboard payload from existing APIs only:
- * - API-319 overview
- * - Reports by-status / by-branch
- * - API-388 latest complaints (search)
+ * Cabang operational book: drop complaints Pusat has already accepted.
+ *
+ * DEC-025 `open + closed == total` stays on the wire. This is a dashboard
+ * presentation partition so branch closure-rate / queue health / status bar
+ * are not dragged by HQ-owned work. The status donut must NOT use this
+ * book — cabang still needs to see origin rows that Pusat already accepted
+ * (`dashboardStatusDonutRows`). Pusat dashboard must not call this.
+ */
+export function toCabangDashboardBook(data: DashboardData): DashboardData {
+  const scheduled = sliceCount(data.byStatus, "escalateScheduled");
+  const handedOff = Math.max(0, data.hqAcceptedOpen, scheduled);
+  if (!data.header || handedOff <= 0) return data;
+
+  const counts = new Map(
+    (data.byStatus ?? []).map((row) => [row.status, row.count]),
+  );
+  let remaining = handedOff;
+  for (const status of CABANG_HANDOFF_SLICE_ORDER) {
+    const current = counts.get(status) ?? 0;
+    const take = Math.min(current, remaining);
+    counts.set(status, current - take);
+    remaining -= take;
+  }
+  const removed = handedOff - remaining;
+  if (removed <= 0) return data;
+
+  const closed = data.header.closedComplaints;
+  const open = Math.max(0, data.header.openComplaints - removed);
+  const total = Math.max(closed, data.header.totalComplaints - removed);
+  const byStatus = (data.byStatus ?? []).map((row) => ({
+    ...row,
+    count: counts.get(row.status) ?? row.count,
+  }));
+
+  return {
+    ...data,
+    header: {
+      totalComplaints: total,
+      openComplaints: open,
+      closedComplaints: closed,
+    },
+    byStatus,
+  };
+}
+
+/**
+ * Status donut rows. Cabang uses the unpartitioned Aggregate slices so
+ * `HQ_SCHEDULED` / accepted-by-Pusat remain visible; the work book still
+ * hides them from rate and queue health. Pusat is already unpartitioned.
+ */
+export function dashboardStatusDonutRows(
+  origin: DashboardData,
+  workBook: DashboardData,
+  isPusat: boolean,
+): StatusCount[] | null {
+  return isPusat ? workBook.byStatus : origin.byStatus;
+}
+
+/**
+ * Dashboard payload (DEC-026): CM Aggregate is the only complaint SoT.
+ * The SLA rollup rides on the aggregate-KPI response (DEC-031) — no extra
+ * round trip, and no scheduler behind it.
  */
 export async function loadDashboardData(): Promise<DashboardData> {
-  const [overview, byStatus, byBranch, latest] = await Promise.allSettled([
-    fetchDashboardSummary(),
-    fetchReportByStatus(),
-    fetchReportByBranch(),
-    searchComplaints({
-      page: 1,
-      pageSize: 10,
-      sort: "createdAt",
-      order: "desc",
-    }),
+  const [aggregate, trends] = await Promise.allSettled([
+    loadAggregateKpis(),
+    fetchDashboardTrends("30d"),
   ]);
 
-  if (overview.status === "rejected") {
-    throw overview.reason;
+  if (aggregate.status === "rejected") {
+    throw aggregate.reason;
   }
 
   return {
-    header: overview.value.data.header,
-    sla: overview.value.data.sla,
-    recentActivity: overview.value.data.recentActivity,
-    byStatus: byStatus.status === "fulfilled" ? byStatus.value.data : null,
-    byBranch: byBranch.status === "fulfilled" ? byBranch.value.data : null,
-    latestComplaints:
-      latest.status === "fulfilled" ? latest.value.items : null,
+    header: aggregate.value.header,
+    sla: aggregate.value.sla,
+    byStatus: aggregate.value.byStatus,
+    trend: trends.status === "fulfilled" ? trends.value.data.items : null,
+    hqAcceptedOpen: aggregate.value.hqAcceptedOpen,
+    returnedToBranch: aggregate.value.returnedToBranch,
   };
 }

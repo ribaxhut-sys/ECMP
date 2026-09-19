@@ -1,4 +1,4 @@
-import type { BranchCount, ReportSummary, StatusCount } from "@/lib/api/types";
+import type { ReportSummary, StatusCount } from "@/lib/api/types";
 import type { ProgressMeterTone } from "@/shared/ui";
 
 export type ReportHeadlineCounts = {
@@ -7,19 +7,19 @@ export type ReportHeadlineCounts = {
   closed: number;
 };
 
+/**
+ * Mutually exclusive slices of the Aggregate KPI — they must sum to `total`.
+ * Status keys come from `buildAggregateKpis` (operational slices + Aggregate
+ * IN_PROGRESS / CLOSED). Foundation NEW / ASSIGNED / PENDING / ESCALATED
+ * are not on this wire.
+ */
 export type ResolutionBuckets = {
   resolved: number;
   waiting: number;
   escalated: number;
+  escalationApproved: number;
+  escalationScheduled: number;
   inProgress: number;
-};
-
-export type BranchPerformanceRow = {
-  key: string;
-  name: string;
-  total: number;
-  share: number;
-  rank: "top" | "middle" | "lowest";
 };
 
 export type OperationalHealth = {
@@ -55,43 +55,87 @@ export function resolutionBuckets(
   if (!rows || rows.length === 0) return null;
 
   const byStatus = new Map(rows.map((row) => [row.status, row.count]));
-  const resolved =
-    (byStatus.get("RESOLVED") ?? 0) + (byStatus.get("CLOSED") ?? 0);
-  const waiting =
-    (byStatus.get("NEW") ?? 0) +
-    (byStatus.get("ASSIGNED") ?? 0) +
-    (byStatus.get("PENDING") ?? 0);
-  const escalated = byStatus.get("ESCALATED") ?? 0;
+  const resolved = byStatus.get("CLOSED") ?? 0;
+  const waiting = byStatus.get("waitingAssignment") ?? 0;
+  const escalated = byStatus.get("escalatePending") ?? 0;
+  const escalationApproved = byStatus.get("escalateApproved") ?? 0;
+  const escalationScheduled = byStatus.get("escalateScheduled") ?? 0;
   const inProgress = byStatus.get("IN_PROGRESS") ?? 0;
 
-  if (resolved + waiting + escalated + inProgress === 0) return null;
+  if (
+    resolved +
+      waiting +
+      escalated +
+      escalationApproved +
+      escalationScheduled +
+      inProgress ===
+    0
+  ) {
+    return null;
+  }
 
-  return { resolved, waiting, escalated, inProgress };
+  return {
+    resolved,
+    waiting,
+    escalated,
+    escalationApproved,
+    escalationScheduled,
+    inProgress,
+  };
 }
 
-/** Rank branches for horizontal performance bars (CSS-only). */
-export function branchPerformanceRows(
-  rows: BranchCount[] | null | undefined,
-): BranchPerformanceRow[] | null {
-  if (!rows || rows.length === 0) return null;
+export type ResolutionMixKey =
+  | "resolved"
+  | "inProgress"
+  | "waiting"
+  | "escalated";
 
-  const sorted = [...rows].sort((a, b) => b.total - a.total);
-  const max = Math.max(...sorted.map((row) => row.total), 1);
-  const last = sorted.length - 1;
+export type ResolutionMixRow = {
+  key: ResolutionMixKey;
+  count: number;
+  share: number;
+};
 
-  return sorted.map((row, index) => {
-    let rank: BranchPerformanceRow["rank"] = "middle";
-    if (index === 0) rank = "top";
-    else if (index === last) rank = "lowest";
-
-    return {
-      key: row.branchId ?? row.branchCode ?? `branch-${index}`,
-      name: row.branchName?.trim() || row.branchCode?.trim() || "—",
-      total: row.total,
-      share: Math.round((row.total / max) * 100),
-      rank,
+/** Composition of the window — shares sum to 100 when any work exists. */
+export function resolutionMixRows(
+  buckets: ResolutionBuckets,
+): ResolutionMixRow[] {
+  const parts: { key: ResolutionMixKey; count: number }[] = [
+    { key: "resolved", count: buckets.resolved },
+    { key: "inProgress", count: buckets.inProgress },
+    { key: "waiting", count: buckets.waiting },
+    { key: "escalated", count: escalationTotal(buckets) },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.count, 0);
+  if (total <= 0) return [];
+  const rows = parts.map((part) => ({
+    ...part,
+    share: Math.round((part.count / total) * 100),
+  }));
+  const drift = 100 - rows.reduce((sum, row) => sum + row.share, 0);
+  if (drift !== 0) {
+    const richest = rows.reduce(
+      (best, row, index) => (row.count > rows[best].count ? index : best),
+      0,
+    );
+    rows[richest] = {
+      ...rows[richest],
+      share: rows[richest].share + drift,
     };
-  });
+  }
+  return rows;
+}
+
+/** Every live escalation slice, including HQ_SCHEDULED. */
+export function escalationTotal(
+  buckets: ResolutionBuckets | null | undefined,
+): number {
+  if (!buckets) return 0;
+  return (
+    buckets.escalated +
+    buckets.escalationApproved +
+    buckets.escalationScheduled
+  );
 }
 
 /** Operational health from resolution rate (higher closure = healthier). */
@@ -108,22 +152,14 @@ export function operationalHealthFromRate(
   return { score: rate, tone: "critical", labelKey: "critical" };
 }
 
-/** Highest-volume branch — factual queue proxy, not quality ranking. */
-export function highestQueueBranch(
-  rows: BranchCount[] | null | undefined,
-): BranchCount | null {
-  if (!rows || rows.length === 0) return null;
-  return [...rows].sort((a, b) => b.total - a.total)[0] ?? null;
-}
-
 function countOpen(rows: StatusCount[]): number {
   return rows
-    .filter((row) => row.status !== "CLOSED" && row.status !== "RESOLVED")
+    .filter((row) => row.status !== "CLOSED")
     .reduce((acc, row) => acc + row.count, 0);
 }
 
 function countClosed(rows: StatusCount[]): number {
   return rows
-    .filter((row) => row.status === "CLOSED" || row.status === "RESOLVED")
+    .filter((row) => row.status === "CLOSED")
     .reduce((acc, row) => acc + row.count, 0);
 }

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Generator
+from dataclasses import replace
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -17,12 +19,20 @@ from app.core.errors import ApiError
 from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import create_app
-from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.models import Branch, Customer, Role, User
+from app.modules.cm_batch1.models import (
+    CmBatch1ComplaintORM,
+    CmBatch1PusatQueueSeenORM,
+)
 from app.modules.cm_case.api.router import get_case_service
 from app.modules.cm_case.application.dto import (
+    CancelEscalationToPusatCommand,
     CloseCaseCommand,
     CreateCaseCommand,
+    EscalateToPusatCommand,
+    RecordAcceptanceCommand,
     ResolveCaseCommand,
+    ReturnEscalationCommand,
     UpdateStatusCommand,
 )
 from app.modules.cm_case.application.services import (
@@ -32,7 +42,14 @@ from app.modules.cm_case.application.services import (
 )
 from app.modules.cm_case.domain.aggregate import CaseAggregate
 from app.modules.cm_case.domain.value_objects import CaseNumber, CaseStatus
+from app.modules.cm_case.infrastructure.inbox_repository import (
+    REASON_HQ_SCHEDULED,
+    REASON_RETURNED,
+    CaseInboxRepository,
+)
 from app.modules.cm_case.infrastructure.orm import (
+    CmCaseAcceptanceORM,
+    CmCaseInboxReceiptORM,
     CmCaseNumberCounterORM,
     CmCaseORM,
     CmCaseResolutionORM,
@@ -40,10 +57,14 @@ from app.modules.cm_case.infrastructure.orm import (
 from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
 
 _TABLES = [
+    Customer.__table__,
     CmBatch1ComplaintORM.__table__,
+    CmBatch1PusatQueueSeenORM.__table__,
     CmCaseORM.__table__,
     CmCaseResolutionORM.__table__,
+    CmCaseAcceptanceORM.__table__,
     CmCaseNumberCounterORM.__table__,
+    CmCaseInboxReceiptORM.__table__,
 ]
 
 
@@ -65,11 +86,19 @@ def db_session() -> Generator[Session, None, None]:
         engine.dispose()
 
 
-def _seed_complaint(session: Session, *, status: str = "REGISTERED") -> str:
+def _seed_complaint(
+    session: Session,
+    *,
+    status: str = "REGISTERED",
+    owning_unit_id: str | None = None,
+    customer_id: str = "CUST-10001",
+    intake_disposition: str | None = None,
+    hq_accepted_at: datetime | None = None,
+) -> str:
     row = CmBatch1ComplaintORM(
         id=uuid.uuid4(),
         complaint_number=f"CMP-{uuid.uuid4().hex[:8].upper()}",
-        customer_id="CUST-10001",
+        customer_id=customer_id,
         category="BILLING",
         channel="WALK_IN",
         subject="Seed complaint",
@@ -78,6 +107,9 @@ def _seed_complaint(session: Session, *, status: str = "REGISTERED") -> str:
         status=status,
         case_created=False,
         created_by="seed",
+        owning_unit_id=owning_unit_id,
+        intake_disposition=intake_disposition,
+        hq_accepted_at=hq_accepted_at,
     )
     session.add(row)
     session.commit()
@@ -105,13 +137,345 @@ def test_fr001_create_case_created_status(service: CaseApplicationService, db_se
         )
     )
     assert dto.status == "CREATED"
-    assert dto.case_number.startswith("CASE-")
+    assert dto.case_number.startswith("UNK-")
+    unit, yymm, seq = dto.case_number.split("-")
+    assert len(unit) == 3 and unit.isalpha()
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq == "0001"
     assert dto.sla_countdown_active is False
     assert dto.owning_unit_id is None
+
+
+def test_case_number_uses_unit_month_four_digits() -> None:
+    assert (
+        CaseNumber.format("TAB", year=2026, month=8, sequence=1).value
+        == "TAB-2608-0001"
+    )
+    assert CaseNumber("tab-2608-0001").value == "TAB-2608-0001"
+    assert (
+        CaseNumber.format("TAB", year=2026, month=8, sequence=10000).value
+        == "TAB-2608-10000"
+    )
+    with pytest.raises(ValueError, match="Invalid Case Number"):
+        CaseNumber("CMTAB-2608-0001")
+    with pytest.raises(ValueError, match="Invalid Case Number"):
+        CaseNumber("CM-TAB-2608-0001")
+    with pytest.raises(ValueError, match="Invalid Case Number"):
+        CaseNumber("CASE-2026-0002")
+    with pytest.raises(ValueError, match="sequence must be >= 1"):
+        CaseNumber.format("TAB", year=2026, month=8, sequence=0)
+
+
+def test_create_and_handle_claim_timeline_events(db_session: Session) -> None:
+    from unittest.mock import MagicMock
+
+    effects = MagicMock()
+    service = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=effects,
+    )
+    complaint_id = _seed_complaint(db_session)
+    dto = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Tagihan",
+            description="Koreksi tagihan",
+            priority="HIGH",
+            actor_id="seed",
+        )
+    )
+    names = [
+        call.kwargs["event_name"]
+        for call in effects.record_case_event.call_args_list
+    ]
+    assert names == ["CaseCreated", "HandlingContinued"]
+    assert dto.handling_claimed_by == "seed"
+
+    effects.record_case_event.reset_mock()
+    same_officer = service.update_status(
+        UpdateStatusCommand(
+            case_id=dto.case_id,
+            to_status=dto.status,
+            actor_id="seed",
+            reason="HANDLE_CLAIM",
+        )
+    )
+    assert same_officer.handling_claimed_by == "seed"
+    effects.record_case_event.assert_not_called()
+
+    effects.record_case_event.reset_mock()
+    with pytest.raises(ApiError) as claimed_exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=dto.case_id,
+                to_status=dto.status,
+                actor_id="other-agent",
+                reason="HANDLE_CLAIM",
+            )
+        )
+    assert claimed_exc.value.code == "HANDLING_ALREADY_CLAIMED"
+
+    reassigned = service.update_status(
+        UpdateStatusCommand(
+            case_id=dto.case_id,
+            to_status=dto.status,
+            actor_id="supervisor-1",
+            reason="HANDLE_REASSIGN",
+            handling_claimed_by="other-agent",
+            actor_can_reassign=True,
+        )
+    )
+    assert reassigned.handling_claimed_by == "other-agent"
+    names = [
+        call.kwargs["event_name"]
+        for call in effects.record_case_event.call_args_list
+    ]
+    assert names == ["HandlingTakenOver"]
+
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
     assert parent.status == "IN_PROGRESS"
     assert parent.case_created is True
+
+
+def test_handling_claim_guards_and_same_officer_reclaim(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Claim guards",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="officer-1",
+        )
+    )
+    with pytest.raises(ApiError) as forbidden:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status=created.status,
+                actor_id="officer-1",
+                reason="HANDLE_REASSIGN",
+                handling_claimed_by="officer-2",
+                actor_can_reassign=False,
+            )
+        )
+    assert forbidden.value.code == "HANDLING_REASSIGN_FORBIDDEN"
+
+    with pytest.raises(ApiError) as empty_target:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status=created.status,
+                actor_id="supervisor-1",
+                reason="HANDLE_REASSIGN",
+                handling_claimed_by="  ",
+                actor_can_reassign=True,
+            )
+        )
+    assert empty_target.value.status_code == 400
+
+    with pytest.raises(ApiError) as other_worker:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="IN_PROGRESS",
+                actor_id="officer-2",
+            )
+        )
+    assert other_worker.value.code == "HANDLING_CLAIMER_ONLY"
+
+    row = db_session.get(CmCaseORM, uuid.UUID(created.case_id))
+    assert row is not None
+    row.handling_claimed_by = None
+    db_session.commit()
+
+    with pytest.raises(ApiError) as need_claim:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="IN_PROGRESS",
+                actor_id="officer-2",
+            )
+        )
+    assert need_claim.value.code == "HANDLING_CLAIM_REQUIRED"
+
+    claimed = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status=created.status,
+            actor_id="officer-2",
+            reason="HANDLE_CLAIM",
+        )
+    )
+    assert claimed.handling_claimed_by == "officer-2"
+
+    again = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status=claimed.status,
+            actor_id="officer-2",
+            reason="HANDLE_CLAIM",
+        )
+    )
+    assert again.handling_claimed_by == "officer-2"
+
+
+def test_handling_claim_rejected_when_case_terminal(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Terminal claim",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="officer-1",
+        )
+    )
+    cancelled = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="CANCELLED",
+            actor_id="officer-1",
+            cancel_reason="DUPLICATE",
+            reason="DUPLICATE",
+        )
+    )
+    assert cancelled.status == "CANCELLED"
+    with pytest.raises(ApiError) as claim_exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="CANCELLED",
+                actor_id="officer-1",
+                reason="HANDLE_CLAIM",
+            )
+        )
+    assert "terminal" in str(claim_exc.value).lower()
+    with pytest.raises(ApiError) as reassign_exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="CANCELLED",
+                actor_id="supervisor-1",
+                reason="HANDLE_REASSIGN",
+                handling_claimed_by="officer-2",
+                actor_can_reassign=True,
+            )
+        )
+    assert "terminal" in str(reassign_exc.value).lower()
+
+
+def test_cancelled_requires_reason(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Cancel reason",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="officer-1",
+        )
+    )
+    with pytest.raises(ApiError) as exc:
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="CANCELLED",
+                actor_id="officer-1",
+                reason="",
+            )
+        )
+    assert exc.value.status_code == 400
+
+
+def test_resolve_reject_and_invalid_commands(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Reject proposal",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UNIT-1",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="PROPOSE",
+            comment="Usulan",
+            resolution_code="FIXED",
+            summary="Selesai",
+            actor_id="officer-1",
+        )
+    )
+    with pytest.raises(ApiError):
+        service.resolve(
+            ResolveCaseCommand(
+                case_id=created.case_id,
+                action="NOPE",
+                comment="x",
+                actor_id="officer-1",
+            )
+        )
+    rejected = service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="REJECT",
+            comment="Belum cukup",
+            rejection_reason="INCOMPLETE_EVIDENCE",
+            actor_id="supervisor-1",
+        )
+    )
+    assert rejected.status == "IN_PROGRESS"
+    assert rejected.resolution is not None
+    assert rejected.resolution.status == "REJECTED"
+    with pytest.raises(ApiError):
+        service.record_acceptance(
+            RecordAcceptanceCommand(
+                case_id=created.case_id,
+                party="NOT_A_PARTY",
+                decision="ACCEPT",
+                actor_id="hq-1",
+            )
+        )
+    with pytest.raises(ApiError):
+        service.record_acceptance(
+            RecordAcceptanceCommand(
+                case_id=created.case_id,
+                party="OWNER",
+                decision="MAYBE",
+                actor_id="hq-1",
+            )
+        )
+    with pytest.raises(ApiError) as missing:
+        service.get_case(str(uuid.uuid4()))
+    assert missing.value.status_code == 404
+    with pytest.raises(ApiError) as ctx_exc:
+        service.get_case(created.case_id, complaint_id_context=str(uuid.uuid4()))
+    assert ctx_exc.value.code == "CASE_COMPLAINT_MEMBERSHIP_MISMATCH"
 
 
 def test_fr001_create_with_unit_assigned(service: CaseApplicationService, db_session: Session) -> None:
@@ -251,7 +615,7 @@ def test_fr004_to_fr006_happy_path(service: CaseApplicationService, db_session: 
             comment="Catatan kerja",
             resolution_code="FIXED",
             summary="Selesai",
-            actor_id="handler-1",
+            actor_id="actor-1",
         )
     )
     assert proposed.status == "IN_PROGRESS"
@@ -269,15 +633,82 @@ def test_fr004_to_fr006_happy_path(service: CaseApplicationService, db_session: 
         )
     )
     assert resolved.status == "RESOLVED"
+    # F4 closure rule — reaching RESOLVED via ACCEPT already counts as the
+    # Handling Unit's acceptance; Owner's is still outstanding.
+    assert resolved.handling_unit_acceptance is not None
+    assert resolved.handling_unit_acceptance.decision == "ACCEPT"
+    assert resolved.owner_acceptance is None
 
+    # RESOLVED alone must not be enough to Close (F4 closure rule).
+    with pytest.raises(ApiError) as exc:
+        service.close(CloseCaseCommand(case_id=created.case_id, actor_id="supervisor-1"))
+    assert exc.value.code == "OWNER_ACCEPTANCE_REQUIRED"
+
+    owner_accepted = service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+        )
+    )
+    # Second ACCEPT (Owner) triggers CLOSED — no third approval step.
+    assert owner_accepted.status == "CLOSED"
+    assert owner_accepted.owner_acceptance is not None
+    assert owner_accepted.owner_acceptance.decision == "ACCEPT"
+    assert owner_accepted.closed_by == "owner-1"
+    # Compatibility close is idempotent once dual-acceptance closed the Case.
     closed = service.close(
         CloseCaseCommand(case_id=created.case_id, actor_id="supervisor-1")
     )
     assert closed.status == "CLOSED"
-    assert closed.closed_by == "supervisor-1"
     parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
     assert parent is not None
-    assert parent.status != "CLOSED"  # BQ-007
+    # Mode A 2026-08-12: sole Case CLOSED → Aggregate CLOSED.
+    assert parent.status == "CLOSED"
+    assert (parent.intake_disposition or "").upper() == "BRANCH_CLOSED"
+
+
+def test_parent_stays_open_while_sibling_case_active(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="First",
+            description="d",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    second = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Second",
+            description="d",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    _resolve_to_resolved(service, first.case_id)
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=first.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.status != "CLOSED"
+    assert second.status in {"CREATED", "ASSIGNED"}
 
 
 def test_fr004_cancel_mode_a(service: CaseApplicationService, db_session: Session) -> None:
@@ -303,6 +734,150 @@ def test_fr004_cancel_mode_a(service: CaseApplicationService, db_session: Sessio
     )
     assert cancelled.status == "CANCELLED"
     assert cancelled.cancel_reason == "DUPLICATE"
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    # BO 2026-08-22: satu-satunya Case dibatalkan → induk ditutup sebagai batal.
+    assert parent.status == "CLOSED"
+    assert parent.intake_disposition == "ALL_CASES_CANCELLED"
+
+
+def test_all_cancelled_parent_closes_as_cancelled(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """BO 2026-08-22 (follow-up DEC-025 §3.4) — semua Case CANCELLED menutup induk,
+    ditandai ``ALL_CASES_CANCELLED`` agar terpisah dari penyelesaian kerja."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="One",
+            description="d",
+            priority="LOW",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    second = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Two",
+            description="d",
+            priority="LOW",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    for case_id in (first.case_id, second.case_id):
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=case_id,
+                to_status="CANCELLED",
+                cancel_reason="CUSTOMER_CANCELLATION",
+                reason="Pelanggan batal",
+                actor_id="supervisor-1",
+            )
+        )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.status == "CLOSED"
+    assert parent.intake_disposition == "ALL_CASES_CANCELLED"
+
+    # Penutupan bersifat final: gerbang CLOSED yang sudah ada menolak Case baru.
+    # Salah batal → buat pengaduan baru, bukan menghidupkan yang lama.
+    with pytest.raises(ApiError):
+        service.create_case(
+            CreateCaseCommand(
+                complaint_id=complaint_id,
+                case_type="BILLING",
+                subject="Three",
+                description="d",
+                priority="LOW",
+                destination_unit_id="UPPPD-GAMBIR",
+                actor_id="handler-1",
+            )
+        )
+
+
+def test_dec025_closed_plus_cancelled_parent_closes(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    keeper = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Keep",
+            description="d",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    extra = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Cancel",
+            description="d",
+            priority="LOW",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=extra.case_id,
+            to_status="CANCELLED",
+            cancel_reason="DUPLICATE",
+            reason="Duplikat",
+            actor_id="supervisor-1",
+        )
+    )
+    _resolve_to_resolved(service, keeper.case_id)
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=keeper.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.status == "CLOSED"
+
+
+def test_dec025_aggregate_response_exposes_in_progress(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    from app.integrations.customer import StubCustomerProvider
+    from app.modules.cm_batch1.enumeration import EnumerationGuard
+    from app.modules.cm_batch1.repository import CmBatch1Repository
+    from app.modules.cm_batch1.service import CmBatch1Service
+
+    complaint_id = _seed_complaint(db_session)
+    service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Expose status",
+            description="d",
+            priority="LOW",
+            actor_id="actor-1",
+        )
+    )
+    batch1 = CmBatch1Service(
+        customer_provider=StubCustomerProvider(),
+        guard=EnumerationGuard(max_failures=3, window_seconds=60, block_seconds=30),
+        store=CmBatch1Repository(db_session),
+        strict_master=False,
+    )
+    got = batch1.get_complaint(complaint_id)
+    assert got.status == "IN_PROGRESS"
+    assert got.case_created is True
 
 
 @pytest.fixture()
@@ -312,12 +887,16 @@ def api_client(db_session: Session) -> Generator[TestClient, None, None]:
         SqlAlchemyCaseRepository(db_session),
         side_effects=NoOpSideEffects(),
     )
+    # Stable actor — F4 acceptance requires Supervisor/Manager on the unit.
+    actor_id = uuid.uuid4()
 
     def _principal() -> Principal:
         return Principal(
-            user_id=uuid.uuid4(),
+            user_id=actor_id,
+            roles=("SUPERVISOR",),
+            org_unit_id="UNIT-API",
             permissions=frozenset(
-                {"complaints:create", "complaints:read", "complaints:update", "*"}
+                {"complaints:create", "complaints:read", "complaints:update"}
             ),
         )
 
@@ -332,7 +911,7 @@ def api_client(db_session: Session) -> Generator[TestClient, None, None]:
 
 
 def test_api_create_get_resolve_close(api_client: TestClient, db_session: Session) -> None:
-    complaint_id = _seed_complaint(db_session)
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UNIT-API")
     create = api_client.post(
         "/api/v1/cm/cases",
         json={
@@ -348,7 +927,10 @@ def test_api_create_get_resolve_close(api_client: TestClient, db_session: Sessio
     body = create.json()["data"]
     case_id = body["caseId"]
     assert body["status"] == "ASSIGNED"
-    assert body["caseNumber"].startswith("CASE-")
+    unit, yymm, seq = body["caseNumber"].split("-")
+    assert unit == "UNI"
+    assert len(yymm) == 4 and yymm.isdigit()
+    assert seq == "0001"
 
     viewed = api_client.get(f"/api/v1/cm/cases/{case_id}")
     assert viewed.status_code == 200
@@ -383,7 +965,24 @@ def test_api_create_get_resolve_close(api_client: TestClient, db_session: Sessio
     )
     assert resolve.status_code == 200
     assert resolve.json()["data"]["status"] == "RESOLVED"
+    assert resolve.json()["data"]["handlingUnitAcceptance"]["decision"] == "ACCEPT"
+    assert resolve.json()["data"]["ownerAcceptance"] is None
 
+    # F4 closure rule — RESOLVED alone (Handling Unit side) is not enough.
+    premature_close = api_client.post(f"/api/v1/cm/cases/{case_id}/close", json={})
+    assert premature_close.status_code == 409
+    assert premature_close.json()["code"] == "OWNER_ACCEPTANCE_REQUIRED"
+
+    owner_accept = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/acceptance",
+        json={"party": "OWNER", "decision": "ACCEPT"},
+    )
+    assert owner_accept.status_code == 200
+    assert owner_accept.json()["data"]["ownerAcceptance"]["decision"] == "ACCEPT"
+    assert owner_accept.json()["data"]["status"] == "CLOSED"
+
+    # Compatibility close cannot bypass dual-acceptance; once closed it is
+    # idempotent.
     close = api_client.post(f"/api/v1/cm/cases/{case_id}/close", json={})
     assert close.status_code == 200
     assert close.json()["data"]["status"] == "CLOSED"
@@ -453,7 +1052,7 @@ def test_audit_timeline_side_effects_records_audit_and_timeline() -> None:
     case = CaseAggregate.create(
         complaint_id=str(uuid.uuid4()),
         customer_id="CUST-1",
-        case_number=CaseNumber.format(2026, 1),
+        case_number=CaseNumber.format("TAB", year=2026, month=8, sequence=1),
         case_type="BILLING",
         subject="Side effect",
         description="desc",
@@ -522,9 +1121,12 @@ def jwt_org_api_client(
         app.dependency_overrides.clear()
 
 
-def _principal_for(org_unit_id: str | None) -> Principal:
+def _principal_for(
+    org_unit_id: str | None, *, roles: tuple[str, ...] = ()
+) -> Principal:
     return Principal(
         user_id=uuid.uuid4(),
+        roles=roles,
         permissions=frozenset(
             {"complaints:create", "complaints:read", "complaints:update"}
         ),
@@ -691,6 +1293,1862 @@ def test_api_536_list_visibility_self_unit_admin(db_session: Session) -> None:
         assert admin_list.status_code == 200
         admin_ids = {row["caseId"] for row in admin_list.json()["data"]}
         assert case_a.case_id in admin_ids and case_b.case_id in admin_ids
+        by_id = {row["caseId"]: row for row in admin_list.json()["data"]}
+        n1 = db_session.get(CmBatch1ComplaintORM, uuid.UUID(c1)).complaint_number
+        n2 = db_session.get(CmBatch1ComplaintORM, uuid.UUID(c2)).complaint_number
+        assert by_id[case_a.case_id]["complaintNumber"] == n1
+        assert by_id[case_b.case_id]["complaintNumber"] == n2
         assert admin_list.json()["meta"]["totalItems"] >= 2
 
     app.dependency_overrides.clear()
+
+
+def test_api_536_list_keyword_respects_visibility(db_session: Session) -> None:
+    """API-536 keyword is substring match and cannot leak outside DEC-024."""
+    from app.modules.cm_case.application.dto import CreateCaseCommand
+
+    agent_a = uuid.uuid4()
+    agent_b = uuid.uuid4()
+    repo = SqlAlchemyCaseRepository(db_session)
+    svc = CaseApplicationService(repo, side_effects=NoOpSideEffects())
+    taxpayer = Customer(
+        id=uuid.uuid4(),
+        external_customer_id="WP-SITI-9901",
+        full_name="Siti Rahayu Unik",
+    )
+    db_session.add(taxpayer)
+    db_session.commit()
+    c1 = _seed_complaint(db_session, customer_id=str(taxpayer.id))
+    c2 = _seed_complaint(db_session)
+    parent_a = db_session.get(CmBatch1ComplaintORM, uuid.UUID(c1))
+    assert parent_a is not None
+    parent_number = parent_a.complaint_number
+
+    case_a = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=c1,
+            case_type="BILLING",
+            subject="Alpha unique billing",
+            description="koreksi NPWP cabang",
+            priority="MEDIUM",
+            destination_unit_id="BR-A",
+            actor_id=str(agent_a),
+        )
+    )
+    case_b = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=c2,
+            case_type="BILLING",
+            subject="Zeta unique refund",
+            description="other",
+            priority="MEDIUM",
+            destination_unit_id="BR-B",
+            actor_id=str(agent_b),
+        )
+    )
+
+    app = create_app()
+    state: dict[str, Principal] = {
+        "principal": Principal(
+            user_id=agent_a,
+            roles=("AGENT",),
+            permissions=frozenset({"complaints:read"}),
+            org_unit_id="BR-A",
+        )
+    }
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: db_session
+    with TestClient(app) as client:
+        by_subject = client.get("/api/v1/cm/cases", params={"keyword": "alpha unique"})
+        assert by_subject.status_code == 200, by_subject.text
+        ids = {row["caseId"] for row in by_subject.json()["data"]}
+        assert ids == {case_a.case_id}
+
+        leaked = client.get("/api/v1/cm/cases", params={"keyword": "zeta unique"})
+        assert leaked.status_code == 200
+        assert leaked.json()["data"] == []
+        assert leaked.json()["meta"]["totalItems"] == 0
+
+        state["principal"] = Principal(
+            user_id=uuid.uuid4(),
+            roles=("ADMIN",),
+            permissions=frozenset({"complaints:read", "*"}),
+        )
+        by_number = client.get(
+            "/api/v1/cm/cases", params={"keyword": case_a.case_number}
+        )
+        assert {row["caseId"] for row in by_number.json()["data"]} == {case_a.case_id}
+
+        by_parent = client.get("/api/v1/cm/cases", params={"keyword": parent_number})
+        assert {row["caseId"] for row in by_parent.json()["data"]} == {case_a.case_id}
+
+        by_desc = client.get("/api/v1/cm/cases", params={"keyword": "npwp cabang"})
+        assert {row["caseId"] for row in by_desc.json()["data"]} == {case_a.case_id}
+
+        by_name = client.get("/api/v1/cm/cases", params={"keyword": "siti rahayu"})
+        assert {row["caseId"] for row in by_name.json()["data"]} == {case_a.case_id}
+
+        miss = client.get("/api/v1/cm/cases", params={"keyword": "no-such-case"})
+        assert miss.json()["data"] == []
+        assert case_b.case_id not in {
+            row["caseId"] for row in by_number.json()["data"]
+        }
+
+    app.dependency_overrides.clear()
+
+
+def test_api_536_supervisor_list_uses_membership_when_jwt_has_no_org_unit(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UM-BUG-005 — Mode A Supervisor without orgUnitId still sees unit cases."""
+    from app.core.authorization.org_unit_resolver import OrgUnitResolver
+    from app.modules.cm_case.application.dto import CreateCaseCommand
+
+    supervisor_id = uuid.uuid4()
+    repo = SqlAlchemyCaseRepository(db_session)
+    svc = CaseApplicationService(repo, side_effects=NoOpSideEffects())
+    complaint_id = _seed_complaint(db_session)
+    created = svc.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Unit case",
+            description="via membership fallback",
+            priority="MEDIUM",
+            destination_unit_id="BR-A",
+            actor_id="agent-1",
+        )
+    )
+
+    monkeypatch.setattr(
+        OrgUnitResolver,
+        "resolve_principal_membership",
+        lambda self, uid: "BR-A" if uid == supervisor_id else None,
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: Principal(
+        user_id=supervisor_id,
+        roles=("SUPERVISOR",),
+        permissions=frozenset({"complaints:read"}),
+        org_unit_id=None,
+    )
+    app.dependency_overrides[get_db_session] = lambda: db_session
+    with TestClient(app) as client:
+        empty_claim = client.get("/api/v1/cm/cases")
+        assert empty_claim.status_code == 200, empty_claim.text
+        ids = {row["caseId"] for row in empty_claim.json()["data"]}
+        assert created.case_id in ids
+        assert empty_claim.json()["meta"]["totalItems"] >= 1
+
+    app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# F4 business rules — Complaint Owner vs Handling Unit, closure acceptance.
+# ---------------------------------------------------------------------------
+
+
+def test_f4_owner_set_from_parent_complaint_at_creation(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Owner = unit that created the Complaint, snapshotted onto the Case."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Owner snapshot",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="agent-1",
+        )
+    )
+    assert created.owner_unit_id == "UPPPD-GAMBIR"
+    # No initial destination — handling unit is not yet assigned.
+    assert created.owning_unit_id is None
+
+
+def test_f4_owner_survives_reload_from_repository(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Owner must persist across save/get round-trips, not just in memory."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Owner reload",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="agent-1",
+        )
+    )
+    reloaded = service.get_case(created.case_id)
+    assert reloaded.owner_unit_id == "UPPPD-GAMBIR"
+
+
+def test_f4_transfer_does_not_change_owner_but_changes_handling_unit(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Cabang → Pusat handoff: owner stays Cabang, handling unit becomes Pusat."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Transfer",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",  # starts handled at the branch
+            actor_id="agent-1",
+        )
+    )
+    assert created.owner_unit_id == "UPPPD-GAMBIR"
+    assert created.owning_unit_id == "UPPPD-GAMBIR"
+
+    transferred = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="ASSIGNED",
+            actor_id="agent-1",
+            destination_unit_id="PUSAT",
+        )
+    )
+    # Handling unit moved to Pusat...
+    assert transferred.owning_unit_id == "PUSAT"
+    # ...but owner is still the branch that created the Complaint.
+    assert transferred.owner_unit_id == "UPPPD-GAMBIR"
+
+    returned = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="ASSIGNED",
+            actor_id="hq-1",
+            destination_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    # Sent back to the branch — handling unit changes again, owner still fixed.
+    assert returned.owning_unit_id == "UPPPD-GAMBIR"
+    assert returned.owner_unit_id == "UPPPD-GAMBIR"
+
+
+def test_f4_owner_immutable_when_complaint_created_by_pusat(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Pusat-initiated Complaint: owner = Pusat, even after handing to a branch."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="PUSAT")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Pusat-created",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    assert created.owner_unit_id == "PUSAT"
+
+    handed_to_branch = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="ASSIGNED",
+            actor_id="hq-1",
+            destination_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert handed_to_branch.owning_unit_id == "UPPPD-GAMBIR"
+    assert handed_to_branch.owner_unit_id == "PUSAT"  # unchanged
+
+
+def test_f4_transfer_history_captures_who_unit_and_when(
+    db_session: Session,
+) -> None:
+    """Every handling-unit transfer must produce a history/event entry
+    answering: what happened, who, which unit, when, which Complaint."""
+    events: list[dict] = []
+
+    class RecordingSideEffects:
+        def record_case_event(self, **kwargs):
+            events.append(kwargs)
+
+    service = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=RecordingSideEffects(),
+    )
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="History",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="agent-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    events.clear()  # only care about the transfer event below
+
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="ASSIGNED",
+            actor_id="agent-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            destination_unit_id="PUSAT",
+            reason="Eskalasi ke Pusat — butuh kewenangan lebih tinggi.",
+        )
+    )
+    assert len(events) == 1
+    evt = events[0]
+    assert evt["event_name"] == "CaseAssigned"  # apa tindakan yang terjadi
+    assert evt["actor_id"] == "agent-1"  # siapa yang melakukan
+    assert evt["actor_unit_id"] == "UPPPD-GAMBIR"  # unit yang melakukan
+    assert evt["case"].complaint_id == complaint_id  # complaint yang terdampak
+    assert evt["note"] == "Eskalasi ke Pusat — butuh kewenangan lebih tinggi."
+    # perpindahan handling unit tercermin di before/after snapshot
+    assert evt["before"]["owningUnitId"] == "UPPPD-GAMBIR"
+    assert evt["after"]["owningUnitId"] == "PUSAT"
+    assert evt["after"]["ownerUnitId"] == "UPPPD-GAMBIR"
+
+
+def test_dec021_accept_comment_only_uses_branch_done_sentinel(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """DEC-021: ACCEPT without resolutionCode/summary persists BRANCH_DONE."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Comment-only close",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="UPPPD-GAMBIR",
+            actor_id="handler-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="handler-1",
+        )
+    )
+    resolved = service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="ACCEPT",
+            comment="Selesai di cabang tanpa kode resolusi",
+            actor_id="supervisor-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+    assert resolved.status == "RESOLVED"
+    assert resolved.resolution is not None
+    assert resolved.resolution.resolution_code == "BRANCH_DONE"
+    assert resolved.resolution.summary == "Selesai di cabang tanpa kode resolusi"
+
+
+def _resolve_to_resolved(service: CaseApplicationService, case_id: str) -> None:
+    """Drive to RESOLVED, tolerating a Case already sitting at IN_PROGRESS
+    (e.g. after a prior owner REJECT put it back there)."""
+    current = service.get_case(case_id)
+    handler = current.handling_claimed_by or "handler-1"
+    if current.status != "IN_PROGRESS":
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=case_id, to_status="IN_PROGRESS", actor_id=handler
+            )
+        )
+    service.resolve(
+        ResolveCaseCommand(
+            case_id=case_id,
+            action="ACCEPT",
+            comment="Selesai ditangani",
+            resolution_code="FIXED",
+            summary="Perbaikan diterapkan",
+            actor_id="handler-1",
+            actor_unit_id="PUSAT",
+        )
+    )
+
+
+def test_f4_resolved_does_not_auto_close(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="No auto close",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)
+    resolved = service.get_case(created.case_id)
+    assert resolved.status == "RESOLVED"
+    with pytest.raises(ApiError) as exc:
+        service.close(CloseCaseCommand(case_id=created.case_id, actor_id="hq-1"))
+    assert exc.value.code == "OWNER_ACCEPTANCE_REQUIRED"
+
+
+def test_f4_handling_unit_acceptance_alone_not_enough_for_close(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Handler only",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)  # stamps Handling Unit ACCEPT
+    with pytest.raises(ApiError) as exc:
+        service.close(CloseCaseCommand(case_id=created.case_id, actor_id="hq-1"))
+    assert exc.value.code == "OWNER_ACCEPTANCE_REQUIRED"
+
+
+def test_f4_owner_acceptance_alone_not_enough_for_close(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Owner cannot close unilaterally — Handling Unit must also have accepted."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Owner only",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    # Reach IN_PROGRESS but do NOT resolve — status is not RESOLVED yet, so
+    # even attempting acceptance is rejected: Owner cannot act before the
+    # Handling Unit has declared the work done.
+    service.update_status(
+        UpdateStatusCommand(case_id=created.case_id, to_status="IN_PROGRESS", actor_id="hq-1")
+    )
+    with pytest.raises(ApiError) as exc:
+        service.record_acceptance(
+            RecordAcceptanceCommand(
+                case_id=created.case_id,
+                party="OWNER",
+                decision="ACCEPT",
+                actor_id="owner-1",
+            )
+        )
+    assert exc.value.code == "INVALID_STATE"
+
+    # Now let the Handling Unit resolve — Owner acceptance alone is still
+    # not enough without the Handling Unit's (already-stamped) acceptance
+    # being ACCEPT too — simulate by rejecting Handling Unit's own proposal
+    # is not possible post-ACCEPT, so instead verify close requires BOTH by
+    # checking handling_unit_acceptance is present once RESOLVED is reached.
+    _resolve_to_resolved(service, created.case_id)
+    resolved = service.get_case(created.case_id)
+    assert resolved.handling_unit_acceptance is not None
+    owner_only = service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+        )
+    )
+    # Both acceptances present → second ACCEPT triggers CLOSED.
+    assert owner_only.handling_unit_acceptance is not None
+    assert owner_only.owner_acceptance is not None
+    assert owner_only.status == "CLOSED"
+
+
+def test_f4_both_acceptances_result_in_closed(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Both accept",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)
+    closed = service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id, party="OWNER", decision="ACCEPT", actor_id="owner-1"
+        )
+    )
+    assert closed.status == "CLOSED"
+    assert closed.closed_by == "owner-1"
+
+
+def test_f4_owner_rejection_prevents_close_and_returns_to_review(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Owner rejects",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)
+
+    with pytest.raises(ApiError) as exc:
+        service.record_acceptance(
+            RecordAcceptanceCommand(
+                case_id=created.case_id,
+                party="OWNER",
+                decision="REJECT",
+                actor_id="owner-1",
+                # no note — must fail validation
+            )
+        )
+    assert exc.value.code == "VALIDATION_ERROR"
+
+    rejected = service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id,
+            party="OWNER",
+            decision="REJECT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            note="Hasil belum sesuai — mohon perbaiki kembali.",
+        )
+    )
+    # Existing state machine represents "back to handling" as IN_PROGRESS —
+    # no new CaseStatus was introduced.
+    assert rejected.status == "IN_PROGRESS"
+    assert rejected.handling_unit_acceptance is None
+    assert rejected.owner_acceptance is None
+
+    with pytest.raises(ApiError) as exc:
+        service.close(CloseCaseCommand(case_id=created.case_id, actor_id="hq-1"))
+    # Close requires RESOLVED first (existing state machine) — after a
+    # rejection the Case is back at IN_PROGRESS, so this fails even before
+    # reaching the acceptance checks. Either way, CLOSED is unreachable.
+    assert exc.value.code == "INVALID_STATE"
+    reloaded = service.get_case(created.case_id)
+    assert reloaded.status != "CLOSED"
+
+
+def test_f4_owner_rejection_produces_history(db_session: Session) -> None:
+    events: list[dict] = []
+
+    class RecordingSideEffects:
+        def record_case_event(self, **kwargs):
+            events.append(kwargs)
+
+    service = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=RecordingSideEffects(),
+    )
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Owner rejects — history",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)
+    events.clear()
+
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id,
+            party="OWNER",
+            decision="REJECT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+            note="Belum sesuai kebutuhan pelapor.",
+        )
+    )
+    assert len(events) == 1
+    evt = events[0]
+    assert evt["event_name"] == "CaseOwnerRejected"
+    assert evt["actor_id"] == "owner-1"
+    assert evt["actor_unit_id"] == "UPPPD-GAMBIR"
+    assert evt["note"] == "Belum sesuai kebutuhan pelapor."
+    assert evt["case"].complaint_id == complaint_id
+
+
+def test_f4_both_acceptances_produce_history(db_session: Session) -> None:
+    events: list[dict] = []
+
+    class RecordingSideEffects:
+        def record_case_event(self, **kwargs):
+            events.append(kwargs)
+
+    service = CaseApplicationService(
+        SqlAlchemyCaseRepository(db_session),
+        side_effects=RecordingSideEffects(),
+    )
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Both accept — history",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)
+    events.clear()
+
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id,
+            party="OWNER",
+            decision="ACCEPT",
+            actor_id="owner-1",
+            actor_unit_id="UPPPD-GAMBIR",
+        )
+    )
+
+    event_names = [e["event_name"] for e in events]
+    assert "CaseOwnerAccepted" in event_names
+    assert "CaseClosed" in event_names
+
+
+def test_f4_history_immutable_after_rejection_cycle(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Old acceptance history must remain readable after a reject → re-resolve
+    → accept cycle — nothing is deleted or overwritten (only current-state
+    pointers move forward)."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UPPPD-GAMBIR")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Immutable history",
+            description="desc",
+            priority="MEDIUM",
+            destination_unit_id="PUSAT",
+            actor_id="hq-1",
+        )
+    )
+    _resolve_to_resolved(service, created.case_id)
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id,
+            party="OWNER",
+            decision="REJECT",
+            actor_id="owner-1",
+            note="Belum sesuai — perbaiki dahulu.",
+        )
+    )
+    # Re-resolve and get both acceptances this time.
+    _resolve_to_resolved(service, created.case_id)
+    service.record_acceptance(
+        RecordAcceptanceCommand(
+            case_id=created.case_id, party="OWNER", decision="ACCEPT", actor_id="owner-1"
+        )
+    )
+    reloaded = service.get_case(created.case_id)
+    assert reloaded.status == "CLOSED"
+
+    # The full history — including the first cycle's REJECT — is still there.
+    decisions = [(a.party, a.decision) for a in reloaded.acceptance_history]
+    assert ("OWNER", "REJECT") in decisions
+    assert ("OWNER", "ACCEPT") in decisions
+    assert decisions.count(("HANDLING_UNIT", "ACCEPT")) == 2  # once per resolve cycle
+    # Current state reflects only the final, satisfied cycle.
+    assert reloaded.owner_acceptance is not None
+    assert reloaded.owner_acceptance.decision == "ACCEPT"
+
+
+def test_officer_labels_empty_and_directory_failure(db_session: Session) -> None:
+    from app.modules.cm_case.api.router import _officer_labels, get_case_service
+
+    assert _officer_labels(db_session) == {}
+    svc = get_case_service(db_session)
+    assert svc is not None
+
+
+def test_case_repo_get_for_update_and_invalid_id(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    from app.modules.cm_case.infrastructure.repository import SqlAlchemyCaseRepository
+
+    repo = SqlAlchemyCaseRepository(db_session)
+    assert repo.get("") is None
+    assert repo.get("not-a-uuid", for_update=True) is None
+    complaint_id = _seed_complaint(db_session)
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Lock read",
+            description="desc",
+            priority="LOW",
+            actor_id="officer-lock",
+        )
+    )
+    locked = repo.get(created.case_id, for_update=True)
+    assert locked is not None
+    assert str(locked.case_id) == created.case_id
+
+
+def test_dec029_escalate_to_pusat_from_case_not_parent(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    sibling = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="SERVICE",
+            subject="Stay at branch",
+            description="Sibling stays",
+            priority="LOW",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    in_progress = service.update_status(
+        UpdateStatusCommand(
+            case_id=first.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    assert in_progress.status == "IN_PROGRESS"
+
+    with pytest.raises(ApiError) as short:
+        service.escalate_to_pusat(
+            EscalateToPusatCommand(
+                case_id=first.case_id,
+                reason="too short",
+                actor_id="officer-1",
+            )
+        )
+    assert short.value.status_code == 400
+
+    dto = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=first.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert dto.escalated_to_pusat is True
+    assert dto.owning_unit == "PUSAT"
+    assert dto.status == "IN_PROGRESS"
+    assert dto.owning_unit_id == "TAB"
+    assert dto.status != "ESCALATED"
+    assert not (dto.handling_claimed_by or "").strip()
+
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+
+    other = service.get_case(sibling.case_id)
+    assert other.escalated_to_pusat is False
+    assert other.owning_unit == "BRANCH"
+
+    with pytest.raises(ApiError) as again:
+        service.escalate_to_pusat(
+            EscalateToPusatCommand(
+                case_id=first.case_id,
+                reason="Case cabang tidak bisa diselesaikan di unit ini.",
+                actor_id="officer-1",
+            )
+        )
+    assert again.value.code == "CASE_ALREADY_ESCALATED_TO_PUSAT"
+
+    with pytest.raises(ApiError) as frozen:
+        service.resolve(
+            ResolveCaseCommand(
+                case_id=first.case_id,
+                action="ACCEPT",
+                comment="should be blocked",
+                actor_id="officer-1",
+            )
+        )
+    assert frozen.value.code == "CASE_WITH_PUSAT"
+
+
+def test_get_case_reopens_hq_schedule_door_when_parent_left_hq_path(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    """Re-ajuan lab: Case still at Pusat but parent was left RETURNED_TO_BRANCH."""
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    parent.intake_disposition = "RETURNED_TO_BRANCH"
+    db_session.commit()
+
+    dto = service.get_case(created.case_id)
+    assert dto.escalated_to_pusat is True
+    db_session.refresh(parent)
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_escalate_to_pusat_stores_optional_proposed_arrival(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+            proposed_arrival_date=date(2099, 8, 20),
+            proposed_arrival_time="09:30",
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+    assert parent.proposed_arrival_date == date(2099, 8, 20)
+    assert parent.proposed_arrival_time == "09:30"
+
+
+def test_api_escalate_to_pusat(api_client: TestClient, db_session: Session) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UNIT-API")
+    create = api_client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "API escalate",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "UNIT-API",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    api_client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    resp = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()["data"]
+    assert body["escalatedToPusat"] is True
+    assert body["owningUnit"] == "PUSAT"
+    assert body["status"] == "IN_PROGRESS"
+    assert "ESCALATED" not in body["status"]
+    assert body["owningUnitId"] == "UNIT-API"
+    assert not (body.get("handlingClaimedBy") or "").strip()
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_cancel_escalation_to_pusat_before_claim(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    escalated = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert escalated.escalated_to_pusat is True
+
+    cancelled = service.cancel_escalation_to_pusat(
+        CancelEscalationToPusatCommand(
+            case_id=created.case_id,
+            reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert cancelled.escalated_to_pusat is False
+    assert cancelled.owning_unit == "BRANCH"
+    assert cancelled.handling_claimed_by == "officer-1"
+
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition is None
+
+    with pytest.raises(ApiError) as missing:
+        service.cancel_escalation_to_pusat(
+            CancelEscalationToPusatCommand(
+                case_id=created.case_id,
+                reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+                actor_id="officer-1",
+            )
+        )
+    assert missing.value.code == "CASE_NOT_ESCALATED_TO_PUSAT"
+
+
+def test_cancel_escalation_to_pusat_blocked_after_hq_accepted(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    row = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert row is not None
+    row.hq_accepted_at = datetime.now(UTC)
+    row.intake_disposition = "HQ_SCHEDULED"
+    db_session.commit()
+
+    with pytest.raises(ApiError) as blocked:
+        service.cancel_escalation_to_pusat(
+            CancelEscalationToPusatCommand(
+                case_id=created.case_id,
+                reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+                actor_id="officer-1",
+                actor_unit_id="TAB",
+            )
+        )
+    assert blocked.value.code == "CASE_HQ_ALREADY_ACCEPTED"
+
+
+def test_pusat_claims_and_resolves_escalated_case(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="TAB")
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    with pytest.raises(ApiError) as too_soon:
+        service.resolve(
+            ResolveCaseCommand(
+                case_id=created.case_id,
+                action="ACCEPT",
+                comment="Pusat resolve without claim",
+                actor_id="pusat-1",
+                actor_is_pusat=True,
+            )
+        )
+    assert too_soon.value.code == "HANDLING_CLAIM_REQUIRED"
+
+    claimed = service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            reason="HANDLE_CLAIM",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    assert claimed.handling_claimed_by == "pusat-1"
+
+    with pytest.raises(ApiError) as blocked:
+        service.cancel_escalation_to_pusat(
+            CancelEscalationToPusatCommand(
+                case_id=created.case_id,
+                reason="Salah ajukan, masih bisa diselesaikan di cabang.",
+                actor_id="officer-1",
+            )
+        )
+    assert blocked.value.code == "CASE_PUSAT_WORK_STARTED"
+
+    resolved = service.resolve(
+        ResolveCaseCommand(
+            case_id=created.case_id,
+            action="ACCEPT",
+            comment="Pusat menyelesaikan Case cabang.",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    assert resolved.status == "RESOLVED"
+    assert resolved.escalated_to_pusat is True
+
+
+def test_pusat_returns_escalated_case_with_note(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    accepted_at = datetime(2026, 8, 20, 9, 0, tzinfo=UTC)
+    complaint_id = _seed_complaint(
+        db_session,
+        owning_unit_id="TAB",
+        intake_disposition="HQ_SCHEDULED",
+        hq_accepted_at=accepted_at,
+    )
+    created = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Need Pusat",
+            description="Branch cannot finish",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    service.update_status(
+        UpdateStatusCommand(
+            case_id=created.case_id,
+            to_status="IN_PROGRESS",
+            actor_id="officer-1",
+        )
+    )
+    service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Case cabang tidak bisa diselesaikan di unit ini.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    with pytest.raises(ApiError) as branch:
+        service.return_escalation(
+            ReturnEscalationCommand(
+                case_id=created.case_id,
+                return_note="Lampirkan bukti pembayaran asli.",
+                actor_id="officer-1",
+                actor_is_pusat=False,
+            )
+        )
+    assert branch.value.code == "CASE_BRANCH_CANNOT_RETURN_ESCALATION"
+
+    with pytest.raises(ApiError) as short:
+        service.return_escalation(
+            ReturnEscalationCommand(
+                case_id=created.case_id,
+                return_note="pendek",
+                actor_id="pusat-1",
+                actor_is_pusat=True,
+            )
+        )
+    assert short.value.status_code == 400
+
+    returned = service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=created.case_id,
+            return_note="Lampirkan bukti pembayaran asli.",
+            actor_id="pusat-1",
+            actor_unit_id="PUSAT",
+            actor_is_pusat=True,
+        )
+    )
+    assert returned.escalated_to_pusat is False
+    assert returned.owning_unit == "BRANCH"
+    assert returned.handling_claimed_by == "officer-1"
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "RETURNED_TO_BRANCH"
+    assert parent.hq_accepted_at is None
+    assert parent.hq_arrival_date is None
+
+    again = service.escalate_to_pusat(
+        EscalateToPusatCommand(
+            case_id=created.case_id,
+            reason="Dokumen sudah dilengkapi, mohon jadwal penyelesaian di Pusat.",
+            actor_id="officer-1",
+            actor_unit_id="TAB",
+        )
+    )
+    assert again.escalated_to_pusat is True
+    db_session.refresh(parent)
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+
+
+def test_return_escalation_keeps_parent_hq_path_while_sibling_still_at_pusat(
+    service: CaseApplicationService, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(
+        db_session,
+        owning_unit_id="TAB",
+        intake_disposition="ESCALATE_APPROVED",
+    )
+    first = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="First",
+            description="Branch cannot finish first case.",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    second = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Second",
+            description="Branch cannot finish second case.",
+            priority="HIGH",
+            destination_unit_id="TAB",
+            actor_id="officer-1",
+        )
+    )
+    for created in (first, second):
+        service.update_status(
+            UpdateStatusCommand(
+                case_id=created.case_id,
+                to_status="IN_PROGRESS",
+                actor_id="officer-1",
+            )
+        )
+        service.escalate_to_pusat(
+            EscalateToPusatCommand(
+                case_id=created.case_id,
+                reason="Case cabang tidak bisa diselesaikan di unit ini.",
+                actor_id="officer-1",
+                actor_unit_id="TAB",
+            )
+        )
+    service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=first.case_id,
+            return_note="Lampirkan bukti pembayaran asli.",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    parent = db_session.get(CmBatch1ComplaintORM, uuid.UUID(complaint_id))
+    assert parent is not None
+    assert parent.intake_disposition == "ESCALATE_APPROVED"
+    service.return_escalation(
+        ReturnEscalationCommand(
+            case_id=second.case_id,
+            return_note="Lampirkan bukti pembayaran asli.",
+            actor_id="pusat-1",
+            actor_is_pusat=True,
+        )
+    )
+    db_session.refresh(parent)
+    assert parent.intake_disposition == "RETURNED_TO_BRANCH"
+
+
+def test_api_cancel_escalation_to_pusat(
+    api_client: TestClient, db_session: Session
+) -> None:
+    complaint_id = _seed_complaint(db_session, owning_unit_id="UNIT-API")
+    create = api_client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "API cancel escalate",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "UNIT-API",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    api_client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    escalated = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert escalated.status_code == 200, escalated.text
+    cancelled = api_client.post(
+        f"/api/v1/cm/cases/{case_id}/cancel-escalation-to-pusat",
+        json={"reason": "Salah ajukan, masih bisa diselesaikan di cabang."},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    body = cancelled.json()["data"]
+    assert body["escalatedToPusat"] is False
+    assert body["owningUnit"] == "BRANCH"
+    assert (body.get("handlingClaimedBy") or "").strip()
+    assert body["handlingClaimedBy"] == create.json()["data"]["createdBy"]
+
+
+def test_return_escalation_marks_creator_unread_until_detail_open(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Inbox unread",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    escalated = client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert escalated.status_code == 200, escalated.text
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+
+    state["principal"] = creator
+    listed = client.get("/api/v1/cm/cases")
+    assert listed.status_code == 200, listed.text
+    row = next(item for item in listed.json()["data"] if item["caseId"] == case_id)
+    assert row["isRead"] is False
+    assert row["unreadReason"] == "RETURNED"
+
+    opened = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert opened.status_code == 200, opened.text
+    listed_again = client.get("/api/v1/cm/cases")
+    row_again = next(
+        item for item in listed_again.json()["data"] if item["caseId"] == case_id
+    )
+    assert row_again["isRead"] is True
+    assert row_again.get("unreadReason") in (None, "")
+
+
+def test_opening_parent_complaint_clears_cabang_case_inbox(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Parent open clears inbox",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert create.status_code == 201, create.text
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    escalated = client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    assert escalated.status_code == 200, escalated.text
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+
+    state["principal"] = creator
+    listed = client.get("/api/v1/cm/cases")
+    row = next(item for item in listed.json()["data"] if item["caseId"] == case_id)
+    assert row["isRead"] is False
+
+    opened_parent = client.get(f"/api/v1/cm/complaints/{complaint_id}")
+    assert opened_parent.status_code == 200, opened_parent.text
+    listed_again = client.get("/api/v1/cm/cases")
+    row_again = next(
+        item for item in listed_again.json()["data"] if item["caseId"] == case_id
+    )
+    assert row_again["isRead"] is True
+
+
+def test_work_badges_pusat_queue_and_cabang_unread(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Queue badge",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+
+    cabang_badges = client.get("/api/v1/cm/work-badges")
+    assert cabang_badges.status_code == 200, cabang_badges.text
+    assert cabang_badges.json()["data"]["unreadCases"] == 0
+    assert cabang_badges.json()["data"]["pusatQueue"] == 0
+    assert cabang_badges.json()["data"]["pusatFollowUp"] == 0
+    assert cabang_badges.json()["data"]["hqScheduleUnread"] == 0
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    pusat_badges = client.get("/api/v1/cm/work-badges")
+    assert pusat_badges.status_code == 200, pusat_badges.text
+    assert pusat_badges.json()["data"]["unreadCases"] == 0
+    assert pusat_badges.json()["data"]["pusatQueue"] >= 1
+    assert pusat_badges.json()["data"]["pusatFollowUp"] == 0
+    assert pusat_badges.json()["data"]["hqScheduleUnread"] == 0
+
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+
+    state["principal"] = creator
+    after_return = client.get("/api/v1/cm/work-badges")
+    assert after_return.json()["data"]["unreadCases"] >= 1
+    assert after_return.json()["data"]["pusatQueue"] == 0
+    assert after_return.json()["data"]["pusatFollowUp"] == 0
+    assert after_return.json()["data"]["hqScheduleUnread"] == 0
+
+
+def test_cabang_hq_schedule_badge_is_unit_scoped_and_acks_hq_scheduled_only(
+    jwt_org_api_client: dict[str, object], db_session: Session
+) -> None:
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    creator = state["principal"]
+    actor_id = str(creator.user_id)
+    repo = CaseInboxRepository(db_session)
+
+    scheduled_complaint = _seed_complaint(db_session, owning_unit_id="OU-A")
+    scheduled = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": scheduled_complaint,
+            "caseType": "BILLING",
+            "subject": "HQ scheduled badge",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert scheduled.status_code == 201, scheduled.text
+    scheduled_case_id = scheduled.json()["data"]["caseId"]
+
+    returned_complaint = _seed_complaint(db_session, owning_unit_id="OU-A")
+    returned = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": returned_complaint,
+            "caseType": "BILLING",
+            "subject": "Returned stays unread",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    assert returned.status_code == 201, returned.text
+    returned_case_id = returned.json()["data"]["caseId"]
+
+    repo.mark_unread(scheduled_case_id, actor_id, REASON_HQ_SCHEDULED)
+    repo.mark_unread(returned_case_id, actor_id, REASON_RETURNED)
+    db_session.commit()
+
+    cabang = client.get("/api/v1/cm/work-badges")
+    assert cabang.status_code == 200, cabang.text
+    assert cabang.json()["data"]["unreadCases"] == 2
+    assert cabang.json()["data"]["hqScheduleUnread"] == 1
+
+    state["principal"] = replace(creator, org_unit_id="OU-B")
+    other_unit = client.get("/api/v1/cm/work-badges")
+    assert other_unit.json()["data"]["hqScheduleUnread"] == 0
+    assert other_unit.json()["data"]["unreadCases"] == 2
+
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    pusat = client.get("/api/v1/cm/work-badges")
+    assert pusat.json()["data"]["hqScheduleUnread"] == 0
+    pusat_ack = client.post("/api/v1/cm/work-badges/hq-schedule-seen")
+    assert pusat_ack.status_code == 200, pusat_ack.text
+    assert pusat_ack.json()["data"]["hqScheduleUnread"] == 0
+
+    state["principal"] = creator
+    still_unread = client.get("/api/v1/cm/work-badges")
+    assert still_unread.json()["data"]["hqScheduleUnread"] == 1
+    assert still_unread.json()["data"]["unreadCases"] == 2
+
+    acked = client.post("/api/v1/cm/work-badges/hq-schedule-seen")
+    assert acked.status_code == 200, acked.text
+    assert acked.json()["data"]["hqScheduleUnread"] == 0
+    assert acked.json()["data"]["unreadCases"] == 1
+
+    unread = CaseInboxRepository(db_session).unread_map(
+        actor_id, [scheduled_case_id, returned_case_id]
+    )
+    assert scheduled_case_id not in unread
+    assert unread[returned_case_id] == REASON_RETURNED
+
+
+def test_return_escalation_fail_open_when_inbox_write_breaks(
+    jwt_org_api_client: dict[str, object], db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.modules.cm_case.infrastructure import inbox_repository as inbox
+
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("inbox unavailable")
+
+    monkeypatch.setattr(inbox.CaseInboxRepository, "mark_unread", _boom)
+
+    client: TestClient = jwt_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = jwt_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(db_session, owning_unit_id="OU-A")
+    create = client.post(
+        "/api/v1/cm/cases",
+        json={
+            "complaintId": complaint_id,
+            "caseType": "BILLING",
+            "subject": "Fail-open inbox",
+            "description": "via HTTP",
+            "priority": "MEDIUM",
+            "destinationUnitId": "OU-A",
+        },
+    )
+    case_id = create.json()["data"]["caseId"]
+    client.patch(
+        f"/api/v1/cm/cases/{case_id}/status",
+        json={"toStatus": "IN_PROGRESS"},
+    )
+    client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Case cabang tidak bisa diselesaikan di unit ini."},
+    )
+    state["principal"] = _principal_for("PUSAT", roles=("AGENT",))
+    returned = client.post(
+        f"/api/v1/cm/cases/{case_id}/return-escalation",
+        json={"returnNote": "Lampirkan bukti pembayaran asli."},
+    )
+    assert returned.status_code == 200, returned.text
+    assert returned.json()["data"]["escalatedToPusat"] is False
+
+
+# --- G3 (P0-3) — domain visibility by id, Mode A ----------------------------
+#
+# The SECMIG-P4 guard above these routes is a no-op when ECMP_AUTH_MODE=dev, so
+# every test here runs with dev settings, asserts that fact, and gives the
+# principal **no** orgUnitId claim: its unit can only come from the DB
+# membership row, exactly like the lab.
+
+
+_MODE_A_TABLES = [
+    *_TABLES,
+    Role.__table__,
+    Branch.__table__,
+    User.__table__,
+]
+
+
+@pytest.fixture()
+def dev_db_session() -> Generator[Session, None, None]:
+    engine = create_engine(
+        "sqlite://",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine, tables=_MODE_A_TABLES)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def _seed_member(session: Session, unit_code: str) -> uuid.UUID:
+    """A real membership row — the only source of the actor's unit in Mode A."""
+    role = Role(id=uuid.uuid4(), code=f"R{uuid.uuid4().hex[:6]}", name="Role")
+    branch = session.scalar(
+        select(Branch).where(Branch.code == unit_code)
+    ) or Branch(id=uuid.uuid4(), code=unit_code, name=unit_code, is_active=True)
+    user = User(
+        id=uuid.uuid4(),
+        role_id=role.id,
+        branch_id=branch.id,
+        email=f"{uuid.uuid4().hex[:8]}@example.com",
+        username=f"u{uuid.uuid4().hex[:8]}",
+        full_name="Mode A Member",
+        initials=uuid.uuid4().hex[:3].upper(),
+        is_active=True,
+    )
+    session.add_all([role, branch, user])
+    session.commit()
+    return user.id
+
+
+def _dev_principal(user_id: uuid.UUID, *, roles: tuple[str, ...] = ("SUPERVISOR",)) -> Principal:
+    """No orgUnitId claim — dev-mode tokens never carry one."""
+    return Principal(
+        user_id=user_id,
+        roles=roles,
+        permissions=frozenset(
+            {
+                "complaints:create",
+                "complaints:read",
+                "complaints:update",
+                "complaints:escalate",
+                "attachment:read",
+            }
+        ),
+        org_unit_id=None,
+    )
+
+
+@pytest.fixture()
+def dev_org_api_client(
+    dev_db_session: Session,
+) -> Generator[dict[str, object], None, None]:
+    from app.core.authorization.org_unit_guard import org_scope_enforcement_enabled
+    from app.core.config import Settings, get_settings
+
+    settings = Settings(
+        environment="development",
+        ecmp_auth_mode="dev",
+        ecmp_env="local",
+        jwt_secret_key="test-secret-key-for-cm-case-mode-a-visibility",
+        jwt_algorithm="HS256",
+    )
+    assert org_scope_enforcement_enabled(settings) is False
+
+    app = create_app()
+    svc = CaseApplicationService(
+        SqlAlchemyCaseRepository(dev_db_session),
+        side_effects=NoOpSideEffects(),
+    )
+    state: dict[str, Principal] = {
+        "principal": _dev_principal(uuid.uuid4())
+    }
+    app.dependency_overrides[get_case_service] = lambda: svc
+    app.dependency_overrides[get_current_principal] = lambda: state["principal"]
+    app.dependency_overrides[get_db_session] = lambda: dev_db_session
+    app.dependency_overrides[get_settings] = lambda: settings
+    client = TestClient(app)
+    try:
+        yield {"client": client, "state": state, "service": svc}
+    finally:
+        app.dependency_overrides.clear()
+        client.close()
+
+
+def _seed_case(
+    service: CaseApplicationService, complaint_id: str, unit: str
+) -> str:
+    dto = service.create_case(
+        CreateCaseCommand(
+            complaint_id=complaint_id,
+            case_type="BILLING",
+            subject="Mode A visibility",
+            description="desc",
+            priority="MEDIUM",
+            actor_id="seed",
+            destination_unit_id=unit,
+        )
+    )
+    return dto.case_id
+
+
+def test_mode_a_cross_unit_case_read_denied_404(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    """Cabang B may not open Cabang A's Case by id — and gets no existence
+    oracle: 404, the same no-leak shape Internal complaints already use."""
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    service: CaseApplicationService = dev_org_api_client["service"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    case_id = _seed_case(service, complaint_id, "OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    denied = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert denied.status_code == 404, denied.text
+    assert denied.json()["code"] == "NOT_FOUND"
+
+    history_denied = client.get(f"/api/v1/cm/cases/{case_id}/history")
+    assert history_denied.status_code == 404
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-A"))
+    allowed = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["data"]["caseId"] == case_id
+
+
+def test_mode_a_cross_unit_case_mutation_denied(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    service: CaseApplicationService = dev_org_api_client["service"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    case_id = _seed_case(service, complaint_id, "OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    status_denied = client.patch(
+        f"/api/v1/cm/cases/{case_id}/status", json={"toStatus": "IN_PROGRESS"}
+    )
+    assert status_denied.status_code == 404, status_denied.text
+    close_denied = client.post(f"/api/v1/cm/cases/{case_id}/close", json={})
+    assert close_denied.status_code == 404
+    escalate_denied = client.post(
+        f"/api/v1/cm/cases/{case_id}/escalate-to-pusat",
+        json={"reason": "Tidak dapat diselesaikan di unit ini."},
+    )
+    assert escalate_denied.status_code == 404
+
+    # The mutation really did not happen.
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-A"))
+    unchanged = client.get(f"/api/v1/cm/cases/{case_id}")
+    assert unchanged.json()["data"]["status"] == "ASSIGNED"
+
+
+def test_mode_a_cross_unit_complaint_read_denied_404(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    denied = client.get(f"/api/v1/cm/complaints/{complaint_id}")
+    assert denied.status_code == 404, denied.text
+    history_denied = client.get(f"/api/v1/cm/complaints/{complaint_id}/history")
+    assert history_denied.status_code == 404
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-A"))
+    allowed = client.get(f"/api/v1/cm/complaints/{complaint_id}")
+    assert allowed.status_code == 200, allowed.text
+
+
+def test_mode_a_cross_unit_intake_escalation_denied(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    """Mutasi eskalasi lintas cabang ditolak di Mode A."""
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "OU-B"))
+    decision = client.post(
+        f"/api/v1/cm/complaints/{complaint_id}/intake-escalation/decision",
+        json={"decision": "APPROVE", "note": "Setuju"},
+    )
+    assert decision.status_code == 404, decision.text
+    requested = client.post(
+        f"/api/v1/cm/complaints/{complaint_id}/intake-escalation/request",
+        json={"reason": "Perlu ditinjau ulang oleh Pusat untuk kasus ini."},
+    )
+    assert requested.status_code == 404, requested.text
+
+
+def test_mode_a_pusat_actor_is_scoped_by_escalation_predicate(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    """Pusat is not "every branch": a branch complaint that never took the
+    escalate path stays invisible; the approved one opens."""
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    branch_only = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    escalated = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    row = dev_db_session.get(CmBatch1ComplaintORM, uuid.UUID(escalated))
+    assert row is not None
+    row.intake_disposition = "ESCALATE_APPROVED"
+    dev_db_session.commit()
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "PUSAT"))
+    denied = client.get(f"/api/v1/cm/complaints/{branch_only}")
+    assert denied.status_code == 404, denied.text
+    allowed = client.get(f"/api/v1/cm/complaints/{escalated}")
+    assert allowed.status_code == 200, allowed.text
+
+
+def test_mode_a_pusat_actor_may_read_case_escalated_to_pusat(
+    dev_org_api_client: dict[str, object], dev_db_session: Session
+) -> None:
+    client: TestClient = dev_org_api_client["client"]  # type: ignore[assignment]
+    state: dict[str, Principal] = dev_org_api_client["state"]  # type: ignore[assignment]
+    service: CaseApplicationService = dev_org_api_client["service"]  # type: ignore[assignment]
+    complaint_id = _seed_complaint(dev_db_session, owning_unit_id="OU-A")
+    branch_case = _seed_case(service, complaint_id, "OU-A")
+
+    state["principal"] = _dev_principal(_seed_member(dev_db_session, "PUSAT"))
+    denied = client.get(f"/api/v1/cm/cases/{branch_case}")
+    assert denied.status_code == 404, denied.text
+
+    row = dev_db_session.get(CmCaseORM, uuid.UUID(branch_case))
+    assert row is not None
+    row.escalated_to_pusat = True
+    dev_db_session.commit()
+    allowed = client.get(f"/api/v1/cm/cases/{branch_case}")
+    assert allowed.status_code == 200, allowed.text

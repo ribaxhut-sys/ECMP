@@ -1,14 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
+import type { Branch } from "@/lib/api/branches";
+import { mayManageAnnouncements } from "@/features/announcements/announcementManageGate";
+import { prefersComplaintNumberIdentity } from "@/features/complaints/cmBatch1ComplaintListIdentity";
+import {
+  CM_BATCH1_OPEN_HREF,
+  CM_BATCH1_PUSAT_UNHANDLED_HREF,
+} from "@/features/complaints/cmBatch1ListFilters";
+import { useOrgUnitBranch } from "@/features/announcements/useOrgUnitCode";
+import { useUnreadAnnouncementCount } from "@/features/announcements/useUnreadAnnouncementCount";
+import { useCmWorkBadges } from "@/features/cases/useCmWorkBadges";
+import { useHqScheduleTodayCount } from "@/features/hq-schedule/useHqScheduleTodayCount";
+import { usePendingInboxCount } from "@/features/internal-complaints/usePendingInboxCount";
+import { usePendingTransferRequestCount } from "@/features/internal-complaints/usePendingTransferRequestCount";
+import { usePendingWithdrawRequestCount } from "@/features/internal-complaints/usePendingWithdrawRequestCount";
+import { internalComplaintsNavHref } from "@/features/internal-complaints/internalInbox";
+import { isInternalComplaintsUiEnabled } from "@/shared/config/internalComplaintsUi";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
 import {
+  IconAdjustments,
   IconAssignments,
+  IconBell,
+  IconCalendarEscalate,
+  IconChevronDown,
   IconComplaints,
   IconDashboard,
+  IconFile,
+  IconMegaphone,
   IconPaperclip,
   IconQueue,
   IconReports,
@@ -17,14 +40,55 @@ import {
   IconUsers,
 } from "@/shared/icons";
 import { useSidebar } from "@/shared/hooks";
+import {
+  resolveExpandedSubgroups,
+  useNavPreference,
+} from "@/shared/navigation";
 import { cn } from "@/shared/utils";
 import {
   APP_NAV_GROUPS,
   APP_NAV_ITEMS,
+  INTERNAL_COMPLAINTS_SUBGROUP_ID,
+  isInternalNavItemId,
+  isNavItemActive,
   isNavItemVisible,
+  resolveActiveSubgroupId,
+  type NavGroup,
   type NavItem,
+  type NavSubgroup,
 } from "./nav";
 import { B0_NAV_GROUPS, B0_NAV_ITEMS } from "./b0Nav";
+
+function isAppNavItemVisible(
+  item: NavItem,
+  hasPermission: (permission: string) => boolean,
+): boolean {
+  if (isInternalNavItemId(item.id) && !isInternalComplaintsUiEnabled()) {
+    return false;
+  }
+  return isNavItemVisible(item, hasPermission);
+}
+
+/**
+ * Resolve the unit label under the PELAYANAN brand.
+ * - Cabang: branch name from catalog (matched by user.branchId).
+ * - Pusat / head-office (EBS-001): branchId is null — show "Pusat", not blank.
+ *
+ * Derives from the branch already resolved by `useOrgUnitBranch` in the
+ * caller — no fetch of its own, so the sidebar issues one branch-catalog
+ * request instead of two for the same `user.branchId`.
+ */
+function useBrandUnitLabel(orgUnitBranch: Branch | null | undefined): string | null {
+  const { user, hasPermission } = useAuth();
+  const tCommon = useTranslations("common");
+  const branchId = user?.branchId ?? null;
+  const canReadBranches = hasPermission("complaints:read");
+
+  if (!user) return null;
+  if (!branchId) return tCommon("headOfficeUnit");
+  if (!canReadBranches) return null;
+  return orgUnitBranch?.name ?? null;
+}
 
 const iconMap = {
   dashboard: IconDashboard,
@@ -35,16 +99,30 @@ const iconMap = {
   reports: IconReports,
   users: IconUsers,
   settings: IconSettings,
+  adjustments: IconAdjustments,
   attachments: IconPaperclip,
+  announcements: IconBell,
+  megaphone: IconMegaphone,
+  knowledge: IconFile,
+  calendarEscalate: IconCalendarEscalate,
 } as const;
 
-function NavBadge({ value }: { value: number | string }) {
+function NavBadge({
+  value,
+  tone = "default",
+}: {
+  value: number | string;
+  tone?: "default" | "unread";
+}) {
   const label = typeof value === "number" && value > 99 ? "99+" : String(value);
   return (
     <span
       className={cn(
         "ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full px-1.5",
-        "bg-ecmp-primary-muted text-[length:var(--ecmp-font-overline-size)] font-semibold leading-5 text-ecmp-primary",
+        "text-[length:var(--ecmp-font-overline-size)] font-semibold leading-5",
+        tone === "unread"
+          ? "bg-ecmp-danger text-ecmp-danger-foreground"
+          : "bg-ecmp-primary-muted text-ecmp-primary",
       )}
     >
       {label}
@@ -55,22 +133,35 @@ function NavBadge({ value }: { value: number | string }) {
 function NavLink({
   item,
   label,
+  allHrefs,
   onNavigate,
 }: {
   item: NavItem;
   label: string;
+  allHrefs: readonly string[];
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const active =
-    pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const tAnnouncements = useTranslations("announcements");
+  const active = isNavItemActive(pathname, item.href, allHrefs, search);
   const Icon = iconMap[item.icon];
+  const unreadCount =
+    item.id === "announcements" && typeof item.badge === "number"
+      ? item.badge
+      : 0;
+  const accessibleName =
+    unreadCount > 0
+      ? `${label}, ${tAnnouncements("sidebarUnreadCount", { count: unreadCount })}`
+      : label;
 
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
+      aria-label={accessibleName}
       className={cn(
         "ecmp-touch group relative flex items-center gap-3 rounded-[var(--ecmp-radius-md)] px-3",
         "text-[length:var(--ecmp-font-body-small-size)] font-normal tracking-[-0.01em]",
@@ -80,14 +171,6 @@ function NavLink({
           : "text-ecmp-text-secondary hover:bg-ecmp-hover hover:text-ecmp-text-primary",
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-ecmp-primary",
-          "transition-opacity duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
-          active ? "opacity-100" : "opacity-0 group-hover:opacity-35",
-        )}
-      />
       <Icon
         className={cn(
           "size-5 shrink-0",
@@ -98,7 +181,10 @@ function NavLink({
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {item.badge !== undefined && item.badge !== null && item.badge !== "" ? (
-        <NavBadge value={item.badge} />
+        <NavBadge
+          value={item.badge}
+          tone={item.id === "announcements" ? "unread" : "default"}
+        />
       ) : null}
     </Link>
   );
@@ -108,27 +194,45 @@ function Brand({
   asLink,
   href,
   onNavigate,
+  branchName,
 }: {
   asLink: boolean;
   href: string;
   onNavigate?: () => void;
+  branchName: string | null;
 }) {
   const tCommon = useTranslations("common");
-  const className =
-    "text-[length:var(--ecmp-font-card-title-size)] font-semibold tracking-tight text-ecmp-text-primary";
+  const content = (
+    <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
+      <span className="truncate text-[1.25rem] font-semibold tracking-tight text-ecmp-primary">
+        {tCommon("appName")}
+      </span>
+      {branchName ? (
+        <span className="truncate text-[14px] font-semibold text-ecmp-text-primary">
+          {branchName}
+        </span>
+      ) : null}
+    </span>
+  );
 
   if (asLink) {
     return (
-      <Link href={href} onClick={onNavigate} className={className}>
-        {tCommon("appName")}
+      <Link href={href} onClick={onNavigate} className="min-w-0">
+        {content}
       </Link>
     );
   }
 
-  return <span className={className}>{tCommon("appName")}</span>;
+  return content;
 }
 
-function useShellNav(): {
+/**
+ * `orgUnitBranch` is resolved once by the caller (`Sidebar`) and passed in —
+ * this used to call `useOrgUnitCode()` itself, and since both `Sidebar` and
+ * `NavSections` called this hook, the branch catalog was fetched twice per
+ * page load for the identical `user.branchId` lookup.
+ */
+function useShellNav(orgUnitBranch: Branch | null | undefined): {
   groups: typeof APP_NAV_GROUPS;
   itemsById: Record<string, NavItem>;
   homeHref: string;
@@ -136,10 +240,13 @@ function useShellNav(): {
 } {
   const {
     hasPermission,
+    roles,
     isMockSession,
     mockPersona,
     officerWorkMode,
   } = useAuth();
+  const orgUnitCode =
+    orgUnitBranch === undefined ? undefined : orgUnitBranch?.code ?? null;
   const batchB0 = isShellUiBatch() || isMockSession;
 
   if (!batchB0) {
@@ -149,8 +256,29 @@ function useShellNav(): {
     return {
       groups: APP_NAV_GROUPS,
       itemsById,
+      // Brand → Dashboard, the app's default home (LOCKED). "/" is the
+      // post-login entry-point gate, not a content route — see
+      // (app)/page.tsx; it must not be reused for in-app navigation to
+      // avoid re-triggering the unread-announcement redirect.
       homeHref: "/dashboard",
-      isItemVisible: (item) => isNavItemVisible(item, hasPermission),
+      isItemVisible: (item) => {
+        if (!isAppNavItemVisible(item, hasPermission)) return false;
+        if (item.id === "announcementsManage") {
+          // Hide while org unit resolves — avoids flashing manage to Cabang.
+          if (orgUnitCode === undefined) return false;
+          return mayManageAnnouncements({
+            roles,
+            hasPermission,
+            orgUnitCode,
+          });
+        }
+        // Case inbox = Cabang work door (DEC-025 route stays deep-linkable).
+        // Pusat / Admin tanpa branch / loading → hide sidebar entry.
+        if (item.id === "cases") {
+          return prefersComplaintNumberIdentity(orgUnitCode);
+        }
+        return true;
+      },
     };
   }
 
@@ -178,47 +306,449 @@ function useShellNav(): {
   };
 }
 
-function NavSections({ onNavigate }: { onNavigate?: () => void }) {
+const GROUP_HEADING_CLASS =
+  "px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted";
+
+/**
+ * Soft domain panel chrome — distinguishes Wajib Pajak vs Internal without
+ * heavy cards. Collapse/expand behaviour is unchanged.
+ */
+function resolveDomainChrome(subgroupId: string): {
+  panel: string;
+  label: string;
+  hoverLabel: string;
+  divider: string;
+} {
+  if (subgroupId === INTERNAL_COMPLAINTS_SUBGROUP_ID) {
+    return {
+      panel:
+        "rounded-[var(--ecmp-radius-md)] border border-ecmp-info/20 bg-ecmp-info-muted/45 pl-0.5 border-l-[3px] border-l-ecmp-info",
+      label: "text-ecmp-info",
+      hoverLabel: "hover:text-ecmp-info",
+      divider: "border-ecmp-info/20",
+    };
+  }
+  // Default: Wajib Pajak (and any non-internal subgroup)
+  return {
+    panel:
+      "rounded-[var(--ecmp-radius-md)] border border-ecmp-primary/15 bg-ecmp-primary-muted/40 pl-0.5 border-l-[3px] border-l-ecmp-primary",
+    label: "text-ecmp-primary",
+    hoverLabel: "hover:text-ecmp-primary",
+    divider: "border-ecmp-primary/15",
+  };
+}
+
+/**
+ * Domain subgroup heading — uppercase + weight 600 (match PELAYANAN).
+ * `!font-[600]` beats the global `button { font: inherit }` reset that
+ * otherwise wipes Tailwind weight utilities on disclosure buttons.
+ */
+const SUBGROUP_HEADING_BASE_CLASS =
+  "px-3 pt-1 pb-1 text-[17px] !font-[600] uppercase tracking-tight";
+
+/**
+ * Expand/collapse state for the complaint subgroups.
+ *
+ * Presentation only — `subgroups` arrives already permission-filtered, so a
+ * preference can never surface a menu the user may not see.
+ */
+function useSubgroupExpansion(
+  subgroups: readonly { id: string; hrefs: readonly string[] }[],
+  allHrefs: readonly string[],
+) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const { mode, expanded: remembered, setSubgroupExpanded } = useNavPreference();
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  const activeSubgroupId = resolveActiveSubgroupId(
+    pathname,
+    subgroups,
+    allHrefs,
+    search,
+  );
+
+  // Any navigation re-syncs "auto" to the route-owned subgroup.
+  useEffect(() => {
+    setOverrides({});
+  }, [pathname, search]);
+
+  const subgroupIds = subgroups.map((subgroup) => subgroup.id);
+
+  const resolved = resolveExpandedSubgroups({
+    mode,
+    subgroupIds,
+    activeSubgroupId,
+    remembered,
+    overrides,
+  });
+
+  return {
+    activeSubgroupId,
+    /** expandAll pins every subgroup open — nothing left to toggle. */
+    collapsible: mode !== "expandAll",
+    isExpanded: (id: string) => resolved[id] ?? false,
+    toggle: (id: string) => {
+      const next = !(resolved[id] ?? false);
+      if (mode === "remember") {
+        setSubgroupExpanded(id, next);
+        return;
+      }
+      // auto: accordion — opening one domain closes the others.
+      if (next) {
+        const exclusive: Record<string, boolean> = {};
+        for (const subgroupId of subgroupIds) {
+          exclusive[subgroupId] = subgroupId === id;
+        }
+        setOverrides(exclusive);
+        return;
+      }
+      setOverrides(() => {
+        const closed: Record<string, boolean> = {};
+        for (const subgroupId of subgroupIds) {
+          closed[subgroupId] = false;
+        }
+        return closed;
+      });
+    },
+  };
+}
+
+function NavSubgroupSection({
+  subgroup,
+  items,
+  allHrefs,
+  expanded,
+  collapsible,
+  containsActive,
+  onToggle,
+  onNavigate,
+}: {
+  subgroup: NavSubgroup;
+  items: readonly NavItem[];
+  allHrefs: readonly string[];
+  expanded: boolean;
+  collapsible: boolean;
+  containsActive: boolean;
+  onToggle: () => void;
+  onNavigate?: () => void;
+}) {
   const t = useTranslations("nav");
+  const headingId = `nav-subgroup-${subgroup.id}`;
+  const panelId = `nav-subgroup-panel-${subgroup.id}`;
+  const label = t(subgroup.labelKey);
+  const chrome = resolveDomainChrome(subgroup.id);
+  const subgroupBadge = items.reduce((sum, item) => {
+    return sum + (typeof item.badge === "number" && item.badge > 0 ? item.badge : 0);
+  }, 0);
+
+  const headingBadge =
+    subgroupBadge > 0 ? (
+      <span aria-hidden>
+        <NavBadge value={subgroupBadge} />
+      </span>
+    ) : null;
+
+  return (
+    <div
+      className={cn("flex flex-col gap-0.5 py-1", chrome.panel)}
+      data-domain-active={containsActive ? "true" : "false"}
+    >
+      {collapsible ? (
+        <button
+          type="button"
+          id={headingId}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+          className={cn(
+            "ecmp-touch group flex w-full items-center gap-1.5 rounded-[var(--ecmp-radius-md)] px-3 py-1.5",
+            SUBGROUP_HEADING_BASE_CLASS,
+            chrome.label,
+            "transition-colors duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)]",
+            "hover:bg-ecmp-hover/60",
+            chrome.hoverLabel,
+            "focus-visible:outline-none focus-visible:ring-[length:var(--ecmp-focus-ring-width)] focus-visible:ring-ecmp-focus",
+          )}
+        >
+          {/* Quiet disclosure: chevron reserved in layout, visible on hover/focus only. */}
+          <IconChevronDown
+            aria-hidden
+            className={cn(
+              "size-3 shrink-0 opacity-0",
+              "transition-[opacity,transform] duration-[var(--ecmp-duration-fast)] ease-[var(--ecmp-ease-hover)] motion-reduce:transition-none",
+              "group-hover:opacity-70 group-focus-visible:opacity-70",
+              expanded ? "rotate-0" : "-rotate-90 rtl:rotate-90",
+            )}
+          />
+          <span className="min-w-0 truncate text-left !font-[600]">{label}</span>
+          {headingBadge}
+        </button>
+      ) : (
+        <p
+          id={headingId}
+          className={cn(
+            SUBGROUP_HEADING_BASE_CLASS,
+            chrome.label,
+            "flex items-center gap-1.5",
+          )}
+        >
+          {label}
+          {headingBadge}
+        </p>
+      )}
+      <div
+        id={panelId}
+        role="group"
+        aria-labelledby={headingId}
+        hidden={!expanded}
+        className={cn(
+          "flex flex-col gap-0.5 px-0.5 pb-0.5 pt-1",
+          "mx-2 border-t",
+          chrome.divider,
+        )}
+      >
+        {items.map((item) => (
+          <NavLink
+            key={item.id}
+            item={item}
+            label={t(item.labelKey)}
+            allHrefs={allHrefs}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NavGroupSection({
+  group,
+  itemsById,
+  isItemVisible,
+  allHrefs,
+  onNavigate,
+}: {
+  group: NavGroup;
+  itemsById: Record<string, NavItem>;
+  isItemVisible: (item: NavItem) => boolean;
+  allHrefs: readonly string[];
+  onNavigate?: () => void;
+}) {
+  const t = useTranslations("nav");
+
+  const resolveItems = (ids: readonly string[]) =>
+    ids
+      .map((id) => itemsById[id])
+      .filter(Boolean)
+      .filter((item) => isItemVisible(item));
+
+  // Permission filter first — subgroups only ever narrow what is already visible.
+  const visibleSubgroups = (group.subgroups ?? [])
+    .map((subgroup) => ({ subgroup, items: resolveItems(subgroup.itemIds) }))
+    .filter((entry) => entry.items.length > 0);
+
+  const expansion = useSubgroupExpansion(
+    visibleSubgroups.map((entry) => ({
+      id: entry.subgroup.id,
+      hrefs: entry.items.map((item) => item.href),
+    })),
+    allHrefs,
+  );
+
+  const items = resolveItems(group.itemIds);
+  if (items.length === 0) return null;
+
+  const headingId = `nav-group-${group.id}`;
+  const heading = group.labelKey ? (
+    <p id={headingId} className={GROUP_HEADING_CLASS}>
+      {t(group.labelKey)}
+    </p>
+  ) : null;
+
+  const body =
+    visibleSubgroups.length > 0 ? (
+      <div className="flex flex-col gap-2.5">
+        {visibleSubgroups.map((entry, index) => (
+          <div key={entry.subgroup.id} className="flex flex-col gap-2.5">
+            <NavSubgroupSection
+              subgroup={entry.subgroup}
+              items={entry.items}
+              allHrefs={allHrefs}
+              expanded={expansion.isExpanded(entry.subgroup.id)}
+              collapsible={expansion.collapsible}
+              containsActive={expansion.activeSubgroupId === entry.subgroup.id}
+              onToggle={() => expansion.toggle(entry.subgroup.id)}
+              onNavigate={onNavigate}
+            />
+            {/* Domain separator — clarifies Wajib Pajak vs Internal without target/filter logic. */}
+            {index < visibleSubgroups.length - 1 ? (
+              <div
+                role="separator"
+                aria-hidden
+                className="mx-3 border-t border-ecmp-border/80"
+                data-testid="nav-domain-separator"
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
+    ) : (
+      items.map((item) => (
+        <NavLink
+          key={item.id}
+          item={item}
+          label={t(item.labelKey)}
+          allHrefs={allHrefs}
+          onNavigate={onNavigate}
+        />
+      ))
+    );
+
+  return (
+    <div
+      role={heading ? "group" : undefined}
+      aria-labelledby={heading ? headingId : undefined}
+      className="flex flex-col gap-0.5"
+    >
+      {heading}
+      {body}
+    </div>
+  );
+}
+
+function NavSections({
+  groups,
+  itemsById,
+  isItemVisible,
+  onNavigate,
+}: {
+  groups: typeof APP_NAV_GROUPS;
+  itemsById: Record<string, NavItem>;
+  isItemVisible: (item: NavItem) => boolean;
+  onNavigate?: () => void;
+}) {
   const tCommon = useTranslations("common");
-  const { groups, itemsById, isItemVisible } = useShellNav();
+  const unreadCount = useUnreadAnnouncementCount();
+  const hqScheduleTodayCount = useHqScheduleTodayCount();
+  const { unreadCases, pusatQueue, pusatFollowUp, hqScheduleUnread } =
+    useCmWorkBadges();
+  const orgUnitBranch = useOrgUnitBranch();
+  const orgUnitCode =
+    orgUnitBranch === undefined ? undefined : (orgUnitBranch?.code ?? null);
+  const isCabangInbox = prefersComplaintNumberIdentity(orgUnitCode);
+  const pendingTransferRequestCount = usePendingTransferRequestCount();
+  const pendingWithdrawRequestCount = usePendingWithdrawRequestCount();
+  const pendingInboxCount = usePendingInboxCount();
+  let itemsWithBadges = itemsById;
+  if (unreadCount > 0 && itemsWithBadges.announcements) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      announcements: { ...itemsWithBadges.announcements, badge: unreadCount },
+    };
+  }
+  if (isCabangInbox && hqScheduleUnread > 0 && itemsWithBadges.hqSchedule) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      hqSchedule: { ...itemsWithBadges.hqSchedule, badge: hqScheduleUnread },
+    };
+  } else if (
+    !isCabangInbox &&
+    hqScheduleTodayCount > 0 &&
+    itemsWithBadges.hqSchedule
+  ) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      hqSchedule: { ...itemsWithBadges.hqSchedule, badge: hqScheduleTodayCount },
+    };
+  }
+  if (pendingTransferRequestCount > 0 && itemsWithBadges.internalAssignments) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      internalAssignments: {
+        ...itemsWithBadges.internalAssignments,
+        badge: pendingTransferRequestCount,
+      },
+    };
+  }
+  if (pendingWithdrawRequestCount > 0 && itemsWithBadges.internalFollowUp) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      internalFollowUp: {
+        ...itemsWithBadges.internalFollowUp,
+        badge: pendingWithdrawRequestCount,
+      },
+    };
+  }
+  if (orgUnitCode !== undefined && itemsWithBadges.internalComplaints) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      internalComplaints: {
+        ...itemsWithBadges.internalComplaints,
+        href: internalComplaintsNavHref(pendingInboxCount),
+        ...(pendingInboxCount > 0 ? { badge: pendingInboxCount } : {}),
+      },
+    };
+  }
+  if (isCabangInbox && unreadCases > 0 && itemsWithBadges.cases) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      cases: { ...itemsWithBadges.cases, badge: unreadCases },
+    };
+  }
+  if (orgUnitCode !== undefined && isCabangInbox && itemsWithBadges.complaints) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      complaints: {
+        ...itemsWithBadges.complaints,
+        href: CM_BATCH1_OPEN_HREF,
+      },
+    };
+  }
+  if (orgUnitCode !== undefined && !isCabangInbox && itemsWithBadges.complaints) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      complaints: {
+        ...itemsWithBadges.complaints,
+        href: CM_BATCH1_PUSAT_UNHANDLED_HREF,
+        ...(pusatQueue > 0 ? { badge: pusatQueue } : {}),
+      },
+    };
+  }
+  if (
+    orgUnitCode !== undefined &&
+    !isCabangInbox &&
+    pusatFollowUp > 0 &&
+    itemsWithBadges.followUp
+  ) {
+    itemsWithBadges = {
+      ...itemsWithBadges,
+      followUp: { ...itemsWithBadges.followUp, badge: pusatFollowUp },
+    };
+  }
+
+  const visibleItems = groups
+    .flatMap((group) => group.itemIds.map((id) => itemsWithBadges[id] ?? itemsById[id]))
+    .filter(Boolean)
+    .filter((item) => isItemVisible(item));
+  const allHrefs = visibleItems.map((item) => item.href);
 
   return (
     <nav
       aria-label={tCommon("primaryNav")}
-      className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4"
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 py-4"
     >
-      {groups.map((group) => {
-        const items = group.itemIds
-          .map((id) => itemsById[id])
-          .filter(Boolean)
-          .filter((item) => isItemVisible(item));
-        if (items.length === 0) return null;
-        const headingId = `nav-group-${group.id}`;
-        return (
-          <div
-            key={group.id}
-            role="group"
-            aria-labelledby={headingId}
-            className="flex flex-col gap-0.5"
-          >
-            <p
-              id={headingId}
-              className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ecmp-muted"
-            >
-              {t(group.labelKey)}
-            </p>
-            {items.map((item) => (
-              <NavLink
-                key={item.id}
-                item={item}
-                label={t(item.labelKey)}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </div>
-        );
-      })}
+      {groups.map((group) => (
+        <NavGroupSection
+          key={group.id}
+          group={group}
+          itemsById={itemsWithBadges}
+          isItemVisible={isItemVisible}
+          allHrefs={allHrefs}
+          onNavigate={onNavigate}
+        />
+      ))}
     </nav>
   );
 }
@@ -227,18 +757,29 @@ export function Sidebar() {
   const { open, setOpen, isDesktop } = useSidebar();
   const closeDrawer = () => setOpen(false);
   const tCommon = useTranslations("common");
-  const { homeHref } = useShellNav();
+  const orgUnitBranch = useOrgUnitBranch();
+  const { groups, itemsById, homeHref, isItemVisible } =
+    useShellNav(orgUnitBranch);
+  const brandUnitLabel = useBrandUnitLabel(orgUnitBranch);
 
   return (
     <>
       <aside
-        className="hidden w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border/80 bg-ecmp-surface lg:flex lg:flex-col"
+        className={cn(
+          "hidden h-full w-[var(--ecmp-sidebar-width)] shrink-0 border-r border-ecmp-border/80 bg-ecmp-surface",
+          // Height comes from AppLayout's h-dvh shell — only <main> scrolls.
+          "lg:flex lg:flex-col lg:overflow-hidden",
+        )}
         aria-label={tCommon("appSidebar")}
       >
         <div className="flex h-[var(--ecmp-header-height)] shrink-0 items-center px-5">
-          <Brand asLink href={homeHref} />
+          <Brand asLink href={homeHref} branchName={brandUnitLabel} />
         </div>
-        <NavSections />
+        <NavSections
+          groups={groups}
+          itemsById={itemsById}
+          isItemVisible={isItemVisible}
+        />
       </aside>
 
       <div
@@ -273,9 +814,15 @@ export function Sidebar() {
               asLink
               href={homeHref}
               onNavigate={isDesktop ? undefined : closeDrawer}
+              branchName={brandUnitLabel}
             />
           </div>
-          <NavSections onNavigate={isDesktop ? undefined : closeDrawer} />
+          <NavSections
+            groups={groups}
+            itemsById={itemsById}
+            isItemVisible={isItemVisible}
+            onNavigate={isDesktop ? undefined : closeDrawer}
+          />
         </aside>
       </div>
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Badge, Card, CardBody, CardHeader } from "@/shared/ui";
 import type { MockComplaint } from "@/features/supervisor-assign/mock/assignmentRepository";
 
@@ -11,6 +11,7 @@ export interface ApprovalContextProps {
 /** Case context + submitted meta (SCR-WS-10). No Timeline / History. */
 export function ApprovalContext({ complaint }: ApprovalContextProps) {
   const t = useTranslations("approvalReview");
+  const locale = useLocale();
 
   return (
     <Card>
@@ -55,7 +56,7 @@ export function ApprovalContext({ complaint }: ApprovalContextProps) {
             </dt>
             <dd className="text-ecmp-text-primary">
               {complaint.submittedAt
-                ? new Date(complaint.submittedAt).toLocaleString()
+                ? new Date(complaint.submittedAt).toLocaleString(locale)
                 : "—"}
             </dd>
           </div>

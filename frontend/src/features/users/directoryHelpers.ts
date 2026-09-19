@@ -1,18 +1,23 @@
 import type { RoleRef, UserRef } from "@/lib/api";
 import type { BadgeTone } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
+import { nameInitials } from "@/shared/utils/initials";
 
 export type DirectoryFilter =
   | "all"
   | "active"
   | "inactive"
   | "administrator"
+  | "manager"
   | "supervisor"
-  | "agent";
+  | "officer"
+  | "viewer";
 
 export type DirectoryRoleFamily =
   | "administrator"
+  | "manager"
   | "supervisor"
-  | "agent"
+  | "officer"
   | "viewer"
   | "other";
 
@@ -22,10 +27,10 @@ export type DirectoryRoleFamily =
  * in the catalog for compatibility but are hidden from operator UX.
  */
 export const CANONICAL_USER_FORM_ROLE_CODES = [
-  "ADMIN",
-  "SUPERVISOR",
-  "BRANCH_SUPERVISOR",
   "AGENT",
+  "SUPERVISOR",
+  "MANAGER",
+  "ADMIN",
   "VIEWER",
 ] as const;
 
@@ -33,7 +38,7 @@ const CANONICAL_USER_FORM_ROLE_ORDER = new Map<string, number>(
   CANONICAL_USER_FORM_ROLE_CODES.map((code, index) => [code, index]),
 );
 
-/** Keep only canonical roles, sorted Admin → Supervisor → Agent → Viewer. */
+/** Keep only canonical roles, sorted CRO → Staff KaSatPel → KaSatPel → Admin → Viewer. */
 export function filterRolesForUserForm(roles: RoleRef[]): RoleRef[] {
   return roles
     .filter((row) => CANONICAL_USER_FORM_ROLE_ORDER.has(row.code))
@@ -44,6 +49,32 @@ export function filterRolesForUserForm(roles: RoleRef[]): RoleRef[] {
     );
 }
 
+export type CanonicalUserFormRoleCode =
+  (typeof CANONICAL_USER_FORM_ROLE_CODES)[number];
+
+export function userFormRoleLabel(
+  code: string,
+  labels: Record<CanonicalUserFormRoleCode, string>,
+  fallback: string,
+): string {
+  if (code in labels) {
+    return labels[code as CanonicalUserFormRoleCode];
+  }
+  return fallback;
+}
+
+export function canonicalUserFormRoleLabels(
+  t: (key: string) => string,
+): Record<CanonicalUserFormRoleCode, string> {
+  return {
+    AGENT: t("roleAgent"),
+    SUPERVISOR: t("roleSupervisor"),
+    MANAGER: t("roleManager"),
+    ADMIN: t("roleAdmin"),
+    VIEWER: t("roleViewer"),
+  };
+}
+
 /** Mirrors backend BRANCH_SCOPED_ROLE_CODES. */
 export const BRANCH_SCOPED_ROLE_CODES = new Set([
   "AGENT",
@@ -51,6 +82,7 @@ export const BRANCH_SCOPED_ROLE_CODES = new Set([
   "BRANCH_OFFICER",
   "SUPERVISOR",
   "BRANCH_SUPERVISOR",
+  "MANAGER",
 ]);
 
 /** Mirrors backend HEAD_OFFICE_SCOPED_ROLE_CODES (Commit 2). */
@@ -77,25 +109,19 @@ export function filterRolesForHomeUnit(
   return roles.filter((row) => !HEAD_OFFICE_SCOPED_ROLE_CODES.has(row.code));
 }
 
+/** Avatar direktori — aturan 3 huruf tunggal, lihat `shared/utils/initials`. */
 export function userInitials(user: Pick<UserRef, "fullName" | "username">): string {
   const name = user.fullName?.trim() || user.username;
-  const parts = name.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
+  return nameInitials(name) ?? "?";
 }
 
-export function formatWhen(value: string | null | undefined): string | null {
+export function formatWhen(
+  value: string | null | undefined,
+  locale: string,
+): string | null {
   if (!value) return null;
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+  const formatted = formatDateTime24(value, locale);
+  return formatted || null;
 }
 
 /** BRANCH_SUPERVISOR presentation override (Commit 5) — role.code and
@@ -117,9 +143,10 @@ export function directoryRoleFamily(
   const hay = roleHaystack(user);
   if (!hay.trim()) return "other";
   if (/(admin|administrator|sysadmin)/.test(hay)) return "administrator";
-  if (/(supervisor|supervisory)/.test(hay)) return "supervisor";
-  if (/(agent|officer|handler)/.test(hay)) return "agent";
-  if (/(viewer|read[_-]?only|readonly)/.test(hay)) return "viewer";
+  if (/(staff\s*kasatpel|supervisor|supervisory)/.test(hay)) return "supervisor";
+  if (/\bmanager\b/.test(hay) || /\bkasatpel\b/.test(hay)) return "manager";
+  if (/(agent|officer|handler|\bcro\b)/.test(hay)) return "officer";
+  if (/(viewer|peninjau|read[_-]?only|readonly)/.test(hay)) return "viewer";
   return "other";
 }
 
@@ -127,9 +154,11 @@ export function directoryRoleTone(family: DirectoryRoleFamily): BadgeTone {
   switch (family) {
     case "administrator":
       return "danger";
+    case "manager":
+      return "primary";
     case "supervisor":
       return "warning";
-    case "agent":
+    case "officer":
       return "info";
     case "viewer":
       return "neutral";
@@ -161,10 +190,14 @@ export function matchesDirectoryFilter(
       return !user.isActive;
     case "administrator":
       return directoryRoleFamily(user) === "administrator";
+    case "manager":
+      return directoryRoleFamily(user) === "manager";
     case "supervisor":
       return directoryRoleFamily(user) === "supervisor";
-    case "agent":
-      return directoryRoleFamily(user) === "agent";
+    case "officer":
+      return directoryRoleFamily(user) === "officer";
+    case "viewer":
+      return directoryRoleFamily(user) === "viewer";
     default:
       return true;
   }
@@ -176,5 +209,29 @@ export function matchesDirectorySearch(user: UserRef, query: string): boolean {
   return (
     user.username.toLowerCase().includes(q) ||
     user.fullName.toLowerCase().includes(q)
+  );
+}
+
+/** Sentinel: do not restrict the directory by unit. */
+export const DIRECTORY_BRANCH_FILTER_ALL = "all";
+
+/**
+ * Admin directory unit filter.
+ * Selecting the Pusat catalog row also includes members with no `branchId`
+ * (Admin Pusat), because the directory already labels those as Pusat.
+ */
+export function matchesDirectoryBranch(
+  user: Pick<UserRef, "branchId">,
+  branchFilter: string,
+  pusatBranchId?: string | null,
+): boolean {
+  if (!branchFilter || branchFilter === DIRECTORY_BRANCH_FILTER_ALL) {
+    return true;
+  }
+  if (user.branchId === branchFilter) return true;
+  return (
+    Boolean(pusatBranchId) &&
+    branchFilter === pusatBranchId &&
+    user.branchId == null
   );
 }

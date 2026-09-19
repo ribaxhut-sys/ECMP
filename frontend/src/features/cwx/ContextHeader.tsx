@@ -13,6 +13,10 @@ export type CwxContextHeaderProps = {
   owner: string;
   slaLabel: string;
   slaTone?: BadgeTone;
+  /** Pre-translated row prefixes — caller owns locale (see `messages/*.json` cwx.contextRowWork/contextRowOwner). */
+  workRowLabel: string;
+  ownerRowLabel: string;
+  slaRowLabel: string;
 };
 
 /**
@@ -28,11 +32,14 @@ export function CwxContextHeader({
   owner,
   slaLabel,
   slaTone = "neutral",
+  workRowLabel,
+  ownerRowLabel,
+  slaRowLabel,
 }: CwxContextHeaderProps) {
   return (
     <header
       data-testid="cwx-context-header"
-      className="sticky top-[var(--ecmp-header-height)] z-20 border-b border-ecmp-border/60 bg-ecmp-background/95 px-1 py-2.5 backdrop-blur-sm"
+      className="sticky top-0 z-20 border-b border-ecmp-border/60 bg-ecmp-background/95 px-1 py-2.5 backdrop-blur-sm"
     >
       {/* Row 1 — identity */}
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -53,15 +60,15 @@ export function CwxContextHeader({
           {priorityLabel}
         </Badge>
         <span className="text-ecmp-text-secondary">
-          <span className="text-ecmp-text-secondary/80">Work </span>
+          <span className="text-ecmp-text-secondary/80">{workRowLabel} </span>
           <span className="font-medium text-ecmp-text-primary">{currentWork}</span>
         </span>
         <span className="text-ecmp-text-secondary">
-          <span className="text-ecmp-text-secondary/80">Owner </span>
+          <span className="text-ecmp-text-secondary/80">{ownerRowLabel} </span>
           <span className="font-medium text-ecmp-text-primary">{owner}</span>
         </span>
         <span className="inline-flex items-center gap-1.5 text-ecmp-text-secondary">
-          <span className="text-ecmp-text-secondary/80">SLA</span>
+          <span className="text-ecmp-text-secondary/80">{slaRowLabel}</span>
           <Badge tone={slaTone} variant="soft">
             {slaLabel}
           </Badge>

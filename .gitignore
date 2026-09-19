@@ -63,6 +63,11 @@ docker-compose.override.yml
 
 # Local attachment blobs (TASK-029 LocalStorageProvider)
 backend/data/attachments/
+backend/storage/
+
+# Lab credential artifacts — never commit
+ecmp-lab-users-temp-passwords.xlsx
+deploy/ecmp-lab-users-temp-passwords.xlsx
 
 # Local S3 migrate/smoke artifacts (dumps, reports)
 backend/_s3_migrate_artifacts/

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   confirmCmBatch1Customer,
   fetchCmBatch1Customer360,
@@ -14,6 +14,8 @@ import {
   type CmBatch1VerificationStatus,
 } from "@/lib/api";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import { IconCopy } from "@/shared/icons";
+import { useToast } from "@/shared/providers";
 import {
   Alert,
   Badge,
@@ -24,15 +26,15 @@ import {
   Input,
   Modal,
   SectionHeader,
-  Select,
   Skeleton,
 } from "@/shared/ui";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import { validateCustomerSearchKey } from "./customerSearchKey";
-
-export type CustomerKeyType =
-  | "customerNumber"
-  | "identityNumber"
-  | "referenceNumber";
+import {
+  formatTaxpayerProfileClipboard,
+  taxpayerIdForClipboard,
+  writeClipboardText,
+} from "./taxpayerProfileClipboard";
 
 export interface CustomerSearchPanelProps {
   confirmedCustomerId: string;
@@ -42,6 +44,8 @@ export interface CustomerSearchPanelProps {
     displayName: string;
   }) => void;
   onCleared: () => void;
+  /** Fired when Customer 360 loads or clears (active complaints for intake banner). */
+  onActiveComplaintsChange?: (complaints: CmBatch1ComplaintBrief[]) => void;
   disabled?: boolean;
 }
 
@@ -84,18 +88,6 @@ function candidatePhone(candidate: CmBatch1CustomerCandidate): string | null {
   return phone || null;
 }
 
-function formatWhen(value: string | null | undefined): string {
-  if (!value) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
 function briefId(row: CmBatch1ComplaintBrief, index: number): string {
   return row.complaintId?.trim() || `complaint-${index}`;
 }
@@ -104,6 +96,16 @@ type HistoryMode = "active" | "all";
 
 /** 5 columns × 5 rows per page for ambiguous candidate picker. */
 const CANDIDATE_PAGE_SIZE = 25;
+
+function seedCandidateFromLock(
+  customerId: string,
+  displayName: string,
+): CmBatch1CustomerCandidate {
+  return {
+    customerId,
+    displayName: displayName.trim() || customerId,
+  };
+}
 
 /**
  * SCR-CM-002 + SCR-CM-006 — Batch-1 customer search and 360 minimum.
@@ -114,12 +116,13 @@ export function CustomerSearchPanel({
   confirmedDisplayName,
   onConfirmed,
   onCleared,
+  onActiveComplaintsChange,
   disabled = false,
 }: CustomerSearchPanelProps) {
   const t = useTranslations("complaints");
   const tCommon = useTranslations("common");
   const tErrors = useTranslations("errors");
-  const [keyType, setKeyType] = useState<CustomerKeyType>("customerNumber");
+  const { push, pushSuccess } = useToast();
   const [keyValue, setKeyValue] = useState("");
   const [searching, setSearching] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -127,7 +130,7 @@ export function CustomerSearchPanel({
   const [status, setStatus] = useState<CmBatch1VerificationStatus | null>(null);
   const [candidates, setCandidates] = useState<CmBatch1CustomerCandidate[]>([]);
   const [candidatePage, setCandidatePage] = useState(1);
-  /** After confirm, hide other matches until agent chooses "change selection". */
+  /** After confirm, hide other matches until officer chooses "change selection". */
   const [showCandidatePicker, setShowCandidatePicker] = useState(true);
   const [selectedCandidateId, setSelectedCandidateId] = useState("");
   const [asOf, setAsOf] = useState<string | null>(null);
@@ -141,15 +144,8 @@ export function CustomerSearchPanel({
   const [savingPhone, setSavingPhone] = useState(false);
   const [phoneInfo, setPhoneInfo] = useState<string | null>(null);
   const [historyMode, setHistoryMode] = useState<HistoryMode | null>(null);
-
-  const keyTypeOptions = useMemo(
-    () => [
-      { value: "customerNumber", label: t("customerNumber") },
-      { value: "identityNumber", label: t("identityNumber") },
-      { value: "referenceNumber", label: t("referenceNumber") },
-    ],
-    [t],
-  );
+  /** Last parent lock id applied into local locked UI (resume / prop sync). */
+  const syncedLockIdRef = useRef("");
 
   const resetSearchState = useCallback(() => {
     setStatus(null);
@@ -167,31 +163,115 @@ export function CustomerSearchPanel({
   }, []);
 
   const clearConfirmation = useCallback(() => {
+    syncedLockIdRef.current = "";
     resetSearchState();
     onCleared();
   }, [onCleared, resetSearchState]);
 
-  async function load360(customerId: string): Promise<void> {
-    setLoading360(true);
-    setPhoneInfo(null);
-    try {
-      const res = await fetchCmBatch1Customer360(customerId);
-      setProfile360(res.data);
-      const profile = (res.data.profile ?? {}) as Record<string, unknown>;
-      setPhoneDraft(
-        profileText(profile, "phone", "phoneNumber", "referenceNumber") ?? "",
-      );
-    } catch (err) {
-      setProfile360(null);
-      setPhoneDraft("");
-      setError(
-        resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
-          t("unableToLoadCustomer360"),
-      );
-    } finally {
-      setLoading360(false);
+  const load360 = useCallback(
+    async (customerId: string): Promise<void> => {
+      setLoading360(true);
+      setPhoneInfo(null);
+      try {
+        const res = await fetchCmBatch1Customer360(customerId);
+        setProfile360(res.data);
+        const profile = (res.data.profile ?? {}) as Record<string, unknown>;
+        setPhoneDraft(
+          profileText(profile, "phone", "phoneNumber", "referenceNumber") ??
+            "",
+        );
+        const customerNumber = profileText(
+          profile,
+          "customerNumber",
+          "customer_number",
+          "externalId",
+        );
+        const nameFromProfile = profileText(
+          profile,
+          "displayName",
+          "fullName",
+          "name",
+        );
+        const phone = profileText(profile, "phone", "phoneNumber");
+        if (customerNumber || nameFromProfile || phone) {
+          setCandidates((prev) => {
+            const idx = prev.findIndex((c) => c.customerId === customerId);
+            if (idx < 0) {
+              return [
+                ...prev,
+                {
+                  customerId,
+                  displayName: nameFromProfile || customerId,
+                  customerNumber: customerNumber ?? null,
+                  phone: phone ?? null,
+                },
+              ];
+            }
+            const current = prev[idx]!;
+            const next: CmBatch1CustomerCandidate = {
+              ...current,
+              displayName:
+                nameFromProfile || current.displayName || customerId,
+              customerNumber:
+                customerNumber ?? current.customerNumber ?? null,
+              phone: phone ?? current.phone ?? null,
+            };
+            if (
+              next.displayName === current.displayName &&
+              next.customerNumber === current.customerNumber &&
+              next.phone === current.phone
+            ) {
+              return prev;
+            }
+            const copy = prev.slice();
+            copy[idx] = next;
+            return copy;
+          });
+        }
+      } catch (err) {
+        setProfile360(null);
+        setPhoneDraft("");
+        setError(
+          resolveApiErrorMessage(err, tErrors, tCommon, "unexpectedError") ||
+            t("unableToLoadCustomer360"),
+        );
+      } finally {
+        setLoading360(false);
+      }
+    },
+    [t, tCommon, tErrors],
+  );
+
+  /**
+   * Parent may restore customerId/name after Back from priority (draft resume)
+   * while this panel remounts with empty local state — re-enter locked UI.
+   */
+  useEffect(() => {
+    const id = confirmedCustomerId.trim();
+    if (!id) {
+      syncedLockIdRef.current = "";
+      return;
     }
-  }
+    if (syncedLockIdRef.current === id) return;
+    syncedLockIdRef.current = id;
+
+    setCandidates((prev) => {
+      if (prev.some((c) => c.customerId === id)) return prev;
+      return [seedCandidateFromLock(id, confirmedDisplayName)];
+    });
+    setSelectedCandidateId(id);
+    setShowCandidatePicker(false);
+    // Draft / parent restore shows a locked WP but may not have a live
+    // server confirm lock — refresh API-503 so Simpan does not 400.
+    void confirmCmBatch1Customer({ customerId: id }).catch(() => {
+      /* selection UI stays; create path will re-confirm and surface errors */
+    });
+    void load360(id);
+  }, [confirmedCustomerId, confirmedDisplayName, load360]);
+
+  useEffect(() => {
+    onActiveComplaintsChange?.(profile360?.activeComplaints ?? []);
+  }, [onActiveComplaintsChange, profile360]);
 
   async function onUpdatePhone(): Promise<void> {
     const customerId = confirmedCustomerId.trim();
@@ -229,6 +309,7 @@ export function CustomerSearchPanel({
       const match = list.find((row) => row.customerId === id);
       const displayName =
         match?.displayName?.trim() || confirmedDisplayName || id;
+      syncedLockIdRef.current = id;
       onConfirmed({ customerId: id, displayName });
       setShowCandidatePicker(false);
       await load360(id);
@@ -265,18 +346,13 @@ export function CustomerSearchPanel({
     setError(null);
     setProfile360(null);
     if (confirmedCustomerId) {
+      syncedLockIdRef.current = "";
       onCleared();
     }
 
     try {
-      const body =
-        keyType === "customerNumber"
-          ? { customerNumber: value }
-          : keyType === "identityNumber"
-            ? { identityNumber: value }
-            : { referenceNumber: value };
-
-      const res = await searchCmBatch1Customer(body);
+      // Unified FR-002 search: name / ID / phone — always one key type (customerNumber).
+      const res = await searchCmBatch1Customer({ customerNumber: value });
       const data = res.data;
       const list = data.candidates ?? [];
       setStatus(data.verificationStatus);
@@ -326,6 +402,50 @@ export function CustomerSearchPanel({
 
   const locked = Boolean(confirmedCustomerId);
   const busy = searching || selecting;
+  const profileRecord = (profile360?.profile ?? {}) as Record<string, unknown>;
+  const profileName =
+    profileText(profileRecord, "displayName", "fullName", "name") ??
+    confirmedDisplayName;
+  const profileCustomerNumber =
+    profileText(
+      profileRecord,
+      "customerNumber",
+      "externalCustomerId",
+      "identityNumber",
+    ) ?? "";
+  const profileEmail =
+    profileText(profileRecord, "email", "emailAddress") ?? "";
+  const profileIdForClipboard = taxpayerIdForClipboard(profileCustomerNumber);
+
+  async function copyToClipboard(
+    text: string,
+    successKey: "taxpayerProfileCopied" | "taxpayerIdCopied",
+  ): Promise<void> {
+    try {
+      await writeClipboardText(text);
+      pushSuccess(t(successKey));
+    } catch {
+      push({ title: t("copyTaxpayerProfileFailed"), tone: "danger" });
+    }
+  }
+
+  async function onCopyProfile(): Promise<void> {
+    const payload = formatTaxpayerProfileClipboard({
+      nama: profileName,
+      idWp: profileCustomerNumber,
+      telepon:
+        phoneDraft.trim() ||
+        profileText(profileRecord, "phone", "phoneNumber") ||
+        "",
+      email: profileEmail,
+    });
+    await copyToClipboard(payload, "taxpayerProfileCopied");
+  }
+
+  async function onCopyTaxpayerId(): Promise<void> {
+    if (!profileIdForClipboard) return;
+    await copyToClipboard(profileIdForClipboard, "taxpayerIdCopied");
+  }
 
   const candidateTotalPages = Math.max(
     1,
@@ -349,11 +469,15 @@ export function CustomerSearchPanel({
     [candidates, selectedCandidateId, confirmedCustomerId],
   );
 
-  /** Full picker while choosing; after lock, only selected unless agent reopens. */
+  /** Full picker while choosing; after lock, only selected unless officer reopens. */
   const showFullCandidateList =
     candidates.length > 0 && (!locked || showCandidatePicker);
+  /** Hide when Profil Wajib Pajak is showing — avoid duplicating name/ID/phone. */
   const showCollapsedSelection =
-    locked && !showCandidatePicker && Boolean(selectedCandidate || confirmedCustomerId);
+    locked &&
+    !showCandidatePicker &&
+    Boolean(selectedCandidate || confirmedCustomerId) &&
+    !(loading360 || profile360);
 
   return (
     <section className="space-y-[var(--ecmp-panel-gap)]">
@@ -372,84 +496,64 @@ export function CustomerSearchPanel({
           />
         ) : null}
 
-        {locked ? (
-          <Alert
-            tone="info"
-            title={t("customerSelected")}
-            description={t("customerSelectedDescription", {
-              name: confirmedDisplayName,
-              id: formatCustomerIdDisplay(
-                candidates.find((c) => c.customerId === confirmedCustomerId)
-                  ? candidateExternalId(
-                      candidates.find(
-                        (c) => c.customerId === confirmedCustomerId,
-                      )!,
-                    )
-                  : confirmedCustomerId,
-              ),
-            })}
-          />
-        ) : null}
-
-        <div
-          className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-3"
-          aria-labelledby="section-customer-search"
-        >
-          <Select
-            name="keyType"
-            id="keyType"
-            label={t("keyType")}
-            options={keyTypeOptions}
-            value={keyType}
-            onChange={(event) => {
-              setKeyType(event.target.value as CustomerKeyType);
-              clearConfirmation();
-            }}
-            disabled={disabled || busy}
-          />
-          <Input
-            name="keyValue"
-            id="keyValue"
-            label={t("keyValue")}
-            required
-            value={keyValue}
-            onChange={(event) => {
-              setKeyValue(event.target.value);
-              if (locked) clearConfirmation();
-            }}
-            onKeyDown={(event) => {
-              // Nested inside CreateComplaintView <form> — Enter must not
-              // submit the outer create form (was causing GET navigation).
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void onSearch(event);
-              }
-            }}
-            disabled={disabled || busy}
-            autoComplete="off"
-            hint={t("keyValueHint")}
-          />
-          <div className="flex items-end gap-2">
-            <Button
-              type="button"
-              loading={searching}
-              disabled={disabled || selecting}
-              aria-label={t("searchCustomerAria")}
-              onClick={(event) => void onSearch(event)}
-            >
-              {searching ? t("searching") : tCommon("search")}
-            </Button>
-            {locked ? (
+        <div className="space-y-[var(--ecmp-form-gap)]">
+          <div
+            className="flex max-w-md flex-col gap-[var(--ecmp-form-gap)] sm:flex-row sm:items-end"
+            aria-labelledby="section-customer-search"
+          >
+            <div className="min-w-0 flex-1">
+              <Input
+                name="keyValue"
+                id="keyValue"
+                label={t("customerSearchFieldLabel")}
+                required
+                value={keyValue}
+                placeholder={t("customerSearchPlaceholder")}
+                onChange={(event) => {
+                  setKeyValue(event.target.value);
+                  if (locked) clearConfirmation();
+                }}
+                onKeyDown={(event) => {
+                  // Nested inside CreateComplaintView <form> — Enter must not
+                  // submit the outer create form (was causing GET navigation).
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void onSearch(event);
+                  }
+                }}
+                disabled={disabled || busy}
+                autoComplete="off"
+                aria-describedby="keyValue-hint"
+              />
+            </div>
+            <div className="flex shrink-0 gap-2">
               <Button
                 type="button"
-                variant="outline"
-                onClick={clearConfirmation}
-                disabled={disabled || busy}
+                loading={searching}
+                disabled={disabled || selecting}
+                aria-label={t("searchCustomerAria")}
+                onClick={(event) => void onSearch(event)}
               >
-                {tCommon("clear")}
+                {searching ? t("searching") : tCommon("search")}
               </Button>
-            ) : null}
+              {locked ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={clearConfirmation}
+                  disabled={disabled || busy}
+                >
+                  {tCommon("clear")}
+                </Button>
+              ) : null}
+            </div>
           </div>
+          <p
+            id="keyValue-hint"
+            className="max-w-md text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary"
+          >
+            {t("keyValueHint")}
+          </p>
         </div>
 
         {status ? (
@@ -491,16 +595,16 @@ export function CustomerSearchPanel({
               <p className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
                 {t("selectedCandidateLabel")}
               </p>
+              <p className="truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {selectedCandidate?.displayName?.trim() ||
+                  confirmedDisplayName}
+              </p>
               <p className="font-mono text-[length:var(--ecmp-font-body-small-size)] font-bold tabular-nums tracking-wide text-ecmp-text-primary">
                 {selectedCandidate
                   ? formatCustomerIdDisplay(
                       candidateExternalId(selectedCandidate),
                     )
                   : formatCustomerIdDisplay(confirmedCustomerId)}
-              </p>
-              <p className="truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                {selectedCandidate?.displayName?.trim() ||
-                  confirmedDisplayName}
               </p>
               {selectedCandidate && candidatePhone(selectedCandidate) ? (
                 <p className="truncate font-mono text-[length:var(--ecmp-font-helper-size)] tabular-nums text-ecmp-text-secondary">
@@ -667,93 +771,112 @@ export function CustomerSearchPanel({
 
         {locked && (loading360 || profile360) ? (
           <div className="space-y-[var(--ecmp-form-gap)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3 text-[length:var(--ecmp-font-body-small-size)]">
-            <h3 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
-              {t("customer360Title")}
-            </h3>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h3 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
+                {t("customer360Title")}
+              </h3>
+              {profile360 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<IconCopy className="size-4" aria-hidden />}
+                  disabled={disabled}
+                  aria-label={t("copyTaxpayerProfileAria")}
+                  onClick={() => void onCopyProfile()}
+                >
+                  {t("copyTaxpayerProfile")}
+                </Button>
+              ) : null}
+            </div>
             {loading360 ? <Skeleton rows={3} /> : null}
             {profile360 ? (
               <div className="space-y-[var(--ecmp-form-gap)]">
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-                  {(() => {
-                    const profile = (profile360.profile ?? {}) as Record<
-                      string,
-                      unknown
-                    >;
-                    const activeCount = profile360.activeComplaints?.length ?? 0;
-                    const totalCount = profile360.complaintCount ?? 0;
-                    return (
-                      <>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("profileName")}
-                          </dt>
-                          <dd className="font-medium text-ecmp-text-primary">
-                            {profileText(
-                              profile,
-                              "displayName",
-                              "fullName",
-                              "name",
-                            ) ?? confirmedDisplayName}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("activeComplaints")}
-                          </dt>
-                          <dd>
-                            <button
-                              type="button"
-                              className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
-                              onClick={() => setHistoryMode("active")}
-                              disabled={disabled}
-                              aria-haspopup="dialog"
-                              aria-label={t("activeComplaintsLinkAria", {
-                                count: activeCount,
-                              })}
-                            >
-                              {t("activeComplaintsLink", {
-                                count: activeCount,
-                              })}
-                            </button>
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("profileCustomerNumber")}
-                          </dt>
-                          <dd className="font-medium text-ecmp-text-primary">
-                            {profileText(
-                              profile,
-                              "customerNumber",
-                              "externalCustomerId",
-                              "identityNumber",
-                            ) ?? "—"}
-                          </dd>
-                        </div>
-                        <div className="space-y-1">
-                          <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                            {t("complaintCount")}
-                          </dt>
-                          <dd>
-                            <button
-                              type="button"
-                              className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
-                              onClick={() => setHistoryMode("all")}
-                              disabled={disabled}
-                              aria-haspopup="dialog"
-                              aria-label={t("complaintHistoryLinkAria", {
-                                count: totalCount,
-                              })}
-                            >
-                              {t("complaintHistoryLink", {
-                                count: totalCount,
-                              })}
-                            </button>
-                          </dd>
-                        </div>
-                      </>
-                    );
-                  })()}
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("profileName")}
+                    </dt>
+                    <dd className="font-medium text-ecmp-text-primary">
+                      {profileName}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("activeComplaints")}
+                    </dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
+                        onClick={() => setHistoryMode("active")}
+                        disabled={disabled}
+                        aria-haspopup="dialog"
+                        aria-label={t("activeComplaintsLinkAria", {
+                          count: profile360.activeComplaints?.length ?? 0,
+                        })}
+                      >
+                        {t("activeComplaintsLink", {
+                          count: profile360.activeComplaints?.length ?? 0,
+                        })}
+                      </button>
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("profileCustomerNumber")}
+                    </dt>
+                    <dd className="flex min-w-0 items-center gap-1 font-medium text-ecmp-text-primary">
+                      <span className="min-w-0 break-all">
+                        {profileCustomerNumber
+                          ? formatCustomerIdDisplay(profileCustomerNumber)
+                          : "—"}
+                      </span>
+                      {profileIdForClipboard ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="!h-8 !min-h-8 shrink-0 px-2"
+                          disabled={disabled}
+                          aria-label={t("copyTaxpayerIdAria")}
+                          title={t("copyTaxpayerIdAria")}
+                          onClick={() => void onCopyTaxpayerId()}
+                        >
+                          <IconCopy className="size-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("complaintCount")}
+                    </dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className="font-medium text-ecmp-primary underline underline-offset-2 hover:text-ecmp-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ecmp-focus"
+                        onClick={() => setHistoryMode("all")}
+                        disabled={disabled}
+                        aria-haspopup="dialog"
+                        aria-label={t("complaintHistoryLinkAria", {
+                          count: profile360.complaintCount ?? 0,
+                        })}
+                      >
+                        {t("complaintHistoryLink", {
+                          count: profile360.complaintCount ?? 0,
+                        })}
+                      </button>
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-[length:var(--ecmp-font-overline-size)] font-[number:var(--ecmp-font-overline-weight)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
+                      {t("profileEmail")}
+                    </dt>
+                    <dd className="break-all font-medium text-ecmp-text-primary">
+                      {profileEmail || "—"}
+                    </dd>
+                  </div>
                 </dl>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div className="w-full max-w-[14rem]">
@@ -849,6 +972,7 @@ function CustomerComplaintHistoryList({
   statusOpenLabel: string;
   statusClosedLabel: string;
 }) {
+  const locale = useLocale();
   if (rows.length === 0) {
     return <Empty title={emptyLabel} description={hint} />;
   }
@@ -862,7 +986,7 @@ function CustomerComplaintHistoryList({
           const id = briefId(row, index);
           const number = row.complaintNumber?.trim() || id;
           const isClosed = (row.status || "").toUpperCase() === "CLOSED";
-          const created = formatWhen(row.createdAt);
+          const created = formatDateTime24(row.createdAt, locale);
           const href = `/complaints/cm/${encodeURIComponent(id)}`;
           return (
             <li

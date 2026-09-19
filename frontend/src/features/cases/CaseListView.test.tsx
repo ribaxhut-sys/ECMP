@@ -5,11 +5,13 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/test/harness";
 
-const fetchCmCase = vi.fn();
+const fetchCmCases = vi.fn();
 const hasPermission = vi.fn((code: string) => code === "complaints:read");
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/complaints/cm/complaint-1/cases",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -38,7 +40,7 @@ vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
   return {
     ...actual,
-    fetchCmCase: (...args: unknown[]) => fetchCmCase(...args),
+    fetchCmCases: (...args: unknown[]) => fetchCmCases(...args),
   };
 });
 
@@ -54,7 +56,8 @@ describe("CaseListView", () => {
   });
 
   beforeEach(() => {
-    fetchCmCase.mockReset();
+    fetchCmCases.mockReset();
+    fetchCmCases.mockResolvedValue({ data: [] });
     hasPermission.mockImplementation((code: string) => code === "complaints:read");
     sessionStorage.clear();
   });
@@ -68,8 +71,8 @@ describe("CaseListView", () => {
   it("shows empty state when no session cases", async () => {
     renderWithProviders(<CaseListView complaintId={COMPLAINT_ID} />);
     await waitFor(() => {
-      expect(screen.getByText(/no cases in this session/i)).toBeInTheDocument();
+      expect(screen.getByText(/no branch work for this complaint yet/i)).toBeInTheDocument();
     });
-    expect(fetchCmCase).not.toHaveBeenCalled();
+    expect(fetchCmCases).toHaveBeenCalled();
   });
 });

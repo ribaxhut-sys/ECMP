@@ -1,9 +1,9 @@
 /**
- * DEC-020 dual SoT — frontend namespace anchors (Mode A).
+ * Namespace path helpers (Mode A).
  *
- * Foundation lifecycle and CM Batch 1 Aggregate are **not** interchangeable.
- * Do not route Aggregate intake through `/api/v1/complaints` create, or vice versa,
- * without a Board Retirement / Cutover DEC. Mode B remains CLOSED.
+ * After DEC-026 M-026-2, Foundation `/api/v1/complaints` HTTP is retired.
+ * Helpers remain so leftover clients are not mistaken for `/api/v1/cm`.
+ * Mode B remains CLOSED.
  */
 
 /** Foundation / Sprint delivery lifecycle (legacy ECMF). */

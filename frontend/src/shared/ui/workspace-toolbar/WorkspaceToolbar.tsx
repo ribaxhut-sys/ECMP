@@ -32,7 +32,9 @@ export function WorkspaceToolbar({
         "flex flex-col gap-2.5 rounded-[var(--ecmp-radius-search)] border border-ecmp-border/80 bg-ecmp-surface/95 px-3 py-2.5 shadow-ecmp-raised backdrop-blur-sm",
         "sm:flex-row sm:items-center sm:justify-between sm:gap-[var(--ecmp-panel-gap)]",
         sticky &&
-          "sticky top-[var(--ecmp-header-height)] z-[calc(var(--ecmp-z-sticky-header)-1)]",
+          // Scrollport is <main> (AppLayout shell), so stick to its top — not
+          // under a document-level header offset.
+          "sticky top-0 z-[calc(var(--ecmp-z-sticky-header)-1)]",
         className,
       )}
       {...props}

@@ -1,13 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
+import { FOUNDATION_RETIRED_CASES_HREF } from "@/features/complaints/foundationRetiredRedirect";
 
-import { Suspense } from "react";
-import { AssignmentListView } from "@/features/assignments";
-import { PageFallback } from "@/shared/ui";
-
+/** DEC-026 M-026-1 — Foundation assignments list is not a product door. */
 export default function AssignmentsPage() {
-  return (
-    <Suspense fallback={<PageFallback titleKey="assignments" />}>
-      <AssignmentListView />
-    </Suspense>
-  );
+  redirect(FOUNDATION_RETIRED_CASES_HREF);
 }

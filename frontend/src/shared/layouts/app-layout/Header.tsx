@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   identityInitials,
+  moduleRoleDisplayLabels,
   primaryRoleLabel,
 } from "@/features/auth/identityHelpers";
 import { isShellUiBatch } from "@/shared/config/uiBatch";
@@ -151,10 +152,15 @@ export function Header() {
   } = useAuth();
   const { toggle, open } = useSidebar();
   const t = useTranslations("header");
+  const tUsers = useTranslations("users");
   const tShell = useTranslations("shell");
   const tCommon = useTranslations("common");
   const displayName = user?.fullName ?? user?.username ?? tCommon("user");
-  const roleLabel = primaryRoleLabel(user, t("roleFallback"));
+  const roleLabel = primaryRoleLabel(
+    user,
+    t("roleFallback"),
+    moduleRoleDisplayLabels(tUsers),
+  );
   const batchB0 = isShellUiBatch() || isMockSession;
   /** B0: no complaint search (out of scope). */
   const canSearch = !batchB0 && hasPermission("complaints:read");

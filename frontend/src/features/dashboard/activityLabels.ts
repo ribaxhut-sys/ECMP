@@ -2,6 +2,8 @@ import type { BadgeTone } from "@/shared/ui";
 
 export type ActivityLabelKey =
   | "activityCreated"
+  | "activityHandlingContinued"
+  | "activityHandlingTakenOver"
   | "activityAssigned"
   | "activityReassigned"
   | "activityUpdated"
@@ -11,6 +13,21 @@ export type ActivityLabelKey =
   | "activityEscalationRequested"
   | "activityEscalationApproved"
   | "activityEscalationRejected"
+  | "activityEscalationCancelled"
+  | "activityHqAccepted"
+  | "activityHqReturned"
+  | "activityHqArrivalScheduled"
+  | "activityCaseCreated"
+  | "activityCaseStatusChanged"
+  | "activityCaseCancelled"
+  | "activityCaseEscalatedToPusat"
+  | "activityCaseEscalationToPusatCancelled"
+  | "activityCaseEscalationReturned"
+  | "activityResolutionUpdated"
+  | "activityHandlingUnitAccepted"
+  | "activityOwnerAccepted"
+  | "activityHandlingUnitRejected"
+  | "activityOwnerRejected"
   | "activityAppointmentBooked"
   | "activityAppointmentCheckedIn"
   | "activityAppointmentCompleted"
@@ -24,6 +41,7 @@ export type ActivityBadgeKey =
   | "activityBadgeNew"
   | "activityBadgeAssigned"
   | "activityBadgeUpdate"
+  | "activityBadgeHandling"
   | "activityBadgeResolved"
   | "activityBadgeEscalation"
   | "activityBadgeAppointment"
@@ -41,6 +59,16 @@ const EVENT_MAP: Record<string, ActivityMeta> = {
     labelKey: "activityCreated",
     badgeKey: "activityBadgeNew",
     statusTone: "info",
+  },
+  "complaint.handling_continued": {
+    labelKey: "activityHandlingContinued",
+    badgeKey: "activityBadgeHandling",
+    statusTone: "primary",
+  },
+  "complaint.handling_taken_over": {
+    labelKey: "activityHandlingTakenOver",
+    badgeKey: "activityBadgeHandling",
+    statusTone: "primary",
   },
   "complaint.assigned": {
     labelKey: "activityAssigned",
@@ -85,6 +113,86 @@ const EVENT_MAP: Record<string, ActivityMeta> = {
   "complaint.escalation_rejected": {
     labelKey: "activityEscalationRejected",
     badgeKey: "activityBadgeEscalation",
+    statusTone: "neutral",
+  },
+  "complaint.escalation_cancelled": {
+    labelKey: "activityEscalationCancelled",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "neutral",
+  },
+  "complaint.hq_accepted": {
+    labelKey: "activityHqAccepted",
+    badgeKey: "activityBadgeAssigned",
+    statusTone: "info",
+  },
+  "complaint.hq_returned": {
+    labelKey: "activityHqReturned",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "warning",
+  },
+  "complaint.hq_arrival_scheduled": {
+    labelKey: "activityHqArrivalScheduled",
+    badgeKey: "activityBadgeAppointment",
+    statusTone: "info",
+  },
+  "complaint.escalated_to_pusat": {
+    labelKey: "activityCaseEscalatedToPusat",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "warning",
+  },
+  "complaint.escalation_to_pusat_cancelled": {
+    labelKey: "activityCaseEscalationToPusatCancelled",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "neutral",
+  },
+  "complaint.escalation_returned": {
+    labelKey: "activityCaseEscalationReturned",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "warning",
+  },
+  "complaint.case_created": {
+    labelKey: "activityCaseCreated",
+    badgeKey: "activityBadgeNew",
+    statusTone: "primary",
+  },
+  "complaint.case_status_changed": {
+    labelKey: "activityCaseStatusChanged",
+    badgeKey: "activityBadgeUpdate",
+    statusTone: "neutral",
+  },
+  "complaint.case_cancelled": {
+    labelKey: "activityCaseCancelled",
+    badgeKey: "activityBadgeOther",
+    statusTone: "neutral",
+  },
+  "complaint.resolution_updated": {
+    labelKey: "activityResolutionUpdated",
+    badgeKey: "activityBadgeResolved",
+    statusTone: "success",
+  },
+  "complaint.handling_unit_accepted": {
+    labelKey: "activityHandlingUnitAccepted",
+    badgeKey: "activityBadgeResolved",
+    statusTone: "success",
+  },
+  "complaint.owner_accepted": {
+    labelKey: "activityOwnerAccepted",
+    badgeKey: "activityBadgeResolved",
+    statusTone: "success",
+  },
+  "complaint.handling_unit_rejected": {
+    labelKey: "activityHandlingUnitRejected",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "danger",
+  },
+  "complaint.owner_rejected": {
+    labelKey: "activityOwnerRejected",
+    badgeKey: "activityBadgeEscalation",
+    statusTone: "danger",
+  },
+  "complaint.other": {
+    labelKey: "activityOther",
+    badgeKey: "activityBadgeOther",
     statusTone: "neutral",
   },
   "complaint.appointment_booked": {

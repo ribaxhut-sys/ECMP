@@ -3,8 +3,20 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError, closeCmCase, type CmCase } from "@/lib/api";
-import { Alert, Button, Modal, ModalSection, Textarea } from "@/shared/ui";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
+import {
+  Alert,
+  Button,
+  Modal,
+  ModalSection,
+} from "@/shared/ui";
+import { useReasonPresets } from "@/shared/hooks";
+import { PresetTextField } from "@/features/complaints/PresetTextField";
 import { emptyCloseCaseForm, toCloseCaseRequest } from "./caseForms";
+
+/** Quick-fill note presets for closing a case (PUBLIC setting, JSON array). */
+const CLOSE_NOTE_PRESET_KEY = "case.close_note_presets";
+const PRESET_KEYS = [CLOSE_NOTE_PRESET_KEY];
 
 export function CloseCaseDialog({
   open,
@@ -18,7 +30,10 @@ export function CloseCaseDialog({
   onClosed?: (caseData: CmCase) => void;
 }) {
   const t = useTranslations("cases");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const [note, setNote] = useState("");
+  const presets = useReasonPresets(PRESET_KEYS);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,7 +58,9 @@ export function CloseCaseDialog({
       onClose();
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : t("closeFailed"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("closeFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -69,11 +86,12 @@ export function CloseCaseDialog({
         <p className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-secondary">
           {t("closeChecklist")}
         </p>
-        <Textarea
+        <PresetTextField
+          presets={presets[CLOSE_NOTE_PRESET_KEY] ?? []}
           name="note"
           label={t("noteOptional")}
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={setNote}
           hint={t("closeHint")}
         />
       </ModalSection>

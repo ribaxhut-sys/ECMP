@@ -14,6 +14,11 @@
 ## Purpose
 Matriks target SLA per case type × priority untuk case management (ECMF). Seluruh nilai adalah **baseline DEC-005** — setiap angka bertanda "(baseline ARB 2026-07-21 — dapat direvisi BO via DEC)". Matriks ini adalah sumber nilai untuk SLA Config runtime dan acuan deteksi breach FR-030.
 
+> ⚠️ **Kolom *Resolution Target* di §1 disupersede oleh [DEC-031](../27%20Project%20Decisions/DEC-031_SLA_Resolution_Target_30_Calendar_Days_v0.1.md)** (2026-08-23, 🟡 Draft — menunggu tanda tangan Business Owner).
+> DEC-031 menetapkan **satu target seragam: 30 hari kalender**, menggantikan 4 jam / 8 jam / 2 hari / 5 hari per prioritas di bawah, dan mengukurnya pada **Complaint** (bukan Case — deviasi tercatat dari BR-006).
+> Kolom *First Response Target* **tidak** disentuh DEC-031 dan tetap seperti tertulis.
+> Nilai per-prioritas di §1 dipertahankan sebagai riwayat baseline; jangan dipakai sebagai target berjalan begitu DEC-031 ditandatangani.
+
 ## 1. SLA Matrix (case type × priority)
 Nilai baseline berlaku seragam untuk COMPLAINT dan INQUIRY (diferensiasi per case type = kandidat revisi BO via DEC). Semua durasi = waktu kalender 24x7 (lihat §2).
 

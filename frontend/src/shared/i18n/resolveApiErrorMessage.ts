@@ -20,6 +20,7 @@ const ERROR_CODE_TO_KEY: Record<string, string> = {
   INTERNAL_ERROR: "internalError",
   METHOD_NOT_ALLOWED: "methodNotAllowed",
   PASSWORD_CHANGE_REQUIRED: "passwordChangeRequired",
+  RESOLUTION_PROPOSAL_PENDING: "resolutionProposalPending",
 };
 
 /**
@@ -58,6 +59,15 @@ export function resolveApiErrorMessage(
     }
     const mapped = ERROR_CODE_TO_KEY[err.code];
     if (mapped) {
+      // Prefer the server's localized validation text when present — codes
+      // alone hide actionable messages (e.g. customer confirm lock required).
+      if (
+        err.code === "VALIDATION_ERROR" &&
+        typeof err.message === "string" &&
+        err.message.trim()
+      ) {
+        return err.message.trim();
+      }
       return tErrors(mapped);
     }
     return tErrors(fallbackKey);

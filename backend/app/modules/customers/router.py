@@ -59,7 +59,7 @@ def update_customer_phone(
     body: CustomerPhoneUpdateRequest,
     service: Annotated[CustomerService, Depends(get_customer_service)],
     principal: Annotated[
-        Principal, Depends(require_permissions("complaints:create"))
+        Principal, Depends(require_permissions("customers:update"))
     ],
 ) -> DataResponse[CustomerResponse]:
     """Mutates lab ``customers`` cache only — not Enterprise Customer Master (ADR-002)."""

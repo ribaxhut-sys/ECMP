@@ -10,7 +10,7 @@
 | Status | 🟢 Locked |
 | Last Review | 2026-08-05 |
 | Next Review | 2026-10-29 |
-| Related DEC | [DEC-F4](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md) (**detail Reserved** for Mode A force until Board countersign / DL-012 — see BR-007 note; path Branch↔HO remains binding); [DEC-BQ001](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md) (Case Aggregate SoT / Option O3 APPROVED); [DEC-MODEA-B2-001](../18%20Architecture%20Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md) (Mode A Delivery Baseline BQ lock — CAP-008) |
+| Related DEC | [DEC-F4](../18%20Architecture%20Governance/reviews/ECMP_DEC_F4_Escalation_Visibility_Return_v1.0.md) (**detail Reserved** for Mode A force until Board countersign / DL-012 — see BR-007 note; path Branch↔HO remains binding); [DEC-BQ001](../18%20Architecture%20Governance/reviews/ECMP_DEC_BQ001_Case_State_Machine_O3_v1.0.md) (Case Aggregate SoT / Option O3 APPROVED); [DEC-MODEA-B2-001](../18%20Architecture%20Governance/reviews/ECMP_DEC_ModeA_Delivery_Baseline_BQ_Lock_Pack_v1.0.md) (Mode A Delivery Baseline BQ lock — CAP-008); [DEC-028](../27%20Project%20Decisions/DEC-028_Case_Number_Unit_Month_and_HQ_Destination_v0.1.md) (BQ-004 format + HQ destination) |
 | Related Governance Baseline | `docs/governance/BC-000-Business-Constitution.md`; `docs/governance/BC-001-Business-Principles.md`; `docs/governance/BC-002-Business-Rules.md`; `docs/governance/BC-003-Business-Glossary.md`; `docs/business/BW-000-Business-Workflow-Constitution.md` |
 | Precedence | If this catalog conflicts with the approved Mode A governance baseline (BC-000…BC-003, BW-000), **the baseline prevails**. This document remains the Complaint Aggregate domain catalog under dual-SoT (DEC-BQ001 O3 / DEC-020). |
 
@@ -22,7 +22,7 @@
 |---|---|
 | BQ-002 | Complaint MAY register without Case; MUST have ≥1 Case within **1 working day** after `REGISTERED` (BC-5.4 timing threshold; **not** activation of Working Day SLA calendar); Supervisor Queue MUST show exceedances |
 | BQ-003 | Default max Cases per Complaint = **5**; future override outside Mode A |
-| BQ-004 | Case Number independent of Complaint Number; format **`CASE-YYYY-NNNNNN`** |
+| BQ-004 | Case Number independent of Complaint Number; format **`UNIT-YYMM-NNNN`** (complaint **`CM{UNIT}-YYMM-NNNN`**) — DEC-028 |
 | BQ-005 | Case SHALL bind SLA Policy Version; SLA countdown **NOT** activated in Mode A |
 | BQ-006 | Assignment at **Unit level only**; Assigned User outside Mode A |
 | BQ-007 | Close Case ≠ auto Close Complaint |

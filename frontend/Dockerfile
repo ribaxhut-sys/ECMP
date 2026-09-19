@@ -17,6 +17,12 @@ RUN if [ -z "$NEXT_PUBLIC_API_BASE_URL" ]; then \
       exit 1; \
     fi
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+# Lab Mode A surface label (dashboard). Production compose overrides to production.
+ARG NEXT_PUBLIC_ECMP_SURFACE=lab
+ENV NEXT_PUBLIC_ECMP_SURFACE=$NEXT_PUBLIC_ECMP_SURFACE
+# Pengaduan Internal UI gate (baked at build time for Next.js).
+ARG NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI=false
+ENV NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI=$NEXT_PUBLIC_ECMP_INTERNAL_COMPLAINTS_UI
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

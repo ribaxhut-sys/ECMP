@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.dependencies.events import get_event_dispatcher
-from app.modules.complaints.repository import ComplaintRepository
-from app.modules.complaints.service import ComplaintService
+from app.modules.dashboard.providers.cm_batch1_activity_provider import (
+    CmBatch1ActivityDashboardProvider,
+)
 from app.modules.dashboard.providers.complaint_provider import (
     ComplaintDashboardProvider,
 )
@@ -20,10 +20,6 @@ from app.modules.kpi.repository import KpiRepository
 from app.modules.kpi.service import KpiService
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.service import SettingsService
-from app.modules.sla.repository import SlaRepository
-from app.modules.sla.service import SlaService
-from app.modules.timelines.repository import TimelineRepository
-from app.modules.timelines.service import TimelineService
 
 
 def build_dashboard_service(session: Session) -> DashboardService:
@@ -33,11 +29,6 @@ def build_dashboard_service(session: Session) -> DashboardService:
         sla_provider=SlaDashboardProvider(session),
         notification_provider=NotificationDashboardProvider(session),
         kpi_service=KpiService(KpiRepository(session)),
-        timeline_service=TimelineService(TimelineRepository(session)),
-        complaint_service=ComplaintService(
-            ComplaintRepository(session),
-            SlaService(SlaRepository(session)),
-            event_dispatcher=get_event_dispatcher(),
-        ),
+        activity_provider=CmBatch1ActivityDashboardProvider(session),
         settings_service=SettingsService(SettingsRepository(session)),
     )

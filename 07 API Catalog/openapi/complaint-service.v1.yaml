@@ -10,10 +10,11 @@ info:
     and workflow-engine APIs are out of scope. Identity & Password Management
     (API-410–413: forgot/reset/change/admin-reset password; force password change;
     EmailService logging provider) is in scope.
-    Ownership (DEC-020 Accepted): `/api/v1/complaints` is the canonical foundation /
-    Sprint delivery lifecycle namespace. It is NOT interchangeable with Aggregate
-    intake under `/api/v1/cm` (complaint-management-batch1). Controlled coexistence
-    until an explicit Retirement/Cutover DEC.
+    Ownership (DEC-026 Accepted with Conditions, M-026-2): `/api/v1/complaints`
+    lifecycle is **retired / unmounted** in production. Canonical complaint HTTP
+    is `/api/v1/cm` (complaint-management-batch1). This catalog remains historical
+    for foundation path contracts; do not treat those paths as live product APIs.
+    CA BC ticket-nested routes are not retired by DEC-026.
     SLA foundation read (API-314), SLA policy configuration (API-315–317),
     SLA deadline calculation at complaint create (TASK-023 / DEC-012),
     SLA status evaluation / breach detection (TASK-024 / DEC-013),
@@ -41,9 +42,9 @@ info:
     Error responses use the Error envelope {code, message, details} for ALL 4xx/5xx
     (`details` may be null). Success responses use {data} or {data, meta} wrappers.
   x-ear-id: API-200
-  x-ecmp-dec: DEC-020
-  x-ecmp-ownership: Foundation / legacy complaint lifecycle
-  x-ecmp-status: Implemented (production foundation)
+  x-ecmp-dec: DEC-026
+  x-ecmp-ownership: Foundation / legacy complaint lifecycle (HTTP retired)
+  x-ecmp-status: Retired unmounted (DEC-026 M-026-2) — catalog historical
 servers:
   - url: http://localhost:8000
     description: Local development
@@ -1928,6 +1929,59 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/dashboard/aggregate-kpis:
+    get:
+      summary: Aggregate (CM Batch-1) complaint KPI counts
+      operationId: getDashboardAggregateKpis
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        DEC-020 coexistence: complaint KPI counts from the CM Batch-1 Aggregate
+        (`cm_batch1_complaints`), not the legacy `complaints` table.
+        Requires `dashboard:read` only — branch Manager (BC-8.4) can view
+        own-branch numbers without `complaints:read` / list access.
+        Branch-scoped principals are locked to their own branch via
+        `_effective_branch_id` (same convention as recent-activity / UM-BUG-009).
+        Head Office (no own branch) may pass `branchId` or omit for all branches.
+        Optional `dateFrom`/`dateTo` narrow every count to a registration window
+        (`created_at`), so /reports can report per period from this same SoT
+        (DEC-026). Omitted = all time, which is what the dashboard sends.
+      parameters:
+        - name: branchId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional branch filter (ignored / overridden for branch-scoped principals).
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Aggregate complaint KPI counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardAggregateKpiDataResponse"
+              example:
+                data:
+                  total: 16
+                  open: 8
+                  closed: 6
+                  escalatePending: 4
+                  waitingAssignment: 3
+                  escalateApproved: 1
+                  escalateScheduled: 0
+                  hqAcceptedOpen: 0
+                  returnedToBranch: 0
+                  inProgress: 2
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/dashboard/overview:
     get:
       summary: Dashboard overview composition
@@ -2086,7 +2140,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [Complaint, Queue, Notification]
+            enum: [Complaint, Queue, Notification, InternalComplaint]
         - name: aggregateId
           in: query
           required: false
@@ -2124,8 +2178,10 @@ paths:
       description: |
         Multipart upload of a file bound to any aggregate via
         `aggregateType` + `aggregateId` (CAPABILITY-011). Validates size
-        (settings `storage.max.upload.mb`), MIME (`storage.allowed.mime`),
-        extension, and rejects empty files. Computes SHA-256 checksum
+        (settings `storage.max.upload.mb`, default 50), MIME (`storage.allowed.mime`),
+        extension, and rejects empty files. ZIP (`application/zip`, including
+        Windows aliases) is stored as an opaque blob and is never extracted.
+        Computes SHA-256 checksum
         and stores bytes through StorageProvider under
         `yyyy/mm/<uuid>.<ext>` (`storage.provider` / `storage.root.path`).
         Requires `attachment:create`.
@@ -2139,7 +2195,7 @@ paths:
               properties:
                 aggregateType:
                   type: string
-                  enum: [Complaint, Queue, Notification]
+                  enum: [Complaint, Queue, Notification, InternalComplaint]
                   description: Owning aggregate type
                   example: Complaint
                 aggregateId:
@@ -3488,9 +3544,13 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        Aggregate complaint totals with counts for every `ComplaintStatus`.
-        Soft-deleted complaints are excluded. Date filters apply to `reportedAt`.
-        Requires permission `reports:read`.
+        Aggregate complaint totals with counts for every Aggregate lifecycle
+        status (`REGISTERED | IN_PROGRESS | CLOSED`, DEC-025 §3.3).
+        Intake path (HQ scheduled, escalate-pending, …) is not collapsed into
+        Foundation labels here — use `GET /api/v1/dashboard/aggregate-kpis`.
+        Date filters apply to complaint `createdAt`. Requires `reports:read`.
+        Cabang callers are locked to their home unit regardless of `branchId`.
+        Pusat / Head Office may omit `branchId` (every unit) or pick one.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3519,9 +3579,11 @@ paths:
       security:
         - bearerAuth: []
       description: |
-        SQL `COUNT` + `GROUP BY status`. Returns one row per `ComplaintStatus`
-        (zero when absent). Soft-deleted complaints are excluded.
-        Requires permission `reports:read`.
+        SQL `COUNT` grouped onto Aggregate lifecycle
+        (`REGISTERED | IN_PROGRESS | CLOSED`). One row per status (zero when
+        absent). Date filters apply to complaint `createdAt`.
+        Requires permission `reports:read`. Cabang callers are locked to their
+        home unit; Pusat / Head Office may omit `branchId` or pick one.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
         - $ref: "#/components/parameters/ReportDateFrom"
@@ -3543,15 +3605,22 @@ paths:
           $ref: "#/components/responses/InternalError"
   /api/v1/reports/by-branch:
     get:
-      summary: Complaint counts by branch
+      summary: Complaint and case counts by branch
       operationId: getReportByBranch
       x-ear-id: API-212
       tags: [Reports]
       security:
         - bearerAuth: []
       description: |
-        SQL `COUNT` + `GROUP BY branch`. Sorted by `total` descending.
-        Complaints without a branch appear with null branch fields.
+        SQL `COUNT` + `GROUP BY` owning unit. Sorted by branch-resolution
+        percent (caseClosed/caseTotal) descending, then complaint volume.
+        Cabang callers are locked to their home unit. Pusat / Head Office may
+        omit `branchId` (every unit) or pick one.
+        Each row includes complaint totals and CM case metrics so Kesehatan
+        Cabang can show total cases, resolved-at-branch, and open escalations.
+        `caseClosed` = CLOSED cases not escalated to Pusat (plus no-Case
+        complaints CLOSED off the HQ/escalation-active path). `escalated` =
+        open complaints still on ESCALATION_ACTIVE dispositions.
         Soft-deleted complaints are excluded. Requires permission `reports:read`.
       parameters:
         - $ref: "#/components/parameters/ReportBranchId"
@@ -3564,6 +3633,190 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BranchCountListDataResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/cycle-time:
+    get:
+      summary: Cycle time of closed cases
+      operationId: getReportCycleTime
+      x-ear-id: API-545
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        How long closed CM cases took, measured from case `createdAt` to
+        `closedAt` and reported in days (average, median, p90, fastest,
+        slowest) plus an age-band distribution.
+        The `dateFrom`/`dateTo` window filters on **closure** date, not
+        creation: a case opened in June and closed in August belongs to
+        August. Complaints carry no `closedAt`, so cycle time is measured on
+        Cases — the unit that records closure time.
+        An empty window returns `closedCases: 0` with zeroed buckets, not 404.
+        Requires permission `reports:read`. Cabang callers are locked to their
+        home unit; Pusat / Head Office may omit `branchId` or pick one.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Cycle time summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CycleTimeDataResponse"
+              example:
+                data:
+                  closedCases: 10
+                  averageDays: 4.1
+                  medianDays: 4.0
+                  p90Days: 7.4
+                  fastestDays: 0.5
+                  slowestDays: 9.0
+                  buckets:
+                    - { key: sameDay, count: 2 }
+                    - { key: upTo3Days, count: 3 }
+                    - { key: upTo7Days, count: 4 }
+                    - { key: over7Days, count: 1 }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/by-user:
+    get:
+      summary: Complaint work counts by user
+      operationId: getReportByUser
+      x-ear-id: API-547
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        Per-officer operational activity in the report window (BR-020
+        workload handler). Not a login or identity-directory dump.
+        Each row is an actor who registered a complaint, decided an
+        intake escalation, closed a case, or wrote a CAPABILITY-010
+        timeline event — scoped to the same owning unit as API-210.
+        Cabang callers are locked to their home unit; Pusat / Head
+        Office may omit `branchId` (every unit) or pick one.
+        Created counts filter on complaint `createdAt`; decided on
+        `decidedAt`; closed on case `closedAt`; activity on timeline
+        `createdAt`. SYSTEM / empty actors are omitted. At most 200
+        rows, ordered by activity then created volume.
+        Requires permission `reports:read`.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+      responses:
+        "200":
+          description: Per-user activity rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserActivityCountListDataResponse"
+              example:
+                data:
+                  - userId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    displayName: "Ani Petugas"
+                    username: "ani"
+                    branchId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    branchName: "UPPPD Tanah Abang"
+                    createdCount: 3
+                    decidedCount: 1
+                    closedCount: 2
+                    activityCount: 9
+                    lastActivityAt: "2026-08-18T03:00:00Z"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/print:
+    get:
+      summary: Export report to PDF
+      operationId: printReport
+      x-ear-id: API-546
+      tags: [Reports]
+      security:
+        - bearerAuth: []
+      description: |
+        Server-rendered PDF of the `/reports` window (not a Case snapshot —
+        that is API-539). Same `reports:read` gate as API-210. Cabang callers
+        are locked to their home unit regardless of `branchId`; Pusat / Head
+        Office may omit `branchId` (every unit) or pick one. Optional
+        `dateFrom` / `dateTo` filters match API-210.
+        `category` selects the slice: `all`, `created`, `resolved`,
+        `escalated`. `other` is a reserved placeholder with no predicate
+        yet and renders a pending notice rather than inventing a count.
+        `periodLabel` is display-only (copied into the PDF header).
+        Created/escalated counts filter on complaint `createdAt`;
+        resolved counts filter on `closedAt`.
+        Category `all` also prints the API-547 officer-activity table
+        (top 15 rows of the same window).
+        Optional `lang` is `id` (default) or `en` and selects PDF copy;
+        `periodLabel` is still supplied by the client in the operator language.
+        Optional `compareDateFrom`/`compareDateTo` add a previous-window
+        delta line (same predicates as the selected category). Omit both
+        for all-time reports that have no predecessor.
+      parameters:
+        - $ref: "#/components/parameters/ReportBranchId"
+        - $ref: "#/components/parameters/ReportDateFrom"
+        - $ref: "#/components/parameters/ReportDateTo"
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ReportPrintCategory"
+        - name: periodLabel
+          in: query
+          required: false
+          description: Operator-facing period caption copied into the PDF header
+          schema: { type: string, maxLength: 80, default: "Seluruh periode" }
+        - name: lang
+          in: query
+          required: false
+          description: PDF copy language (`id` default; `en` / `en-*` → English)
+          schema: { type: string, maxLength: 16, default: "id" }
+        - name: compareDateFrom
+          in: query
+          required: false
+          description: Inclusive start of the previous window for delta copy
+          schema: { type: string, format: date-time }
+        - name: compareDateTo
+          in: query
+          required: false
+          description: Inclusive end of the previous window for delta copy
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Report PDF
+          headers:
+            Content-Disposition:
+              description: >
+                attachment; filename="laporan-pengaduan-{category}-{YYYY-MM-DD}.pdf"
+                (YYYY-MM-DD in Asia/Jakarta)
+              schema: { type: string }
+            Cache-Control:
+              description: no-store
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -4073,6 +4326,9 @@ components:
       name: branchId
       in: query
       required: false
+      description: >
+        Optional unit filter. Some principals are locked to their home unit
+        server-side regardless of this value.
       schema: { type: string, format: uuid }
     ReportDateFrom:
       name: dateFrom
@@ -4123,6 +4379,20 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    AggregateComplaintStatus:
+      type: string
+      enum: [REGISTERED, IN_PROGRESS, CLOSED]
+      description: |
+        CM Aggregate complaint lifecycle (DEC-025 §3.3). API-210 and API-211
+        emit only these values. Foundation `ComplaintStatus` (NEW, ASSIGNED,
+        PENDING, ESCALATED, RESOLVED) is not used on the report wire.
+    ReportPrintCategory:
+      type: string
+      enum: [all, created, resolved, escalated, other]
+      default: all
+      description: |
+        Slice of the `/reports` PDF window (API-546). `other` is reserved
+        (no predicate yet) and renders a pending notice.
     Priority:
       type: string
       enum: [LOW, MEDIUM, HIGH, CRITICAL]
@@ -5119,7 +5389,85 @@ components:
         complaintNumber: { type: string }
         timestamp: { type: string, format: date-time }
         actor: { type: string }
+        caseNumber:
+          type: string
+          nullable: true
+          description: Case number when the event is scoped to one Case
       description: Latest timeline event (max 10 on dashboard summary).
+    DashboardAggregateKpis:
+      type: object
+      required:
+        - total
+        - open
+        - closed
+        - escalatePending
+        - waitingAssignment
+        - escalateApproved
+        - escalateScheduled
+        - hqAcceptedOpen
+        - returnedToBranch
+        - inProgress
+      properties:
+        total: { type: integer, minimum: 0 }
+        open: { type: integer, minimum: 0, description: status=REGISTERED }
+        closed: { type: integer, minimum: 0, description: status=CLOSED }
+        escalatePending:
+          type: integer
+          minimum: 0
+          description: >
+            REGISTERED and intakeDisposition=ESCALATE_PENDING_APPROVAL
+            (exclusive of IN_PROGRESS / CLOSED)
+        waitingAssignment:
+          type: integer
+          minimum: 0
+          description: >
+            REGISTERED and not held in ESCALATION_ACTIVE
+            (pending approval, approved, or HQ_SCHEDULED)
+        escalateApproved:
+          type: integer
+          minimum: 0
+          description: >
+            REGISTERED and intakeDisposition=ESCALATE_APPROVED
+            (exclusive of IN_PROGRESS / CLOSED)
+        escalateScheduled:
+          type: integer
+          minimum: 0
+          description: >
+            Not CLOSED and intakeDisposition=HQ_SCHEDULED — still on the
+            escalation path (usually IN_PROGRESS with a bound Case)
+        hqAcceptedOpen:
+          type: integer
+          minimum: 0
+          description: >
+            Open and already accepted by Pusat (hq_accepted_at set or
+            intakeDisposition=HQ_SCHEDULED). Cabang dashboard excludes
+            these from its work book; Pusat keeps them. DEC-025
+            open+closed=total is unchanged on this wire.
+        returnedToBranch:
+          type: integer
+          minimum: 0
+          description: >
+            Open and intakeDisposition=RETURNED_TO_BRANCH. Cabang queue
+            health uses this as its own work row. Not a donut slice —
+            those rows stay in waitingAssignment / inProgress so the
+            partition still sums to total.
+        inProgress:
+          type: integer
+          minimum: 0
+          description: >
+            status=IN_PROGRESS and intakeDisposition is not HQ_SCHEDULED
+      description: |
+        DEC-020 Aggregate complaint KPI counts for dashboard cards.
+        Branch scope = Aggregate owningUnitId matched to Branch.code
+        (aligned with CM Batch-1 list visibility; not creator membership).
+        Donut slices must use waitingAssignment / escalatePending /
+        escalateApproved / escalateScheduled / inProgress / closed —
+        not a single "NEW" bucket.
+    DashboardAggregateKpiDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/DashboardAggregateKpis" }
     DashboardSummary:
       type: object
       required: [header, sla, recentActivity]
@@ -5326,7 +5674,7 @@ components:
         id: { type: string, format: uuid }
         aggregateType:
           type: string
-          enum: [Complaint, Queue, Notification]
+          enum: [Complaint, Queue, Notification, Announcement, Knowledge, InternalComplaint]
         aggregateId: { type: string, format: uuid }
         fileName:
           type: string
@@ -5737,16 +6085,36 @@ components:
       type: object
       required: [status, count]
       properties:
-        status: { $ref: "#/components/schemas/ComplaintStatus" }
+        status: { $ref: "#/components/schemas/AggregateComplaintStatus" }
         count: { type: integer, minimum: 0 }
     BranchCount:
       type: object
-      required: [total]
+      required: [total, open, closed, caseTotal, caseOpen, caseClosed]
       properties:
         branchId: { type: string, format: uuid, nullable: true }
         branchCode: { type: string, nullable: true }
         branchName: { type: string, nullable: true }
-        total: { type: integer, minimum: 0 }
+        unitCode:
+          type: string
+          nullable: true
+          description: Stable 3-letter unit code (matches complaint number prefix, e.g. "TAB")
+        total: { type: integer, minimum: 0, description: Complaint total }
+        open: { type: integer, minimum: 0, description: Complaints not CLOSED }
+        closed: { type: integer, minimum: 0, description: Complaints CLOSED }
+        escalated:
+          type: integer
+          minimum: 0
+          description: >
+            Open (not CLOSED) complaints still on the active escalation path
+            (pending approval, approved, or HQ scheduled)
+        caseTotal: { type: integer, minimum: 0, description: CM case total }
+        caseOpen: { type: integer, minimum: 0, description: Cases not CLOSED }
+        caseClosed:
+          type: integer
+          minimum: 0
+          description: >
+            Cases resolved at branch (CLOSED and not escalatedToPusat), plus
+            no-Case complaints CLOSED outside HQ/active-escalation dispositions
     ReportSummary:
       type: object
       required: [total, byStatus]
@@ -5767,6 +6135,79 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/StatusCount" }
+    CycleTimeBucket:
+      type: object
+      required: [key, count]
+      properties:
+        key:
+          type: string
+          description: Age band — sameDay (<1d), upTo3Days, upTo7Days, over7Days
+        count: { type: integer, minimum: 0 }
+    CycleTime:
+      type: object
+      required: [closedCases, buckets]
+      properties:
+        closedCases:
+          type: integer
+          minimum: 0
+          description: Cases closed inside the window (basis of every figure below)
+        averageDays: { type: number, nullable: true }
+        medianDays: { type: number, nullable: true }
+        p90Days: { type: number, nullable: true }
+        fastestDays: { type: number, nullable: true }
+        slowestDays: { type: number, nullable: true }
+        buckets:
+          type: array
+          items: { $ref: "#/components/schemas/CycleTimeBucket" }
+    CycleTimeDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/CycleTime" }
+    UserActivityCount:
+      type: object
+      required:
+        - userId
+        - displayName
+        - createdCount
+        - decidedCount
+        - closedCount
+        - activityCount
+      properties:
+        userId:
+          type: string
+          description: Actor key (directory UUID or legacy created_by string)
+        displayName: { type: string }
+        username: { type: string, nullable: true }
+        branchId: { type: string, format: uuid, nullable: true }
+        branchName: { type: string, nullable: true }
+        createdCount:
+          type: integer
+          minimum: 0
+          description: Complaints registered by this actor in the window
+        decidedCount:
+          type: integer
+          minimum: 0
+          description: Intake-escalation decisions by this actor in the window
+        closedCount:
+          type: integer
+          minimum: 0
+          description: Cases closed by this actor in the window
+        activityCount:
+          type: integer
+          minimum: 0
+          description: CAPABILITY-010 timeline events authored in the window
+        lastActivityAt:
+          type: string
+          format: date-time
+          nullable: true
+    UserActivityCountListDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/UserActivityCount" }
     BranchCountListDataResponse:
       type: object
       required: [data]
@@ -5842,6 +6283,7 @@ components:
         - isActive
         - createdAt
         - updatedAt
+        - initials
       properties:
         id: { type: string, format: uuid }
         username: { type: string }
@@ -5856,6 +6298,13 @@ components:
         lastLoginAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        initials:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: >
+            Unique 3-letter avatar code assigned at registration. Inactive and
+            soft-deleted users keep the code so it cannot be reused.
         preferredLanguage:
           type: string
           enum: [id, en]

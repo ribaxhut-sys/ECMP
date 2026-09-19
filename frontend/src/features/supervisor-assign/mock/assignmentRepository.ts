@@ -207,7 +207,7 @@ export const MOCK_UNITS: readonly MockUnit[] = [
   { id: "unit-ops-network", name: "Ops Network", openWorkload: 11 },
 ] as const;
 
-/** Customer reference cache (read-only). Not Customer Master write. */
+/** Taxpayer reference cache (read-only). Not Customer Master write. */
 export const MOCK_CUSTOMERS: readonly MockCustomer[] = [
   {
     ref: "CUST-1001",
@@ -1125,7 +1125,7 @@ export function getCustomerByRef(ref: string): MockCustomer | undefined {
   return MOCK_CUSTOMERS.find((c) => c.ref === ref);
 }
 
-/** Customer reference lookup (cache/reference only — no master write). */
+/** Taxpayer reference lookup (cache/reference only — no master write). */
 export function searchCustomers(query: string): MockCustomer[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
@@ -1139,7 +1139,7 @@ export function searchCustomers(query: string): MockCustomer[] {
 }
 
 /**
- * Active cases for a customer reference (SCR-WS-01 → SCR-WS-02 routing).
+ * Active cases for a taxpayer reference (SCR-WS-01 → SCR-WS-02 routing).
  * Excludes CLOSED (and reopen-pending CLOSED) — those route to SCR-WS-03.
  */
 export function listActiveCasesByCustomerRef(
@@ -1162,7 +1162,7 @@ export function listActiveCasesByCustomerRef(
 }
 
 /**
- * Closed cases for a customer (SCR-WS-01 → SCR-WS-03 reopen routing).
+ * Closed cases for a taxpayer (SCR-WS-01 → SCR-WS-03 reopen routing).
  * Prefer cases without an active reopen pending when selecting a target.
  */
 export function listClosedCasesByCustomerRef(
@@ -1396,7 +1396,7 @@ function isIntakeComplete(input: IntakeFormInput): boolean {
 
 /**
  * B3 — Forward / Register when complete → REGISTERED.
- * Blocks when the customer already has an active case (use Follow-up).
+ * Blocks when the taxpayer already has an active case (use Follow-up).
  */
 export function registerIntake(
   input: IntakeFormInput,

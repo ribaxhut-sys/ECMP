@@ -35,6 +35,15 @@
   --ecmp-color-info-foreground: #ffffff;
   --ecmp-color-info-muted: #e0f2fe;
 
+  /* ── Chart categorical series (validated set, fixed order — see dataviz
+     skill palette.md). Distinct from the semantic tokens above: these carry
+     series identity, never status/state. ── */
+  --ecmp-chart-series-1: #2a78d6;
+  --ecmp-chart-series-2: #eb6834;
+  --ecmp-chart-series-3: #1baf7a;
+  --ecmp-chart-series-4: #eda100;
+  --ecmp-chart-series-5: #7c3aed;
+
   /* ── Surface system ── */
   --ecmp-color-background: #f1f5f9;
   --ecmp-color-surface: #ffffff;
@@ -228,6 +237,9 @@
   --ecmp-focus-ring-offset: 2px;
   --ecmp-focus-ring-color: var(--ecmp-color-focus);
 
+  /* Tabel — default mengikuti body; boleh diturunkan per-tabel (mis. 0.9375rem). */
+  --ecmp-font-table-size: var(--ecmp-font-body-size);
+
   /* ── Density (tokens only — no UI switch in Phase 0) ── */
   --ecmp-density-comfortable-row: 48px;
   --ecmp-density-compact-row: 36px;
@@ -268,6 +280,12 @@
   --ecmp-color-info: #38bdf8;
   --ecmp-color-info-foreground: #082f49;
   --ecmp-color-info-muted: #0c4a6e;
+
+  --ecmp-chart-series-1: #3987e5;
+  --ecmp-chart-series-2: #d95926;
+  --ecmp-chart-series-3: #199e70;
+  --ecmp-chart-series-4: #c98500;
+  --ecmp-chart-series-5: #a78bfa;
 
   --ecmp-color-background: #0b1220;
   --ecmp-color-surface: #111827;
@@ -340,6 +358,13 @@
   --color-ecmp-info-foreground: var(--ecmp-color-info-foreground);
   --color-ecmp-info-muted: var(--ecmp-color-info-muted);
 
+  /* Chart categorical series */
+  --color-ecmp-chart-series-1: var(--ecmp-chart-series-1);
+  --color-ecmp-chart-series-2: var(--ecmp-chart-series-2);
+  --color-ecmp-chart-series-3: var(--ecmp-chart-series-3);
+  --color-ecmp-chart-series-4: var(--ecmp-chart-series-4);
+  --color-ecmp-chart-series-5: var(--ecmp-chart-series-5);
+
   /* Surfaces */
   --color-ecmp-background: var(--ecmp-color-background);
   --color-ecmp-surface: var(--ecmp-color-surface);
@@ -403,13 +428,16 @@
 }
 
 html {
+  height: 100%;
+  overflow: clip;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: clip;
+  overscroll-behavior: none;
   color: var(--ecmp-color-text-primary);
   background: var(--ecmp-color-background);
   font-family: var(--ecmp-font-family);

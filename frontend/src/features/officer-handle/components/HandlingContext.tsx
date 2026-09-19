@@ -11,7 +11,7 @@ export interface HandlingContextProps {
   complaint: MockComplaint;
 }
 
-/** Context header: case / customer / assignment / SLA (SCR-WS-04). */
+/** Context header: case / taxpayer / assignment / SLA (SCR-WS-04). */
 export function HandlingContext({ complaint }: HandlingContextProps) {
   const t = useTranslations("officerHandle");
   const remaining = slaRemainingMs(complaint);

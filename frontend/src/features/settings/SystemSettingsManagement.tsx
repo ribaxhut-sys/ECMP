@@ -5,7 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
-  type FormEvent,
+  type KeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -25,13 +25,21 @@ import {
   PanelHeader,
   SectionHeader,
   Skeleton,
+  Textarea,
 } from "@/shared/ui";
 import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useToast } from "@/shared/providers";
 import {
+  compactSettingValue,
+  formatSettingDraft,
+  localizedSettingDescription,
+  localizedSettingTitle,
   matchesSearch,
-  settingDisplayTitle,
+  mimeChipLabel,
+  parseStringArraySetting,
   settingStatus,
+  settingValuesEquivalent,
+  usesMultilineSettingEditor,
 } from "./configurationSections";
 
 export function SystemSettingsManagement({
@@ -93,6 +101,10 @@ export function SystemSettingsManagement({
         dashboard: t("categoryDashboard"),
         notification: t("categoryNotification"),
         storage: t("categoryStorage"),
+        hq_schedule: t("categoryHqSchedule"),
+        internal_complaint: t("categoryInternalComplaint"),
+        case: t("categoryCase"),
+        cm_batch1: t("categoryCmBatch1"),
       };
       return map[category] ?? category.replace(/\b\w/g, (c) => c.toUpperCase());
     },
@@ -117,17 +129,30 @@ export function SystemSettingsManagement({
     [t],
   );
 
+  const settingTitle = useCallback(
+    (row: Setting): string => localizedSettingTitle(row, t),
+    [t],
+  );
+
+  const settingDescription = useCallback(
+    (row: Setting): string =>
+      localizedSettingDescription(row, t, t("settingValueHelper")),
+    [t],
+  );
+
   const filteredSettings = useMemo(() => {
     return settings.filter((row) =>
       matchesSearch(
         searchQuery,
-        settingDisplayTitle(row),
+        settingTitle(row),
+        settingDescription(row),
+        row.key,
         row.description,
         categoryLabel(row.category),
         row.value,
       ),
     );
-  }, [categoryLabel, searchQuery, settings]);
+  }, [categoryLabel, searchQuery, settingDescription, settingTitle, settings]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Setting[]>();
@@ -144,7 +169,7 @@ export function SystemSettingsManagement({
 
   function startEdit(row: Setting) {
     setEditingKey(row.key);
-    setDraftValue(row.value);
+    setDraftValue(formatSettingDraft(row.value));
     setActionError(null);
   }
 
@@ -153,20 +178,26 @@ export function SystemSettingsManagement({
     setDraftValue("");
   }
 
-  async function onSave(event: FormEvent) {
-    event.preventDefault();
-    if (!editingKey || !canUpdate) return;
+  async function submitSave(): Promise<void> {
+    if (!editingKey || !canUpdate || saving) return;
+    const current = settings.find((item) => item.key === editingKey);
+    if (current && settingValuesEquivalent(draftValue, current.value)) {
+      cancelEdit();
+      return;
+    }
     setSaving(true);
     setActionError(null);
     try {
-      const res = await updateSetting(editingKey, { value: draftValue });
+      const res = await updateSetting(editingKey, {
+        value: compactSettingValue(draftValue),
+      });
       setSettings((prev) =>
         prev.map((item) => (item.key === editingKey ? res.data : item)),
       );
       pushSuccess(
         t("saved"),
         t("updatedSettingMessage", {
-          name: settingDisplayTitle(res.data),
+          name: settingTitle(res.data),
         }),
       );
       cancelEdit();
@@ -176,6 +207,18 @@ export function SystemSettingsManagement({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  function onDraftKeyDown(event: KeyboardEvent<HTMLElement>): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!saving) cancelEdit();
+      return;
+    }
+    if (event.key === "Enter" && event.currentTarget instanceof HTMLInputElement) {
+      event.preventDefault();
+      void submitSave();
     }
   }
 
@@ -237,7 +280,7 @@ export function SystemSettingsManagement({
           }
         />
       ) : !loadError ? (
-        <form onSubmit={onSave} className="space-y-[var(--ecmp-card-gap)]">
+        <div className="space-y-[var(--ecmp-card-gap)]">
           {grouped.map(([category, rows]) => (
             <Card key={category}>
               <CardHeader
@@ -257,31 +300,30 @@ export function SystemSettingsManagement({
               </CardHeader>
               <CardBody className="space-y-[var(--ecmp-panel-gap)]">
                 {rows.map((row) => {
-                  const title = settingDisplayTitle(row);
+                  const title = settingTitle(row);
+                  const description = settingDescription(row);
                   const status = settingStatus(row);
                   const editing = editingKey === row.key;
+                  const arrayItems = parseStringArraySetting(row.value);
+                  const multilineEditor = usesMultilineSettingEditor(
+                    row.value,
+                    row.valueType,
+                  );
 
                   return (
                     <article
                       key={row.id}
                       data-testid={`setting-key-${row.key}`}
-                      className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]"
+                      className="min-w-0 overflow-hidden rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-[var(--ecmp-panel-gap)]"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1">
                           <h4 className="text-[length:var(--ecmp-font-card-title-size)] font-[number:var(--ecmp-font-card-title-weight)] text-ecmp-text-primary">
                             {title}
                           </h4>
-                          {row.description &&
-                          row.description.trim() !== title ? (
-                            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                              {row.description}
-                            </p>
-                          ) : (
-                            <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                              {t("settingValueHelper")}
-                            </p>
-                          )}
+                          <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                            {description}
+                          </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge tone={status.tone}>{statusLabel(status.key)}</Badge>
@@ -293,17 +335,59 @@ export function SystemSettingsManagement({
                         </div>
                       </div>
 
-                      <div className="mt-3 space-y-3">
+                      <div className="mt-3 min-w-0 space-y-3">
                         {editing ? (
-                          <Input
-                            value={draftValue}
-                            onChange={(e) => setDraftValue(e.target.value)}
-                            label={t("valueColumn")}
-                            aria-label={t("valueAriaLabel", { key: title })}
-                          />
-                        ) : (
+                          multilineEditor ? (
+                            <Textarea
+                              name={`setting-${row.key}`}
+                              value={draftValue}
+                              onChange={(e) => setDraftValue(e.target.value)}
+                              onKeyDown={onDraftKeyDown}
+                              label={t("valueColumn")}
+                              aria-label={t("valueAriaLabel", { key: title })}
+                              helper={
+                                arrayItems ? t("settingJsonArrayHelper") : undefined
+                              }
+                              rows={8}
+                              className="break-all font-mono text-[length:var(--ecmp-font-helper-size)]"
+                              autoFocus
+                            />
+                          ) : (
+                            <Input
+                              name={`setting-${row.key}`}
+                              value={draftValue}
+                              onChange={(e) => setDraftValue(e.target.value)}
+                              onKeyDown={onDraftKeyDown}
+                              label={t("valueColumn")}
+                              aria-label={t("valueAriaLabel", { key: title })}
+                              autoFocus
+                            />
+                          )
+                        ) : row.value === "" ? (
                           <p className="rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
-                            {row.value === "" ? tCommon("emDash") : row.value}
+                            {tCommon("emDash")}
+                          </p>
+                        ) : arrayItems ? (
+                          <ul
+                            data-testid={`setting-value-chips-${row.key}`}
+                            className="flex min-w-0 flex-wrap gap-1.5"
+                          >
+                            {arrayItems.map((item) => (
+                              <li key={item} className="min-w-0">
+                                <Badge
+                                  tone="neutral"
+                                  variant="outline"
+                                  title={item}
+                                  className="max-w-full truncate"
+                                >
+                                  {mimeChipLabel(item)}
+                                </Badge>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="overflow-hidden break-all rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface px-3 py-2 text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                            {row.value}
                           </p>
                         )}
 
@@ -312,9 +396,10 @@ export function SystemSettingsManagement({
                             {editing ? (
                               <>
                                 <Button
-                                  type="submit"
+                                  type="button"
                                   size="sm"
                                   loading={saving}
+                                  onClick={() => void submitSave()}
                                   className="min-h-[var(--ecmp-touch-min)]"
                                 >
                                   {tCommon("save")}
@@ -351,7 +436,7 @@ export function SystemSettingsManagement({
               </CardBody>
             </Card>
           ))}
-        </form>
+        </div>
       ) : null}
     </section>
   );

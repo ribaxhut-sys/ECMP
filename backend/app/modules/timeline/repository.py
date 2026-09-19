@@ -94,6 +94,36 @@ class TimelineRepository:
         rows = list(self._session.scalars(list_stmt).all())
         return [_to_entity(r) for r in rows], total
 
+    def list_recent(
+        self,
+        *,
+        aggregate_type: str | None = None,
+        aggregate_ids: set[uuid.UUID] | None = None,
+        limit: int = 10,
+    ) -> list[TimelineEntry]:
+        """Newest-first entries across all aggregates (dashboard recent activity).
+
+        ``aggregate_ids``, when given, restricts to that set (e.g. the
+        dashboard's branch filter — see CmBatch1ActivityDashboardProvider).
+        An empty set is treated the same as "no matches": callers should
+        short-circuit before calling this, but querying with an empty IN()
+        would also correctly return nothing.
+        """
+        stmt = (
+            select(TimelineEntryORM)
+            .order_by(
+                TimelineEntryORM.created_at.desc(),
+                TimelineEntryORM.id.desc(),
+            )
+            .limit(max(1, limit))
+        )
+        if aggregate_type is not None:
+            stmt = stmt.where(TimelineEntryORM.aggregate_type == aggregate_type)
+        if aggregate_ids is not None:
+            stmt = stmt.where(TimelineEntryORM.aggregate_id.in_(aggregate_ids))
+        rows = list(self._session.scalars(stmt).all())
+        return [_to_entity(r) for r in rows]
+
     def list_by_aggregate(
         self,
         *,

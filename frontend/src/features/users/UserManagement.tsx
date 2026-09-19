@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
+  fetchAllUsers,
   fetchBranches,
   fetchRoles,
-  fetchUsers,
   updateUserRole,
   updateUserStatus,
   type Branch,
@@ -22,6 +22,7 @@ import {
   Modal,
   PageContainer,
   PageHeader,
+  Pagination,
   QuickFilters,
   SectionHeader,
   Select,
@@ -33,23 +34,30 @@ import { CreateUserModal } from "./CreateUserModal";
 import { DirectoryPeopleList } from "./DirectoryPeopleList";
 import { DirectoryPreviewPanel } from "./DirectoryPreviewPanel";
 import {
+  DIRECTORY_BRANCH_FILTER_ALL,
   filterRolesForHomeUnit,
   filterRolesForUserForm,
   HEAD_OFFICE_SCOPED_ROLE_CODES,
+  matchesDirectoryBranch,
   matchesDirectoryFilter,
   matchesDirectorySearch,
-  roleDisplayName,
+  canonicalUserFormRoleLabels,
+  userFormRoleLabel,
   type DirectoryFilter,
 } from "./directoryHelpers";
 import { HEAD_OFFICE_UNIT_CODE } from "./moduleUserCandidates";
 import { useToast } from "@/shared/providers";
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
+
 export function UserManagement() {
   const router = useRouter();
   const t = useTranslations("users");
   const tCommon = useTranslations("common");
+  const tTable = useTranslations("table");
   const tErrors = useTranslations("errors");
-  const { hasPermission, roles, userId } = useAuth();
+  const { hasPermission, roles, userId, user } = useAuth();
   const { pushError, pushSuccess } = useToast();
   const canRead = hasPermission("users:read");
   const canCreate = hasPermission("users:create");
@@ -57,6 +65,9 @@ export function UserManagement() {
   const isHeadOfficeAdmin = roles.some((role) =>
     ["ADMIN", "ADMINISTRATOR", "SUPER_ADMIN"].includes(role.toUpperCase()),
   );
+  // Branch manager persona (BC-8.4, UM-BUG-007) — own-branch member status
+  // only; matches the backend's org-scope check in users/router.py.
+  const isManager = roles.some((role) => role.toUpperCase() === "MANAGER");
 
   const [rows, setRows] = useState<UserRef[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -65,6 +76,7 @@ export function UserManagement() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [directoryFilter, setDirectoryFilter] = useState<DirectoryFilter>("all");
+  const [branchFilter, setBranchFilter] = useState(DIRECTORY_BRANCH_FILTER_ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [statusCandidate, setStatusCandidate] = useState<UserRef | null>(null);
@@ -72,6 +84,8 @@ export function UserManagement() {
   const [roleCandidate, setRoleCandidate] = useState<UserRef | null>(null);
   const [newRoleId, setNewRoleId] = useState("");
   const [updatingRole, setUpdatingRole] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -83,16 +97,7 @@ export function UserManagement() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [userRes, branchRes, roleRows] = await Promise.all([
-        fetchUsers({ pageSize: 100 }),
-        fetchBranches(100),
-        fetchRoles({ activeOnly: true, includeSystem: true }),
-      ]);
-      setRows(userRes.data);
-      setBranches(branchRes.data);
-      setRoleOptions(
-        filterRolesForUserForm(roleRows.filter((row) => row.isActive)),
-      );
+      setRows(await fetchAllUsers());
     } catch (err) {
       setRows([]);
       setBranches([]);
@@ -100,19 +105,46 @@ export function UserManagement() {
       setLoadError(
         resolveApiErrorMessage(err, tErrors, tCommon) || t("unableToLoad"),
       );
-    } finally {
       setLoading(false);
+      return;
     }
-  }, [canRead, t, tCommon, tErrors]);
+
+    // Branch reference list is only needed for cosmetic unit labels
+    // (unitLabelByBranchId). Accessible with users:read (MANAGER) or
+    // complaints:read — failure must not block the primary directory listing.
+    try {
+      const branchRes = await fetchBranches(100);
+      setBranches(branchRes.data);
+    } catch {
+      setBranches([]);
+    }
+
+    // Role catalog is only needed to populate the role-assignment dropdown
+    // (create/update). A principal with read-only access to the directory
+    // (e.g. users:read without users:create/users:update) may lack
+    // role:read — that must not block the primary directory listing above.
+    if (canCreate || canUpdate) {
+      try {
+        const roleRows = await fetchRoles({
+          activeOnly: true,
+          includeSystem: true,
+        });
+        setRoleOptions(
+          filterRolesForUserForm(roleRows.filter((row) => row.isActive)),
+        );
+      } catch {
+        setRoleOptions([]);
+      }
+    } else {
+      setRoleOptions([]);
+    }
+
+    setLoading(false);
+  }, [canCreate, canRead, canUpdate, t, tCommon, tErrors]);
 
   const unitLabelByBranchId = useMemo(
     () =>
-      new Map(
-        branches.map((branch) => [
-          branch.id,
-          `${branch.code} — ${branch.name}`,
-        ]),
-      ),
+      new Map(branches.map((branch) => [branch.id, branch.code])),
     [branches],
   );
 
@@ -120,13 +152,66 @@ export function UserManagement() {
     void load();
   }, [load]);
 
+  const pusatBranchId = useMemo(
+    () =>
+      branches.find(
+        (branch) => branch.code.toUpperCase() === HEAD_OFFICE_UNIT_CODE,
+      )?.id ?? null,
+    [branches],
+  );
+
   const filteredRows = useMemo(() => {
+    const unitFilter = isHeadOfficeAdmin
+      ? branchFilter
+      : DIRECTORY_BRANCH_FILTER_ALL;
     return rows.filter(
       (row) =>
+        matchesDirectoryBranch(row, unitFilter, pusatBranchId) &&
         matchesDirectoryFilter(row, directoryFilter) &&
         matchesDirectorySearch(row, searchQuery),
     );
-  }, [rows, searchQuery, directoryFilter]);
+  }, [
+    rows,
+    searchQuery,
+    directoryFilter,
+    branchFilter,
+    isHeadOfficeAdmin,
+    pusatBranchId,
+  ]);
+
+  const initialsByUserId = useMemo(() => {
+    const stored = new Map<string, string>();
+    for (const row of rows) {
+      const code = row.initials?.trim().toUpperCase();
+      if (code) stored.set(row.id, code);
+    }
+    return stored;
+  }, [rows]);
+
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, directoryFilter, branchFilter, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const pageRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page, pageSize]);
+
+  const pageSizeOptions = useMemo(
+    () =>
+      PAGE_SIZE_OPTIONS.map((count) => ({
+        value: String(count),
+        label: tTable("perPage", { count }),
+      })),
+    [tTable],
+  );
 
   const selectedUser = useMemo(
     () => filteredRows.find((row) => row.id === selectedId) ?? null,
@@ -161,14 +246,6 @@ export function UserManagement() {
       setUpdatingStatus(false);
     }
   }
-
-  const pusatBranchId = useMemo(
-    () =>
-      branches.find(
-        (branch) => branch.code.toUpperCase() === HEAD_OFFICE_UNIT_CODE,
-      )?.id ?? null,
-    [branches],
-  );
 
   // Cabang: no Admin. Pusat (null unit or PUSAT branch): same personas + Admin.
   const selectableRoles = useMemo(() => {
@@ -219,6 +296,32 @@ export function UserManagement() {
     }
   }
 
+  const unitScopedRows = useMemo(() => {
+    const unitFilter = isHeadOfficeAdmin
+      ? branchFilter
+      : DIRECTORY_BRANCH_FILTER_ALL;
+    return rows.filter((row) =>
+      matchesDirectoryBranch(row, unitFilter, pusatBranchId),
+    );
+  }, [rows, branchFilter, isHeadOfficeAdmin, pusatBranchId]);
+
+  const branchFilterOptions = useMemo(
+    () => [
+      { value: DIRECTORY_BRANCH_FILTER_ALL, label: t("allBranches") },
+      ...[...branches]
+        .sort((a, b) =>
+          (a.name || a.code).localeCompare(b.name || b.code, undefined, {
+            sensitivity: "base",
+          }),
+        )
+        .map((branch) => ({
+          value: branch.id,
+          label: branch.name?.trim() || branch.code,
+        })),
+    ],
+    [branches, t],
+  );
+
   const filterOptions = useMemo(
     () => [
       {
@@ -226,22 +329,31 @@ export function UserManagement() {
         label: t("filterActive"),
         active: directoryFilter === "active",
         tone: "healthy" as const,
-        count: rows.filter((row) => row.isActive).length,
+        count: unitScopedRows.filter((row) => row.isActive).length,
       },
       {
         id: "inactive",
         label: t("filterInactive"),
         active: directoryFilter === "inactive",
         tone: "default" as const,
-        count: rows.filter((row) => !row.isActive).length,
+        count: unitScopedRows.filter((row) => !row.isActive).length,
       },
       {
         id: "administrator",
         label: t("filterAdministrators"),
         active: directoryFilter === "administrator",
         tone: "critical" as const,
-        count: rows.filter((row) =>
+        count: unitScopedRows.filter((row) =>
           matchesDirectoryFilter(row, "administrator"),
+        ).length,
+      },
+      {
+        id: "manager",
+        label: t("filterManagers"),
+        active: directoryFilter === "manager",
+        tone: "attention" as const,
+        count: unitScopedRows.filter((row) =>
+          matchesDirectoryFilter(row, "manager"),
         ).length,
       },
       {
@@ -249,19 +361,30 @@ export function UserManagement() {
         label: t("filterSupervisors"),
         active: directoryFilter === "supervisor",
         tone: "attention" as const,
-        count: rows.filter((row) =>
+        count: unitScopedRows.filter((row) =>
           matchesDirectoryFilter(row, "supervisor"),
         ).length,
       },
       {
-        id: "agent",
+        id: "officer",
         label: t("filterAgents"),
-        active: directoryFilter === "agent",
+        active: directoryFilter === "officer",
         tone: "healthy" as const,
-        count: rows.filter((row) => matchesDirectoryFilter(row, "agent")).length,
+        count: unitScopedRows.filter((row) =>
+          matchesDirectoryFilter(row, "officer"),
+        ).length,
+      },
+      {
+        id: "viewer",
+        label: t("filterViewers"),
+        active: directoryFilter === "viewer",
+        tone: "default" as const,
+        count: unitScopedRows.filter((row) =>
+          matchesDirectoryFilter(row, "viewer"),
+        ).length,
       },
     ],
-    [directoryFilter, rows, t],
+    [directoryFilter, unitScopedRows, t],
   );
 
   if (!canRead) {
@@ -425,12 +548,78 @@ export function UserManagement() {
               { value: "", label: t("selectRole") },
               ...selectableRoles.map((role) => ({
                 value: role.id,
-                label: `${roleDisplayName(role, t("roleBranchManager"))} (${role.code})`,
+                label: userFormRoleLabel(
+                  role.code,
+                  canonicalUserFormRoleLabels(t),
+                  role.name,
+                ),
               })),
             ]}
           />
         </div>
       </Modal>
+
+      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("directorySearch")}>
+        <div className="flex flex-col gap-[var(--ecmp-form-gap)] sm:flex-row sm:items-start">
+          <div className="w-full max-w-xl">
+            <Input
+              name="directorySearch"
+              label={t("directorySearch")}
+              placeholder={t("searchPlaceholder")}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              helper={t("searchHelper")}
+            />
+          </div>
+          {isHeadOfficeAdmin && branches.length > 0 ? (
+            <div className="w-full max-w-xs">
+              <Select
+                name="directoryBranch"
+                label={t("branch")}
+                options={branchFilterOptions}
+                value={branchFilter}
+                onChange={(event) => setBranchFilter(event.target.value)}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        <WorkspaceToolbar
+          summary={
+            totalItems === 0
+              ? t("directorySummary", { count: 0 })
+              : tCommon("showingItems", {
+                  from: (page - 1) * pageSize + 1,
+                  to: Math.min(page * pageSize, totalItems),
+                  total: totalItems,
+                })
+          }
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-[9.5rem]">
+                <Select
+                  name="directoryPageSize"
+                  aria-label={t("pageSizeLabel")}
+                  options={pageSizeOptions}
+                  value={String(pageSize)}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value) || DEFAULT_PAGE_SIZE);
+                  }}
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[var(--ecmp-touch-min)]"
+                onClick={() => void load()}
+                disabled={loading}
+              >
+                {loading ? tCommon("refreshing") : tCommon("refresh")}
+              </Button>
+            </div>
+          }
+        />
+      </section>
 
       <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("quickFilters")}>
         <SectionHeader
@@ -444,34 +633,6 @@ export function UserManagement() {
             const next = id as DirectoryFilter;
             setDirectoryFilter((current) => (current === next ? "all" : next));
           }}
-        />
-      </section>
-
-      <section className="space-y-[var(--ecmp-panel-gap)]" aria-label={t("directorySearch")}>
-        <div className="w-full max-w-xl">
-          <Input
-            name="directorySearch"
-            label={t("directorySearch")}
-            placeholder={t("searchPlaceholder")}
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            helper={t("searchHelper")}
-          />
-        </div>
-
-        <WorkspaceToolbar
-          summary={t("directorySummary", { count: filteredRows.length })}
-          actions={
-            <Button
-              variant="outline"
-              size="sm"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => void load()}
-              disabled={loading}
-            >
-              {loading ? tCommon("refreshing") : tCommon("refresh")}
-            </Button>
-          }
         />
       </section>
 
@@ -508,12 +669,15 @@ export function UserManagement() {
               onClick: () => void load(),
             }}
             secondaryAction={
-              searchQuery.trim() || directoryFilter !== "all"
+              searchQuery.trim() ||
+              directoryFilter !== "all" ||
+              branchFilter !== DIRECTORY_BRANCH_FILTER_ALL
                 ? {
                     label: t("clearSearch"),
                     onClick: () => {
                       setSearchQuery("");
                       setDirectoryFilter("all");
+                      setBranchFilter(DIRECTORY_BRANCH_FILTER_ALL);
                     },
                   }
                 : undefined
@@ -523,19 +687,35 @@ export function UserManagement() {
           <div className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] xl:grid-cols-12">
             <div className="xl:col-span-8">
               <DirectoryPeopleList
-                rows={filteredRows}
+                rows={pageRows}
                 selectedId={selectedId}
                 unitLabelByBranchId={unitLabelByBranchId}
+                initialsByUserId={initialsByUserId}
                 onSelect={(user) =>
                   setSelectedId((current) =>
                     current === user.id ? null : user.id,
                   )
                 }
               />
+              {totalItems > 0 ? (
+                <Pagination
+                  className="mt-[var(--ecmp-panel-gap)]"
+                  summary={tCommon("pageOf", { page, totalPages })}
+                  previousLabel={tCommon("previous")}
+                  nextLabel={tCommon("next")}
+                  onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                  onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  previousDisabled={page <= 1}
+                  nextDisabled={page >= totalPages}
+                />
+              ) : null}
             </div>
             <div className="xl:col-span-4">
               <DirectoryPreviewPanel
                 user={selectedUser}
+                initials={
+                  selectedUser ? initialsByUserId.get(selectedUser.id) : null
+                }
                 unitLabel={
                   selectedUser
                     ? selectedUser.branchId
@@ -547,8 +727,11 @@ export function UserManagement() {
                 canUpdateStatus={Boolean(
                   selectedUser &&
                     canUpdate &&
-                    isHeadOfficeAdmin &&
-                    selectedUser.id !== userId,
+                    selectedUser.id !== userId &&
+                    (isHeadOfficeAdmin ||
+                      (isManager &&
+                        selectedUser.branchId != null &&
+                        selectedUser.branchId === user?.branchId)),
                 )}
                 updatingStatus={updatingStatus}
                 onRequestStatusChange={setStatusCandidate}

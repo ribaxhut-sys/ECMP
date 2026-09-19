@@ -38,7 +38,9 @@ export default function LoginPage() {
       router.replace(session ? mockEntryHref(session) : "/workspace");
       return;
     }
-    router.replace("/dashboard");
+    // "/" is the post-login entry-point gate — Dashboard by default, or
+    // /announcements first if the caller has an unread active announcement.
+    router.replace("/");
   }, [status, router, isMockSession]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {

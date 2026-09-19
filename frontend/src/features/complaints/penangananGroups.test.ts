@@ -1,0 +1,255 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildPenangananSummarySegments,
+  handlerInitialsFromCases,
+  handlerRefFromCases,
+  hqPathCopyKeys,
+  isHqIntakeDisposition,
+  joinPenangananSummarySegments,
+  partitionPenanganan,
+  penangananCountsFromCases,
+  penangananGroupForStatus,
+  penangananSummaryCounts,
+  resolveHqPathPhase,
+  resolvePenangananContextKind,
+} from "./penangananGroups";
+
+describe("penangananGroups", () => {
+  it("maps terminal and escalated statuses", () => {
+    expect(penangananGroupForStatus("IN_PROGRESS")).toBe("open");
+    expect(penangananGroupForStatus("CREATED")).toBe("open");
+    expect(penangananGroupForStatus("ESCALATED")).toBe("pusat");
+    expect(penangananGroupForStatus("RESOLVED")).toBe("done");
+    expect(penangananGroupForStatus("CLOSED")).toBe("done");
+    expect(penangananGroupForStatus("CANCELLED")).toBe("cancelled");
+  });
+
+  it("moves only the flagged Case to pusat (DEC-029)", () => {
+    expect(
+      penangananGroupForStatus("IN_PROGRESS", { escalatedToPusat: true }),
+    ).toBe("pusat");
+    const parts = partitionPenanganan([
+      { status: "IN_PROGRESS", id: "a", escalatedToPusat: true },
+      { status: "IN_PROGRESS", id: "b" },
+    ]);
+    expect(parts.pusat.map((x) => x.id)).toEqual(["a"]);
+    expect(parts.open.map((x) => x.id)).toEqual(["b"]);
+  });
+
+  it("keeps non-escalated Cases out of pusat even on HQ intake path (DEC-029)", () => {
+    expect(
+      penangananGroupForStatus("ASSIGNED", { complaintOnHqPath: true }),
+    ).toBe("open");
+    expect(
+      penangananGroupForStatus("CLOSED", { complaintOnHqPath: true }),
+    ).toBe("done");
+    expect(
+      penangananGroupForStatus("IN_PROGRESS", {
+        complaintOnHqPath: true,
+        escalatedToPusat: true,
+      }),
+    ).toBe("pusat");
+  });
+
+  it("detects active HQ intake dispositions only", () => {
+    expect(isHqIntakeDisposition("ESCALATE_PENDING_APPROVAL")).toBe(true);
+    expect(isHqIntakeDisposition("HQ_SCHEDULED")).toBe(true);
+    expect(isHqIntakeDisposition("ESCALATE_REJECTED")).toBe(false);
+    expect(isHqIntakeDisposition("RETURNED_TO_BRANCH")).toBe(false);
+    expect(isHqIntakeDisposition(null)).toBe(false);
+  });
+
+  it("splits HQ-path copy by phase", () => {
+    expect(
+      resolveHqPathPhase({ intakeDisposition: "ESCALATE_PENDING_APPROVAL" }),
+    ).toBe("pending_approval");
+    expect(
+      resolveHqPathPhase({
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: null,
+      }),
+    ).toBe("awaiting_accept");
+    expect(
+      resolveHqPathPhase({
+        intakeDisposition: "ESCALATE_APPROVED",
+        hqAcceptedAt: "2026-08-17T10:00:00Z",
+      }),
+    ).toBe("accepted_unscheduled");
+    expect(
+      resolveHqPathPhase({ intakeDisposition: "HQ_SCHEDULED" }),
+    ).toBe("scheduled");
+    expect(hqPathCopyKeys("scheduled").list).toBe("penangananListHqScheduled");
+    expect(hqPathCopyKeys("scheduled").pageTitle).toBe("hqPathScheduledPageTitle");
+    expect(hqPathCopyKeys("scheduled").groupPusat).toBe(
+      "penangananGroupPusatScheduled",
+    );
+  });
+
+  it("partitions and counts", () => {
+    const parts = partitionPenanganan(
+      [
+        { status: "IN_PROGRESS", id: "a" },
+        { status: "ESCALATED", id: "b" },
+        { status: "CLOSED", id: "c" },
+        { status: "CANCELLED", id: "d" },
+      ],
+      { complaintOnHqPath: false },
+    );
+    expect(parts.open.map((x) => x.id)).toEqual(["a"]);
+    expect(parts.pusat.map((x) => x.id)).toEqual(["b"]);
+    expect(parts.done.map((x) => x.id)).toEqual(["c"]);
+    expect(parts.cancelled.map((x) => x.id)).toEqual(["d"]);
+    expect(penangananSummaryCounts(parts)).toEqual({
+      open: 1,
+      pusat: 1,
+      done: 1,
+      cancelled: 1,
+    });
+  });
+
+  it("summarizes list-column counts without forcing HQ path siblings into pusat", () => {
+    expect(
+      penangananCountsFromCases(
+        [{ status: "IN_PROGRESS" }, { status: "CLOSED" }],
+        null,
+      ),
+    ).toEqual({ open: 1, pusat: 0, done: 1, cancelled: 0 });
+    expect(
+      penangananCountsFromCases(
+        [
+          { status: "ASSIGNED" },
+          { status: "CLOSED" },
+          { status: "IN_PROGRESS", escalatedToPusat: true },
+        ],
+        "ESCALATE_PENDING_APPROVAL",
+      ),
+    ).toEqual({ open: 1, pusat: 1, done: 1, cancelled: 0 });
+  });
+
+  it("omits zero segments from summary", () => {
+    const labels = {
+      open: (n: number) => `${n} terbuka`,
+      pusat: (n: number) => `${n} ke Pusat`,
+      done: (n: number) => `${n} selesai`,
+    };
+    expect(
+      joinPenangananSummarySegments(
+        buildPenangananSummarySegments(
+          { open: 2, pusat: 0, done: 0 },
+          labels,
+        ),
+      ),
+    ).toBe("2 terbuka");
+    expect(
+      joinPenangananSummarySegments(
+        buildPenangananSummarySegments(
+          { open: 1, pusat: 1, done: 0 },
+          labels,
+        ),
+      ),
+    ).toBe("1 terbuka · 1 ke Pusat");
+    expect(
+      joinPenangananSummarySegments(
+        buildPenangananSummarySegments(
+          { open: 0, pusat: 0, done: 0 },
+          labels,
+        ),
+      ),
+    ).toBeNull();
+  });
+
+  it("resolves context kind with priority closed > hq > counts > none", () => {
+    expect(
+      resolvePenangananContextKind({
+        complaintStatus: "CLOSED",
+        counts: { open: 0, pusat: 0, done: 0 },
+      }),
+    ).toBe("closed");
+    expect(
+      resolvePenangananContextKind({
+        intakeDisposition: "BRANCH_CLOSED",
+        counts: { open: 0, pusat: 0, done: 0 },
+      }),
+    ).toBe("closed");
+    expect(
+      resolvePenangananContextKind({
+        complaintStatus: "REGISTERED",
+        intakeDisposition: "ESCALATE_PENDING_APPROVAL",
+        counts: { open: 0, pusat: 0, done: 0 },
+      }),
+    ).toBe("hq_waiting");
+    expect(
+      resolvePenangananContextKind({
+        complaintStatus: "REGISTERED",
+        intakeDisposition: null,
+        counts: { open: 2, pusat: 0, done: 0 },
+      }),
+    ).toBe("has_counts");
+    expect(
+      resolvePenangananContextKind({
+        complaintStatus: "REGISTERED",
+        intakeDisposition: null,
+        counts: { open: 0, pusat: 0, done: 0 },
+      }),
+    ).toBe("none");
+  });
+
+  it("picks initials from the first open or HQ handler", () => {
+    expect(
+      handlerInitialsFromCases(
+        [
+          {
+            status: "IN_PROGRESS",
+            handlingClaimedByName: "Ahmad Santoso",
+          },
+        ],
+        null,
+      ),
+    ).toBe("ASA");
+    expect(
+      handlerInitialsFromCases(
+        [{ status: "CLOSED", handlingClaimedByName: "Ahmad Santoso" }],
+        null,
+      ),
+    ).toBeNull();
+  });
+
+  it("returns the handler identity so same-named officers stay distinct", () => {
+    expect(
+      handlerRefFromCases(
+        [
+          {
+            status: "IN_PROGRESS",
+            handlingClaimedBy: "user-1",
+            handlingClaimedByName: "Ahmad Santoso",
+          },
+        ],
+        null,
+      ),
+    ).toEqual({ key: "user-1", name: "Ahmad Santoso" });
+  });
+
+  it("falls back to the name as key when the API omits the user id", () => {
+    expect(
+      handlerRefFromCases(
+        [{ status: "IN_PROGRESS", handlingClaimedByName: "Ahmad Santoso" }],
+        null,
+      ),
+    ).toEqual({ key: "Ahmad Santoso", name: "Ahmad Santoso" });
+  });
+
+  it("ignores a handler name that is really a user id", () => {
+    expect(
+      handlerRefFromCases(
+        [
+          {
+            status: "IN_PROGRESS",
+            handlingClaimedBy: "user-1",
+            handlingClaimedByName: "bd0b9a73-72f4-4173-93f2-c5f6733a0415",
+          },
+        ],
+        null,
+      ),
+    ).toBeNull();
+  });
+});

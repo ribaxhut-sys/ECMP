@@ -1,176 +1,171 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { DashboardSlaSummary, StatusCount } from "@/lib/api/types";
-import { IconAlert, IconCheck } from "@/shared/icons";
+import { useAuth } from "@/auth/AuthProvider";
+import { CM_BATCH1_ESCALATION_PENDING_HREF } from "@/features/complaints/cmBatch1ListFilters";
+import type { StatusCount } from "@/lib/api/types";
+import { IconChevronRight, IconCheck } from "@/shared/icons";
 import { Skeleton } from "@/shared/ui";
 import {
+  buildCriticalAlerts,
   countByStatus,
+  CRITICAL_ALERT_VISIBLE_LIMIT,
   DASHBOARD_CAPTION,
+  DASHBOARD_COMMAND_LABEL,
   DASHBOARD_HOVER_ROW,
-  DASHBOARD_SECTION_TITLE,
-  DASHBOARD_SURFACE_QUIET,
+  DASHBOARD_TILE,
   OPS_TONE_RAIL,
   OPS_TONE_TEXT,
-  type OpsTone,
+  visibleAlertSlice,
+  type PusatDashboardWork,
 } from "./dashboardUtils";
 
-type AlertRow = {
-  id: string;
-  tone: OpsTone;
-  title: string;
-  ctaLabel: string;
-  href: string;
-};
-
 export function CriticalAlerts({
-  sla,
   byStatus,
   loading,
+  pusatWork = null,
 }: {
-  sla: DashboardSlaSummary | null;
   byStatus?: StatusCount[] | null;
   loading: boolean;
-  onRefresh?: () => void;
+  pusatWork?: PusatDashboardWork | null;
 }) {
   const router = useRouter();
   const t = useTranslations("dashboard");
+  const [expanded, setExpanded] = useState(false);
+  const { hasPermission } = useAuth();
+  const canOpenComplaintList =
+    hasPermission("complaints:read") || hasPermission("*");
+  const escalationHref = canOpenComplaintList
+    ? CM_BATCH1_ESCALATION_PENDING_HREF
+    : null;
 
   if (loading) {
     return (
       <section
         data-testid="dashboard-critical-alerts"
         aria-label={t("criticalAlerts")}
-        className="py-1"
+        className={`${DASHBOARD_TILE} flex h-full flex-col p-5`}
       >
-        <h2 className={DASHBOARD_SECTION_TITLE}>{t("criticalAlerts")}</h2>
-        <div className="mt-2" aria-busy="true">
-          <Skeleton rows={2} />
+        <h2 className="sr-only">{t("criticalAlerts")}</h2>
+        <div aria-busy="true">
+          <Skeleton rows={3} />
         </div>
       </section>
     );
   }
 
-  const breached = sla?.overall.breached ?? 0;
-  const assignmentBreached = sla?.assignment.breached ?? 0;
-  const resolutionBreached = sla?.resolution.breached ?? 0;
-  const escalated = countByStatus(byStatus, "ESCALATED") ?? 0;
-  const waiting = countByStatus(byStatus, "NEW") ?? 0;
+  const alerts = buildCriticalAlerts({
+    breached: 0,
+    assignmentBreached: 0,
+    resolutionBreached: 0,
+    escalated: countByStatus(byStatus, "escalatePending") ?? 0,
+    escalationHref,
+    pusatQueue: pusatWork?.queue ?? 0,
+    pusatFollowUp: pusatWork?.followUp ?? 0,
+    hqScheduleToday: pusatWork?.hqScheduleToday ?? 0,
+    escalateScheduled: pusatWork
+      ? (countByStatus(byStatus, "escalateScheduled") ?? 0)
+      : 0,
+  });
+  const visible = visibleAlertSlice(alerts, expanded);
+  const overflow = alerts.length > CRITICAL_ALERT_VISIBLE_LIMIT;
 
-  const alerts: AlertRow[] = [];
-
-  if (breached > 0) {
-    alerts.push({
-      id: "sla-overall",
-      tone: "critical",
-      title: t("alertSlaTitle", { count: breached }),
-      ctaLabel: t("reviewQueue"),
-      href: "/queue",
-    });
-  }
-  if (assignmentBreached > 0) {
-    alerts.push({
-      id: "sla-assignment",
-      tone: "critical",
-      title: t("alertAssignmentSlaTitle", { count: assignmentBreached }),
-      ctaLabel: t("assignComplaints"),
-      href: "/assignments",
-    });
-  }
-  if (resolutionBreached > 0 && resolutionBreached !== breached) {
-    alerts.push({
-      id: "sla-resolution",
-      tone: "attention",
-      title: t("alertResolutionSlaTitle", { count: resolutionBreached }),
-      ctaLabel: t("viewSlaDetails"),
-      href: "#sla-overview",
-    });
-  }
-  if (escalated > 0) {
-    alerts.push({
-      id: "escalation",
-      tone: "attention",
-      title: t("alertEscalationTitle", { count: escalated }),
-      ctaLabel: t("taskActionReview"),
-      href: "/resolutions",
-    });
-  }
-  if (waiting > 0 && breached === 0) {
-    alerts.push({
-      id: "waiting",
-      tone: "attention",
-      title: t("alertWaitingTitle", { count: waiting }),
-      ctaLabel: t("assignComplaints"),
-      href: "/assignments",
-    });
-  }
+  const activate = (href: string) => {
+    if (href.startsWith("#")) {
+      document.getElementById(href.slice(1))?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    router.push(href);
+  };
 
   return (
     <section
       data-testid="dashboard-critical-alerts"
       aria-label={t("criticalAlerts")}
-      className="py-1"
+      className={`${DASHBOARD_TILE} flex h-full flex-col p-5`}
     >
-      <h2 className={DASHBOARD_SECTION_TITLE}>{t("criticalAlerts")}</h2>
+      <h2 className="sr-only">{t("criticalAlerts")}</h2>
+      <p className={DASHBOARD_COMMAND_LABEL}>{t("criticalAlerts")}</p>
 
       {alerts.length === 0 ? (
-        <div
-          className={`${DASHBOARD_SURFACE_QUIET} mt-2 flex items-center gap-3 px-3 py-2.5`}
-        >
-          <span className={`w-0.5 self-stretch rounded-full ${OPS_TONE_RAIL.healthy}`} aria-hidden />
+        <div className="mt-3 flex flex-1 items-center gap-2.5">
           <IconCheck className="size-4 shrink-0 text-ecmp-success-text" aria-hidden />
-          <p className="min-w-0 flex-1 text-[13px] text-ecmp-text-primary">
+          <p className="text-[13px] text-ecmp-text-primary">
             {t("noOperationalAlertsToday")}
           </p>
-          <button
-            type="button"
-            onClick={() => router.push("/queue")}
-            className={`${DASHBOARD_HOVER_ROW} shrink-0 rounded px-2 py-1 text-[12px] font-medium text-ecmp-primary`}
-          >
-            {t("reviewQueue")}
-          </button>
         </div>
       ) : (
-        <ul className="mt-2 space-y-1">
-          {alerts.map((alert) => (
-            <li key={alert.id}>
-              <div
-                className={`${DASHBOARD_SURFACE_QUIET} flex items-center gap-3 px-3 py-2`}
-              >
-                <span
-                  className={`w-0.5 self-stretch rounded-full ${OPS_TONE_RAIL[alert.tone]}`}
-                  aria-hidden
-                />
-                <IconAlert
-                  className={`size-4 shrink-0 ${OPS_TONE_TEXT[alert.tone]}`}
-                  aria-hidden
-                />
-                <p className="min-w-0 flex-1 truncate text-[13px] text-ecmp-text-primary">
-                  {alert.title}
-                </p>
-                <span className={`hidden text-[11px] sm:inline ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[alert.tone]}`}>
-                  {alert.tone === "critical" ? t("kpiCritical") : t("kpiAttention")}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (alert.href.startsWith("#")) {
-                      document
-                        .getElementById(alert.href.slice(1))
-                        ?.scrollIntoView({ behavior: "smooth" });
-                      return;
-                    }
-                    router.push(alert.href);
-                  }}
-                  className={`${DASHBOARD_HOVER_ROW} shrink-0 rounded px-2 py-1 text-[12px] font-medium text-ecmp-primary`}
-                >
-                  {alert.ctaLabel}
-                </button>
-              </div>
-            </li>
-          ))}
+        <>
+        <ul className="mt-3 max-h-[18rem] flex-1 space-y-1 overflow-y-auto">
+          {visible.map((alert) => {
+            const title = t(alert.titleKey, { count: alert.count });
+            return (
+              <li key={alert.id}>
+                {alert.href ? (
+                  <button
+                    type="button"
+                    onClick={() => activate(alert.href!)}
+                    className={`${DASHBOARD_HOVER_ROW} flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] px-2 py-2.5 text-left`}
+                  >
+                    <span
+                      className={`h-8 w-0.5 shrink-0 rounded-full ${OPS_TONE_RAIL[alert.tone]}`}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-medium text-ecmp-text-primary">
+                        {title}
+                      </span>
+                      <span
+                        className={`block ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[alert.tone]}`}
+                      >
+                        {alert.tone === "critical"
+                          ? t("kpiCritical")
+                          : t("kpiAttention")}
+                      </span>
+                    </span>
+                    <IconChevronRight
+                      className="size-4 shrink-0 text-ecmp-text-secondary"
+                      aria-hidden
+                    />
+                  </button>
+                ) : (
+                  <div className="flex w-full items-center gap-3 rounded-[var(--ecmp-radius-md)] px-2 py-2.5">
+                    <span
+                      className={`h-8 w-0.5 shrink-0 rounded-full ${OPS_TONE_RAIL[alert.tone]}`}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-medium text-ecmp-text-primary">
+                        {title}
+                      </span>
+                      <span
+                        className={`block ${DASHBOARD_CAPTION} ${OPS_TONE_TEXT[alert.tone]}`}
+                      >
+                        {alert.tone === "critical"
+                          ? t("kpiCritical")
+                          : t("kpiAttention")}
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
+        {overflow ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className={`${DASHBOARD_HOVER_ROW} mt-1 w-full rounded-[var(--ecmp-radius-md)] px-2 py-1.5 text-left text-[12px] font-medium text-ecmp-primary`}
+          >
+            {expanded
+              ? t("criticalAlertsShowLess")
+              : t("criticalAlertsShowAll", { count: alerts.length })}
+          </button>
+        ) : null}
+        </>
       )}
     </section>
   );

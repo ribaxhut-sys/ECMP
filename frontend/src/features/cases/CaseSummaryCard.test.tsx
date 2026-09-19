@@ -42,7 +42,7 @@ const casesMessages = {
   type: "Jenis",
   priority: "Prioritas",
   unit: "Unit",
-  customer: "Pelanggan",
+  customer: "Wajib Pajak",
   view: "Lihat Case",
 };
 
@@ -57,9 +57,18 @@ function renderWithIntl(ui: React.ReactElement) {
 describe("CaseStatusBadge", () => {
   afterEach(() => cleanup());
 
-  it("renders status text", () => {
-    render(<CaseStatusBadge status="IN_PROGRESS" />);
-    expect(screen.getByText("IN_PROGRESS")).toBeInTheDocument();
+  it("renders localized status text", () => {
+    render(
+      <NextIntlClientProvider
+        locale="id"
+        messages={{
+          status: { IN_PROGRESS: "Sedang diproses" },
+        }}
+      >
+        <CaseStatusBadge status="IN_PROGRESS" />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText("Sedang diproses")).toBeInTheDocument();
   });
 });
 

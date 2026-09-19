@@ -22,6 +22,7 @@ def _user_row(**overrides: object) -> SimpleNamespace:
         "username": "role_sync",
         "email": "role_sync@example.com",
         "full_name": "Role Sync",
+        "initials": "RSY",
         "password_hash": hash_password("Secret123!"),
         "role_id": uuid.uuid4(),
         "branch_id": None,

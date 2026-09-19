@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
@@ -32,12 +33,13 @@ import { rememberCaseId } from "./caseSessionRegistry";
 
 /**
  * Case List for a Complaint — API-536 with complaintId filter (DEC-024).
- * `?createCase=1` opens Buat Case once (after Aggregate create), with optional prefill.
+ * `?createCase=1` opens handling (create Case) once after Aggregate create, with optional prefill.
  */
 export function CaseListView({ complaintId }: { complaintId: string }) {
   const t = useTranslations("cases");
   const tCommon = useTranslations("common");
-  const tTable = useTranslations("table");
+  const tNav = useTranslations("nav");
+  const tErrors = useTranslations("errors");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -73,12 +75,14 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
     } catch (err) {
       setCases([]);
       setError(
-        err instanceof ApiError ? err.message : t("unableToLoadList"),
+        err instanceof ApiError
+          ? resolveApiErrorMessage(err, tErrors, tCommon)
+          : t("unableToLoadList"),
       );
     } finally {
       setLoading(false);
     }
-  }, [canRead, complaintId, t]);
+  }, [canRead, complaintId, t, tErrors, tCommon]);
 
   useEffect(() => {
     void reload();
@@ -137,8 +141,8 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         <PageHeader
           title={t("title")}
           breadcrumbs={[
-            { label: t("back"), href: "/dashboard" },
-            { label: t("confirmation"), href: "/complaints" },
+            { label: tCommon("home"), href: "/dashboard" },
+            { label: tNav("complaints"), href: "/complaints" },
             { label: t("title") },
           ]}
         />
@@ -160,8 +164,8 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         title={t("title")}
         description={t("modeADescription", { id: complaintId })}
         breadcrumbs={[
-          { label: t("back"), href: "/dashboard" },
-          { label: t("confirmation"), href: "/complaints" },
+          { label: tCommon("home"), href: "/dashboard" },
+          { label: tNav("complaints"), href: "/complaints" },
           {
             label: t("confirmation"),
             href: `/complaints/cm/${encodeURIComponent(complaintId)}`,
@@ -170,17 +174,6 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                router.push(
-                  `/complaints/cm/${encodeURIComponent(complaintId)}`,
-                )
-              }
-            >
-              {t("back")}
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -251,7 +244,11 @@ export function CaseListView({ complaintId }: { complaintId: string }) {
             description={t("modeADescription", { id: complaintId })}
           />
           <WorkspaceToolbar
-            summary={tTable("itemsInView", { count: cases.length })}
+            summary={tCommon("showingItems", {
+              from: cases.length === 0 ? 0 : 1,
+              to: cases.length,
+              total: cases.length,
+            })}
             actions={
               <Button
                 type="button"

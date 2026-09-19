@@ -144,12 +144,12 @@ def test_create_list_get_activity_timeline(
     assert got.status_code == 200
     assert got.json()["data"]["id"] == entry_id
 
+    # DEC-026: nested Foundation activity-timeline is unmounted.
     by_complaint = client.get(
         f"/api/v1/complaints/{aggregate_id}/activity-timeline",
         headers=headers,
     )
-    assert by_complaint.status_code == 200
-    assert any(item["id"] == entry_id for item in by_complaint.json()["data"])
+    assert by_complaint.status_code == 404
 
 
 def test_timeline_forbidden_without_permission(

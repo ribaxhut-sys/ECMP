@@ -6,11 +6,20 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from app.core.errors import ConflictError, NotFoundError, ValidationAppError
+from app.core.errors import (
+    ConflictError,
+    NotFoundError,
+    PermissionDeniedError,
+    ValidationAppError,
+)
 from app.core.logging import get_logger
 from app.core.user_messages import m
 from app.modules.attachment.domain.enums import AggregateType
-from app.modules.attachment.service import AttachmentService, sanitize_filename
+from app.modules.attachment.service import (
+    AttachmentService,
+    normalize_upload_mime,
+    sanitize_filename,
+)
 from app.modules.cm_batch1 import event_factory as events
 from app.modules.cm_batch1.antivirus import AntivirusScanner, StubAntivirusScanner
 from app.modules.cm_batch1.attachment_config import (
@@ -100,6 +109,54 @@ class CmBatch1AttachmentService:
             )
         return token
 
+    def _require_open_complaint(self, complaint_id: str):
+        complaint = self._complaints.get(complaint_id.strip())
+        if complaint is None:
+            raise NotFoundError(m("complaint.not_found"))
+        status = (complaint.status or "").strip().upper()
+        if status in {"CLOSED", "CANCELLED"}:
+            raise ConflictError(
+                m("complaint.already_closed"),
+                details={"complaintId": complaint.complaint_id, "status": status},
+            )
+        return complaint
+
+    def _resolve_case_pin(
+        self,
+        *,
+        case_id: str | None,
+        complaint_id: str | None,
+    ) -> uuid.UUID | None:
+        """Optional FR-004 Case pin — Case MUST belong to the bound Complaint."""
+        raw = (case_id or "").strip()
+        if not raw:
+            return None
+        complaint = (complaint_id or "").strip()
+        if not complaint:
+            raise ValidationAppError(
+                m("attachment.case_pin_requires_complaint"),
+                details={"caseId": raw},
+            )
+        try:
+            case_uuid = uuid.UUID(raw)
+        except ValueError:
+            raise ValidationAppError(
+                m("attachment.case_not_found"),
+                details={"caseId": raw},
+            ) from None
+        case_complaint_id = self._repo.complaint_id_for_case(case_uuid)
+        if case_complaint_id is None:
+            raise ValidationAppError(
+                m("attachment.case_not_found"),
+                details={"caseId": raw},
+            )
+        if case_complaint_id.strip().lower() != complaint.lower():
+            raise ValidationAppError(
+                m("attachment.case_not_in_complaint"),
+                details={"caseId": raw, "complaintId": complaint},
+            )
+        return case_uuid
+
     def upload(
         self,
         *,
@@ -116,13 +173,6 @@ class CmBatch1AttachmentService:
         uploaded_by: uuid.UUID | None = None,
     ) -> Batch1AttachmentResponse:
         cfg = self._cfg()
-        if case_id and str(case_id).strip():
-            # Batch 1 has no Case — membership invariant fails closed (FR-004 E7 / AC-09).
-            raise ValidationAppError(
-                m("attachment.case_id_not_supported"),
-                details={"caseId": case_id},
-            )
-
         classification_clean = (classification or "").strip()
         if classification_clean not in cfg.allowed_classifications:
             raise ValidationAppError(
@@ -133,7 +183,11 @@ class CmBatch1AttachmentService:
                 },
             )
 
-        mime_type = (content_type or "").strip().lower() or "application/octet-stream"
+        if not data:
+            raise ValidationAppError(m("storage.file_empty"), details={"sizeBytes": 0})
+        mime_type = normalize_upload_mime(
+            content_type=content_type, filename=filename, data=data
+        )
         if mime_type not in cfg.allowed_mime_types:
             raise ValidationAppError(
                 m("storage.mime_not_allowed"),
@@ -142,8 +196,6 @@ class CmBatch1AttachmentService:
                     "allowed": sorted(cfg.allowed_mime_types),
                 },
             )
-        if not data:
-            raise ValidationAppError(m("storage.file_empty"), details={"sizeBytes": 0})
         if len(data) > cfg.max_file_size_bytes:
             raise ValidationAppError(
                 m("storage.file_exceeds_max_size"),
@@ -176,9 +228,7 @@ class CmBatch1AttachmentService:
         token: str | None = None
 
         if complaint_id and complaint_id.strip():
-            complaint = self._complaints.get(complaint_id.strip())
-            if complaint is None:
-                raise NotFoundError(m("complaint.not_found"))
+            complaint = self._require_open_complaint(complaint_id.strip())
             complaint_uuid = uuid.UUID(complaint.complaint_id)
             complaint_customer_id = complaint.customer_id
             status = ATTACHMENT_STATUS_ACTIVE
@@ -191,6 +241,11 @@ class CmBatch1AttachmentService:
             aggregate_id = uuid.uuid5(
                 uuid.NAMESPACE_URL, f"cm-batch1-staging:{token}"
             )
+
+        resolved_case_id = self._resolve_case_pin(
+            case_id=case_id,
+            complaint_id=str(complaint_uuid) if complaint_uuid else None,
+        )
 
         checksum = hashlib.sha256(data).hexdigest()
         if cfg.duplicate_checksum_policy == "REJECT_WITH_EXISTING_REFERENCE":
@@ -278,6 +333,7 @@ class CmBatch1AttachmentService:
                 staging_token=token,
                 complaint_id=complaint_uuid,
                 customer_id=complaint_customer_id,
+                case_id=resolved_case_id,
                 original_name=safe_name,
                 mime_type=mime_type,
                 size_bytes=len(data),
@@ -387,9 +443,7 @@ class CmBatch1AttachmentService:
                 m("staging.token_not_open"),
                 details={"status": session.status},
             )
-        complaint = self._complaints.get(complaint_id)
-        if complaint is None:
-            raise NotFoundError(m("complaint.not_found"))
+        complaint = self._require_open_complaint(complaint_id)
 
         rows = self._repo.list_by_staging_token(staging_token)
         staged = [row for row in rows if row.status == ATTACHMENT_STATUS_STAGED]
@@ -446,12 +500,24 @@ class CmBatch1AttachmentService:
         *,
         actor_id: str | None,
     ) -> TransferAttachmentsResponse:
-        """D-06 — transfer staged evidence to surviving Complaint; never discard."""
+        """D-06 — transfer staged evidence to surviving Complaint; never discard.
+
+        Missing staging session is a successful no-op (parity with
+        ``bind_staging_to_complaint``): the create/intake FE always mints a
+        client-side ``STG-*`` token even when no file was uploaded, so a hard
+        404 here broke ``link_existing`` for the common no-attachment path.
+        """
         token = body.staging_token.strip()
         surviving = body.surviving_complaint_id.strip()
         session = self._repo.get_staging(token)
         if session is None:
-            raise NotFoundError(m("staging.token_not_found"))
+            return TransferAttachmentsResponse(
+                stagingToken=token,
+                survivingComplaintId=surviving,
+                transferredCount=0,
+                attachments=[],
+                discarded=False,
+            )
         complaint = self._complaints.get(surviving)
         if complaint is None:
             raise NotFoundError(m("duplicate.surviving_complaint_not_found"))
@@ -545,6 +611,7 @@ class CmBatch1AttachmentService:
         *,
         reason: str,
         actor_id: str | None,
+        is_admin: bool = False,
     ) -> Batch1AttachmentResponse:
         reason_clean = (reason or "").strip()
         if not reason_clean:
@@ -560,6 +627,9 @@ class CmBatch1AttachmentService:
                 m("attachment.already_void"),
                 details={"attachmentId": attachment_id},
             )
+        if row.complaint_id:
+            self._require_open_complaint(str(row.complaint_id))
+        self._assert_can_void(row, actor_id=actor_id, is_admin=is_admin)
         self._attachments.soft_delete(
             uuid.UUID(row.platform_attachment_id), commit=not self._share_tx
         )
@@ -582,6 +652,37 @@ class CmBatch1AttachmentService:
         )
         self._repo.commit()
         return self._to_response(updated)
+
+    def _assert_can_void(
+        self,
+        row: Batch1AttachmentRecord,
+        *,
+        actor_id: str | None,
+        is_admin: bool,
+    ) -> None:
+        """Uploader, complaint creator, or admin may void; others are denied."""
+        if is_admin:
+            return
+        actor = (actor_id or "").strip()
+        if not actor:
+            raise PermissionDeniedError(
+                m("attachment.void_forbidden"),
+                details={"attachmentId": row.id},
+            )
+        if (row.uploaded_by or "").strip() == actor:
+            return
+        if row.complaint_id:
+            complaint = self._complaints.get(str(row.complaint_id))
+            if complaint is not None and (complaint.created_by or "").strip() == actor:
+                return
+        if row.staging_token:
+            staging = self._repo.get_staging(row.staging_token)
+            if staging is not None and (staging.created_by or "").strip() == actor:
+                return
+        raise PermissionDeniedError(
+            m("attachment.void_forbidden"),
+            details={"attachmentId": row.id},
+        )
 
     def void_abandoned_staging(self, *, actor_id: str | None = "system") -> int:
         cfg = self._cfg()
@@ -657,6 +758,7 @@ class CmBatch1AttachmentService:
             stagingToken=row.staging_token,
             complaintId=row.complaint_id,
             customerId=row.customer_id,
+            caseId=row.case_id,
             originalName=row.original_name or "",
             mimeType=row.mime_type or "",
             sizeBytes=row.size_bytes or 0,

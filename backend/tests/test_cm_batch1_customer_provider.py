@@ -155,8 +155,10 @@ def test_factory_unknown_raises() -> None:
         build_customer_provider("kafka")
 
 
-def test_settings_customer_provider_default() -> None:
-    settings = Settings()
+def test_settings_customer_provider_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CUSTOMER_PROVIDER", raising=False)
+    monkeypatch.delenv("CUSTOMER_PROVIDER_ENTERPRISE_BASE_URL", raising=False)
+    settings = Settings(_env_file=None)
     assert settings.customer_provider == "stub"
     assert settings.customer_provider_enterprise_base_url is None
 

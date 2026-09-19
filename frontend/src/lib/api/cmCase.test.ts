@@ -18,7 +18,23 @@ describe("cmCasePaths", () => {
     expect(paths.addCase("p/1")).toBe("/api/v1/cm/complaints/p%2F1/cases");
     expect(paths.status("id")).toBe("/api/v1/cm/cases/id/status");
     expect(paths.resolve("id")).toBe("/api/v1/cm/cases/id/resolve");
+    expect(paths.acceptance("id")).toBe("/api/v1/cm/cases/id/acceptance");
     expect(paths.close("id")).toBe("/api/v1/cm/cases/id/close");
+    expect(paths.escalateToPusat("id")).toBe(
+      "/api/v1/cm/cases/id/escalate-to-pusat",
+    );
+    expect(paths.cancelEscalationToPusat("id")).toBe(
+      "/api/v1/cm/cases/id/cancel-escalation-to-pusat",
+    );
+    expect(paths.returnEscalation("id")).toBe(
+      "/api/v1/cm/cases/id/return-escalation",
+    );
+    expect(paths.history("c/1")).toBe("/api/v1/cm/cases/c%2F1/history");
+    expect(paths.exportPdf("c/1")).toBe("/api/v1/cm/cases/c%2F1/export");
+    expect(paths.workBadges).toBe("/api/v1/cm/work-badges");
+    expect(paths.hqScheduleSeen).toBe(
+      "/api/v1/cm/work-badges/hq-schedule-seen",
+    );
   });
 
   it("does not use foundation complaints base for create case", () => {

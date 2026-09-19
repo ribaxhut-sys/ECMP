@@ -77,7 +77,7 @@ BC-003 is the **authoritative business vocabulary** for ECMP Mode A.
 | **Referenced Constitution** | BC-4.2; BC-5.4; BC-9.1; BC-9.9 |
 | **Referenced Principles** | BP-014; BP-011 |
 | **Referenced Workflow** | WS-02…WS-09 |
-| **Referenced Decisions** | DL-023; DL-024 |
+| **Referenced Decisions** | DL-023; DL-024; DL-070 |
 
 ---
 
@@ -906,7 +906,7 @@ Timeline ← Timeline Events (incl. SLA changes)
 | Term ID | BC-000 | BC-001 | BW-000 | Decision(s) |
 |---|---|---|---|---|
 | BG-001 | BC-4.1 | BP-005 | WS-01 | DL-006; DL-024 |
-| BG-002 | BC-4.2 | BP-014 | WS-02…09 | DL-023; DL-024 |
+| BG-002 | BC-4.2 | BP-014 | WS-02…09 | DL-023; DL-024; DL-070 |
 | BG-003 | BC-4.2 | BP-003 | — | DL-046; DL-024 |
 | BG-004 | BC-5.5 | BP-014 | WS-10; DG-06 | DL-024 |
 | BG-005 | BC-4.3 | BP-006 | SLA-T3 | DL-067 |

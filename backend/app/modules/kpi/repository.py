@@ -1,4 +1,4 @@
-"""KPI Foundation repository — read-only SQL aggregations (no KPI tables)."""
+"""KPI repository — CM Batch 1 counts; SLA stages always zero (CAP-006 deferred)."""
 
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ from datetime import datetime
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import ComplaintStatus, SlaStatus
-from app.models import Complaint, SlaRecord
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM
+from app.modules.cm_batch1.predicates import CLOSED_STATUS
+from app.modules.cm_batch1.scope import owning_unit_for_branch
 
 
 class KpiRepository:
@@ -24,18 +25,21 @@ class KpiRepository:
         date_to: datetime | None,
         category: str | None,
         priority: str | None,
-    ) -> list[object]:
-        filters: list[object] = [Complaint.deleted_at.is_(None)]
+    ) -> list[object] | None:
+        filters: list[object] = []
         if branch_id is not None:
-            filters.append(Complaint.branch_id == branch_id)
+            unit = owning_unit_for_branch(self._session, branch_id)
+            if not unit:
+                return None
+            filters.append(CmBatch1ComplaintORM.owning_unit_id == unit)
         if date_from is not None:
-            filters.append(Complaint.reported_at >= date_from)
+            filters.append(CmBatch1ComplaintORM.created_at >= date_from)
         if date_to is not None:
-            filters.append(Complaint.reported_at <= date_to)
+            filters.append(CmBatch1ComplaintORM.created_at <= date_to)
         if category is not None:
-            filters.append(Complaint.category == category)
+            filters.append(CmBatch1ComplaintORM.category == category)
         if priority is not None:
-            filters.append(Complaint.priority == priority)
+            filters.append(CmBatch1ComplaintORM.priority == priority)
         return filters
 
     def count_complaints(
@@ -47,7 +51,7 @@ class KpiRepository:
         category: str | None = None,
         priority: str | None = None,
     ) -> tuple[int, int, int]:
-        """Return (total, open, closed). Open = not CLOSED; closed = CLOSED."""
+        """Return (total, open, closed). Open = not CLOSED (DEC-025 M-025-1)."""
         filters = self._complaint_filters(
             branch_id=branch_id,
             date_from=date_from,
@@ -55,45 +59,51 @@ class KpiRepository:
             category=category,
             priority=priority,
         )
-        total_stmt: Select[tuple[int]] = (
-            select(func.count()).select_from(Complaint).where(*filters)
+        if filters is None:
+            return 0, 0, 0
+        total_stmt: Select[tuple[int]] = select(func.count()).select_from(
+            CmBatch1ComplaintORM
         )
+        if filters:
+            total_stmt = total_stmt.where(*filters)
         total = int(self._session.scalar(total_stmt) or 0)
 
-        closed_stmt = (
-            select(func.count())
-            .select_from(Complaint)
-            .where(*filters, Complaint.status == ComplaintStatus.CLOSED)
+        closed_stmt = select(func.count()).select_from(CmBatch1ComplaintORM).where(
+            CmBatch1ComplaintORM.status == CLOSED_STATUS
         )
+        if filters:
+            closed_stmt = closed_stmt.where(*filters)
         closed = int(self._session.scalar(closed_stmt) or 0)
-        open_count = total - closed
+
+        open_stmt = select(func.count()).select_from(CmBatch1ComplaintORM).where(
+            CmBatch1ComplaintORM.status != CLOSED_STATUS
+        )
+        if filters:
+            open_stmt = open_stmt.where(*filters)
+        open_count = int(self._session.scalar(open_stmt) or 0)
         return total, open_count, closed
 
     def count_sla_stage(
         self,
         *,
         status_column,
-        target_status: SlaStatus,
+        target_status,
         branch_id: uuid.UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         category: str | None = None,
         priority: str | None = None,
     ) -> int:
-        filters = self._complaint_filters(
-            branch_id=branch_id,
-            date_from=date_from,
-            date_to=date_to,
-            category=category,
-            priority=priority,
+        _ = (
+            status_column,
+            target_status,
+            branch_id,
+            date_from,
+            date_to,
+            category,
+            priority,
         )
-        stmt = (
-            select(func.count())
-            .select_from(SlaRecord)
-            .join(Complaint, Complaint.id == SlaRecord.complaint_id)
-            .where(*filters, status_column == target_status)
-        )
-        return int(self._session.scalar(stmt) or 0)
+        return 0
 
     def count_sla_pair(
         self,
@@ -105,22 +115,12 @@ class KpiRepository:
         category: str | None = None,
         priority: str | None = None,
     ) -> tuple[int, int]:
-        completed = self.count_sla_stage(
-            status_column=status_column,
-            target_status=SlaStatus.COMPLETED,
-            branch_id=branch_id,
-            date_from=date_from,
-            date_to=date_to,
-            category=category,
-            priority=priority,
+        _ = (
+            status_column,
+            branch_id,
+            date_from,
+            date_to,
+            category,
+            priority,
         )
-        breached = self.count_sla_stage(
-            status_column=status_column,
-            target_status=SlaStatus.BREACHED,
-            branch_id=branch_id,
-            date_from=date_from,
-            date_to=date_to,
-            category=category,
-            priority=priority,
-        )
-        return completed, breached
+        return 0, 0

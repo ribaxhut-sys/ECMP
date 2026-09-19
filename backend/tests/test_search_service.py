@@ -22,7 +22,7 @@ def test_alembic_head_includes_search_indexes() -> None:
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
     script = ScriptDirectory.from_config(cfg)
     # Head advances after CAPABILITY-012; search revision must remain on the chain.
-    assert script.get_heads() == ["0049_cm_b1_intake_disp"]
+    assert len(script.get_heads()) == 1
     assert "0036_search_indexes" in {r.revision for r in script.walk_revisions()}
 
 

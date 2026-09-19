@@ -32,6 +32,96 @@ export type ModuleUserCandidate = {
 export const MODULE_USER_CANDIDATES: ModuleUserCandidate[] =
   candidatesJson as ModuleUserCandidate[];
 
+const LONG_ID_BASE = 3_100_000_000_000_000;
+
+/** 3100000000000001 → 3101. Unrelated strings return null. */
+export function shortLabUsernameFromLongId(value: string): string | null {
+  const digits = value.trim();
+  if (!/^\d{16}$/.test(digits) || !digits.startsWith("3100")) return null;
+  const seq = Number(digits) - LONG_ID_BASE;
+  if (!Number.isInteger(seq) || seq < 1) return null;
+  return `31${String(seq).padStart(2, "0")}`;
+}
+
+/** 3101 → 3100000000000001. Unrelated strings return null. */
+export function longLabIdFromShortUsername(value: string): string | null {
+  const digits = value.trim();
+  const match = /^31(\d+)$/.exec(digits);
+  if (!match) return null;
+  const seq = Number(match[1]);
+  if (!Number.isInteger(seq) || seq < 1) return null;
+  return String(LONG_ID_BASE + seq).padStart(16, "0");
+}
+
+export function emailLocalPart(email: string): string {
+  const at = email.indexOf("@");
+  return (at >= 0 ? email.slice(0, at) : email).trim();
+}
+
+/** Username, 16-digit identity, and email local-part for one directory row. */
+export function candidateIdentityKeys(row: ModuleUserCandidate): string[] {
+  return labIdentityAliases(row.username, row.email);
+}
+
+export function labIdentityAliases(...values: Array<string | null | undefined>): string[] {
+  const out = new Set<string>();
+  for (const raw of values) {
+    const value = (raw ?? "").trim();
+    if (!value) continue;
+    out.add(value);
+    const local = emailLocalPart(value);
+    if (local) out.add(local);
+    const short = shortLabUsernameFromLongId(local);
+    const long = longLabIdFromShortUsername(local);
+    if (short) out.add(short);
+    if (long) out.add(long);
+  }
+  return [...out];
+}
+
+function searchNeedles(query: string): string[] {
+  const q = query.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!q) return [];
+  const needles = new Set<string>([q]);
+  const compact = q.replace(/\s+/g, "");
+  if (compact !== q) needles.add(compact);
+  const digits = compact.replace(/\D/g, "");
+  if (digits.length >= 2) {
+    needles.add(digits);
+    const short = shortLabUsernameFromLongId(digits);
+    const long = longLabIdFromShortUsername(digits);
+    if (short) needles.add(short.toLowerCase());
+    if (long) needles.add(long.toLowerCase());
+  }
+  return [...needles];
+}
+
+function candidateHaystack(row: ModuleUserCandidate): string {
+  return [
+    row.username,
+    row.displayName,
+    row.email,
+    emailLocalPart(row.email),
+    row.homeBranchCode,
+    row.homeBranchName,
+    row.region,
+    ...candidateIdentityKeys(row),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function rankCandidate(row: ModuleUserCandidate, query: string): number {
+  const q = query.trim().toLowerCase();
+  const username = row.username.toLowerCase();
+  const name = row.displayName.toLowerCase();
+  const keys = candidateIdentityKeys(row).map((key) => key.toLowerCase());
+  if (keys.includes(q) || username === q) return 0;
+  if (username.startsWith(q) || keys.some((key) => key.startsWith(q))) return 1;
+  if (name.startsWith(q)) return 2;
+  return 3;
+}
+
 /**
  * Directory marker for a person based at head office rather than a branch.
  * Head office is not an ECMP branch row, so it cannot be expressed as a
@@ -47,7 +137,15 @@ export function isHeadOfficeCandidate(
   return !code || code === HEAD_OFFICE_UNIT_CODE;
 }
 
-/** Search central-directory candidates by 16-digit ID or display name. */
+function isRegisteredCandidate(
+  row: ModuleUserCandidate,
+  exclude?: ReadonlySet<string>,
+): boolean {
+  if (!exclude || exclude.size === 0) return false;
+  return candidateIdentityKeys(row).some((key) => exclude.has(key));
+}
+
+/** Search by short ID (3101), 16-digit ID, name, email, or unit. */
 export function searchModuleUserCandidates(
   query: string,
   options?: {
@@ -55,19 +153,19 @@ export function searchModuleUserCandidates(
     limit?: number;
   },
 ): ModuleUserCandidate[] {
-  const q = query.trim().toLowerCase();
-  if (q.length < 1) return [];
+  const needles = searchNeedles(query);
+  if (needles.length === 0) return [];
   const exclude = options?.excludeUsernames;
   const limit = options?.limit ?? 8;
-  const out: ModuleUserCandidate[] = [];
+  const hits: ModuleUserCandidate[] = [];
   for (const row of MODULE_USER_CANDIDATES) {
-    if (exclude?.has(row.username)) continue;
-    const hay = `${row.username} ${row.displayName}`.toLowerCase();
-    if (!hay.includes(q)) continue;
-    out.push(row);
-    if (out.length >= limit) break;
+    if (isRegisteredCandidate(row, exclude)) continue;
+    const hay = candidateHaystack(row);
+    if (!needles.some((needle) => hay.includes(needle))) continue;
+    hits.push(row);
   }
-  return out;
+  hits.sort((a, b) => rankCandidate(a, query) - rankCandidate(b, query));
+  return hits.slice(0, limit);
 }
 
 export type HighlightSegment = {
@@ -78,8 +176,8 @@ export type HighlightSegment = {
 /**
  * Split ``text`` so the first case-insensitive occurrence of ``query``
  * is a matched segment (for bolding typed ID/name prefixes in results).
- * Example: query ``31000``, text ``3100000000000001`` →
- * ``[{ text: "31000", matched: true }, { text: "00000000001", matched: false }]``.
+ * Example: query ``31``, text ``3101`` →
+ * ``[{ text: "31", matched: true }, { text: "01", matched: false }]``.
  */
 export function highlightMatchSegments(
   text: string,

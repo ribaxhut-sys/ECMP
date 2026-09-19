@@ -30,6 +30,16 @@ def check_permissions(principal: Principal, *required: str) -> None:
         )
 
 
+def check_any_permission(principal: Principal, *candidates: str) -> None:
+    """Raise when principal has none of the candidate permissions."""
+    if any(principal.has_permission(perm) for perm in candidates):
+        return
+    raise PermissionDeniedError(
+        m("common.forbidden"),
+        details={"requiredAnyPermissions": list(candidates)},
+    )
+
+
 def check_roles(principal: Principal, *roles: str) -> None:
     """Raise :class:`PermissionDeniedError` when principal has none of the roles."""
     if not principal.has_any_role(*roles):
@@ -49,6 +59,33 @@ def require_permissions(*required: str) -> Callable[..., Principal]:
     ) -> Principal:
         try:
             check_permissions(principal, *required)
+        except PermissionDeniedError as exc:
+            write_security_event(
+                session,
+                request=request,
+                event_type=SecurityEventType.PERMISSION_DENIED,
+                actor_id=principal.user_id,
+                entity_id=principal.user_id,
+                new_values=dict(exc.details or {}),
+                metadata_extra={"reasonCode": "FORBIDDEN"},
+                commit=True,
+            )
+            raise
+        return principal
+
+    return _dependency
+
+
+def require_any_permission(*candidates: str) -> Callable[..., Principal]:
+    """Dependency factory: allow if principal has at least one candidate permission."""
+
+    def _dependency(
+        request: Request,
+        principal: Annotated[Principal, Depends(get_current_principal)],
+        session: Annotated[Session, Depends(get_db_session)],
+    ) -> Principal:
+        try:
+            check_any_permission(principal, *candidates)
         except PermissionDeniedError as exc:
             write_security_event(
                 session,

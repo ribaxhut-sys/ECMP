@@ -97,7 +97,9 @@ def _principal() -> Principal:
         user_id=uuid.uuid4(),
         roles=("AGENT",),
         permissions=frozenset(
-            {"complaints:create", "complaints:read", "complaints:update"}
+            # queue writes moved off complaints:create in 0073; reads/updates
+            # still ride complaints:* (wider namespace split not done yet).
+            {"queue:manage", "complaints:read", "complaints:update"}
         ),
     )
 

@@ -1,44 +1,137 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  formatIdentityBranch,
-  formatIdentityWhen,
-  identityInitials,
+  isOwnModuleActivity,
+  moduleRoleDisplayLabels,
   primaryRoleLabel,
+  resolveIdentityUnitLabel,
 } from "@/features/auth";
-import { LanguageSwitcher } from "@/shared/i18n";
+import { resolveActivityMeta } from "@/features/dashboard/activityLabels";
+import {
+  actorInitials,
+  activitySubjectText,
+  formatRelativeTime,
+} from "@/features/dashboard/dashboardUtils";
+import {
+  fetchBranches,
+  fetchDashboardRecentActivity,
+  type Branch,
+} from "@/lib/api";
+import type { DashboardRecentActivityItem } from "@/lib/api/types";
+import { formatDateTime24 } from "@/shared/utils/datetime";
 import {
   Badge,
-  Button,
   Card,
   CardBody,
-  CardHeader,
   Empty,
   PageContainer,
   PageHeader,
-  PanelHeader,
   SectionHeader,
   Skeleton,
+  Timeline,
 } from "@/shared/ui";
 
-export default function ProfilePage() {
-  const router = useRouter();
-  const { user, status } = useAuth();
-  const t = useTranslations("profile");
-  const tCommon = useTranslations("common");
+const WORK_HISTORY_FETCH_LIMIT = 50;
+const WORK_HISTORY_SHOW_LIMIT = 8;
 
-  const initials = useMemo(
-    () => identityInitials(user?.fullName ?? user?.username),
-    [user?.fullName, user?.username],
+export default function ProfilePage() {
+  const { user, status, hasPermission } = useAuth();
+  const t = useTranslations("profile");
+  const tUsers = useTranslations("users");
+  const tCommon = useTranslations("common");
+  const tDashboard = useTranslations("dashboard");
+  const locale = useLocale();
+  const canReadActivity = hasPermission("dashboard:read");
+
+  const [units, setUnits] = useState<Branch[]>([]);
+  const [activity, setActivity] = useState<DashboardRecentActivityItem[] | null>(
+    null,
   );
-  const roleLabel = primaryRoleLabel(user, t("roleUnassigned"));
-  const branchLabel = formatIdentityBranch(user?.branchId, t("branchUnassigned"));
-  const lastLogin = formatIdentityWhen(user?.lastLoginAt);
-  const updatedAt = formatIdentityWhen(user?.updatedAt);
+  const [activityLoading, setActivityLoading] = useState(canReadActivity);
+
+  const roleLabel = primaryRoleLabel(
+    user,
+    t("roleUnassigned"),
+    moduleRoleDisplayLabels(tUsers),
+  );
+  const unitLabel = resolveIdentityUnitLabel(
+    user?.branchId,
+    units,
+    t("branchUnassigned"),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBranches(100)
+      .then((res) => {
+        if (!cancelled) setUnits(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setUnits([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const userId = user?.id;
+  const userUsername = user?.username;
+  const userEmail = user?.email;
+  const userFullName = user?.fullName;
+
+  useEffect(() => {
+    if (!canReadActivity || !userId) {
+      setActivityLoading(false);
+      setActivity([]);
+      return;
+    }
+    let cancelled = false;
+    setActivityLoading(true);
+    const identity = {
+      id: userId,
+      username: userUsername ?? "",
+      email: userEmail ?? "",
+      fullName: userFullName ?? "",
+    };
+    void fetchDashboardRecentActivity({ limit: WORK_HISTORY_FETCH_LIMIT })
+      .then((res) => {
+        if (cancelled) return;
+        setActivity(
+          res.data.filter((row) => isOwnModuleActivity(row.actor, identity)),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setActivity([]);
+      })
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canReadActivity, userId, userUsername, userEmail, userFullName]);
+
+  const facts = useMemo(
+    () => [
+      {
+        label: t("email"),
+        value: user?.email ?? tCommon("emDash"),
+      },
+      {
+        label: t("branch"),
+        value: unitLabel,
+      },
+      {
+        label: t("firstActive"),
+        value: formatDateTime24(user?.createdAt, locale, tCommon("emDash")),
+      },
+    ],
+    [t, tCommon, locale, unitLabel, user?.createdAt, user?.email],
+  );
 
   if (status === "loading") {
     return (
@@ -48,190 +141,94 @@ export default function ProfilePage() {
     );
   }
 
+  const visibleActivity = (activity ?? []).slice(0, WORK_HISTORY_SHOW_LIMIT);
+
   return (
     <PageContainer className="space-y-[var(--ecmp-section-gap)]">
       <PageHeader
-        overline={t("overline")}
-        title={t("title")}
+        overline={t("title")}
+        title={user?.fullName ?? t("title")}
         breadcrumbs={[
           { label: tCommon("home"), href: "/dashboard" },
           { label: t("title") },
         ]}
-        description={t("description")}
+        description={
+          user?.username ? (
+            <span className="font-mono text-ecmp-text-secondary">
+              @{user.username}
+            </span>
+          ) : null
+        }
+        meta={
+          <>
+            <Badge tone="info">{roleLabel}</Badge>
+            <Badge tone={user?.isActive ? "success" : "neutral"}>
+              {user?.isActive ? t("statusActive") : t("statusInactive")}
+            </Badge>
+          </>
+        }
       />
 
-      <Card className="shadow-ecmp-raised">
-        <CardBody className="flex flex-col gap-[var(--ecmp-panel-gap)] lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
-            <div
-              aria-hidden
-              className="flex size-16 shrink-0 items-center justify-center rounded-full bg-ecmp-primary-muted text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-primary ring-1 ring-inset ring-ecmp-primary/15"
-            >
-              {initials}
-            </div>
-            <div className="min-w-0 space-y-1">
-              <p className="truncate text-[length:var(--ecmp-font-section-title-size)] font-[number:var(--ecmp-font-section-title-weight)] text-ecmp-text-primary">
-                {user?.fullName ?? tCommon("emDash")}
-              </p>
-              <p className="truncate text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                @{user?.username ?? tCommon("emDash")}
-              </p>
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <Badge tone="info">{roleLabel}</Badge>
-                <Badge tone={user?.isActive ? "success" : "neutral"}>
-                  {user?.isActive ? t("statusActive") : t("statusInactive")}
-                </Badge>
+      <Card>
+        <CardBody>
+          <dl className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-3">
+            {facts.map((fact) => (
+              <div key={fact.label} className="space-y-1">
+                <dt className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                  {fact.label.replace(/:$/, "")}
+                </dt>
+                <dd className="text-[length:var(--ecmp-font-body-size)] text-ecmp-text-primary">
+                  {fact.value}
+                </dd>
               </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => router.push("/profile/security")}
-            >
-              {t("openSecurity")}
-            </Button>
-          </div>
+            ))}
+          </dl>
         </CardBody>
       </Card>
 
       <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader
-          title={t("personalInformation")}
-          description={t("personalInformationDescription")}
-        />
+        <SectionHeader title={t("recentActivity")} />
         <Card>
           <CardBody>
-            <dl className="grid grid-cols-1 gap-[var(--ecmp-card-gap)] sm:grid-cols-2">
-              <div className="space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("name")}
-                </dt>
-                <dd className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                  {user?.fullName ?? tCommon("emDash")}
-                </dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("username")}
-                </dt>
-                <dd className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                  {user?.username ?? tCommon("emDash")}
-                </dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("email")}
-                </dt>
-                <dd className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                  {user?.email ?? tCommon("emDash")}
-                </dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("role")}
-                </dt>
-                <dd className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                  {roleLabel}
-                </dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("branch")}
-                </dt>
-                <dd className="text-[length:var(--ecmp-font-body-size)] font-medium text-ecmp-text-primary">
-                  {branchLabel}
-                </dd>
-              </div>
-              <div className="space-y-1">
-                <dt className="text-[length:var(--ecmp-font-caption-size)] uppercase tracking-[var(--ecmp-font-overline-tracking)] text-ecmp-text-secondary">
-                  {t("accountStatus")}
-                </dt>
-                <dd>
-                  <Badge tone={user?.isActive ? "success" : "neutral"}>
-                    {user?.isActive ? t("statusActive") : t("statusInactive")}
-                  </Badge>
-                </dd>
-              </div>
-            </dl>
-          </CardBody>
-        </Card>
-      </section>
-
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader
-          title={t("security")}
-          description={t("securityDescription")}
-        />
-        <Card>
-          <CardHeader>
-            <PanelHeader
-              title={t("securitySummaryTitle")}
-              description={t("securitySummaryDescription")}
-              className="mb-0 border-0 pb-0"
-            />
-          </CardHeader>
-          <CardBody className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-[var(--ecmp-touch-min)]"
-              onClick={() => router.push("/profile/security")}
-            >
-              {t("openSecurity")}
-            </Button>
-          </CardBody>
-        </Card>
-      </section>
-
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader
-          title={t("recentActivity")}
-          description={t("recentActivityDescription")}
-        />
-        <Card>
-          <CardBody>
-            {lastLogin || updatedAt ? (
-              <ul className="space-y-3">
-                <li className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                  <span className="text-ecmp-text-primary">{t("lastLogin")}: </span>
-                  {lastLogin ?? tCommon("emDash")}
-                </li>
-                <li className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                  <span className="text-ecmp-text-primary">{t("lastUpdated")}: </span>
-                  {updatedAt ?? tCommon("emDash")}
-                </li>
-              </ul>
+            {activityLoading ? (
+              <Skeleton rows={4} />
+            ) : visibleActivity.length > 0 ? (
+              <Timeline
+                aria-label={t("recentActivity")}
+                items={visibleActivity.map((row, index) => {
+                  const meta = resolveActivityMeta(row.eventType);
+                  return {
+                    id: `${row.complaintNumber}-${row.eventType}-${row.timestamp}-${index}`,
+                    title: tDashboard(meta.labelKey),
+                    time: formatRelativeTime(row.timestamp, locale),
+                    status: tDashboard(meta.badgeKey),
+                    statusTone: meta.statusTone,
+                    icon: (
+                      <span
+                        className="text-[9px] font-medium tracking-tight text-ecmp-primary"
+                        aria-hidden
+                      >
+                        {actorInitials(row.actor)}
+                      </span>
+                    ),
+                    description: (
+                      <Link
+                        href={`/complaints?keyword=${encodeURIComponent(row.complaintNumber)}`}
+                        className="font-mono text-ecmp-primary hover:underline"
+                      >
+                        {activitySubjectText(row)}
+                      </Link>
+                    ),
+                  };
+                })}
+              />
             ) : (
               <Empty
-                className="border-0 bg-transparent py-6"
+                className="border-0 bg-transparent py-4"
                 title={t("recentActivityEmptyTitle")}
                 description={t("recentActivityEmptyDescription")}
-                primaryAction={{
-                  label: t("refreshProfile"),
-                  onClick: () => router.refresh(),
-                }}
-                secondaryAction={{
-                  label: t("openSecurity"),
-                  onClick: () => router.push("/profile/security"),
-                }}
               />
             )}
-          </CardBody>
-        </Card>
-      </section>
-
-      <section className="space-y-[var(--ecmp-panel-gap)]">
-        <SectionHeader
-          title={t("languageTitle")}
-          description={t("languageDescription")}
-        />
-        <Card>
-          <CardBody>
-            <LanguageSwitcher variant="full" />
           </CardBody>
         </Card>
       </section>

@@ -1,19 +1,29 @@
 "use client";
 
-import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ApiError,
+  downloadAttachment,
   uploadCmBatch1Attachment,
   voidCmBatch1Attachment,
   type CmBatch1AttachmentClassification,
   type CmBatch1AttachmentResponse,
 } from "@/lib/api";
+import { resolveApiErrorMessage } from "@/shared/i18n/resolveApiErrorMessage";
 import {
+  CM_BATCH1_MAX_MULTI_UPLOAD,
+  CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
+  cmBatch1AttachmentClassificationLabelKey,
+  cmBatch1VoidTargetId,
   formatCmBatch1AttachmentBytes,
   isCmBatch1AttachmentVoidable,
-  normalizeCmBatch1VoidReason,
+  isSameCmBatch1Attachment,
+  normalizeCmBatch1Attachment,
+  openBlankAttachmentTab,
+  pickCmBatch1UploadFiles,
+  showAttachmentInTab,
 } from "./cmBatch1Attachments";
 import {
   Alert,
@@ -21,8 +31,6 @@ import {
   Button,
   Card,
   CardBody,
-  Empty,
-  Input,
   SectionHeader,
   Select,
 } from "@/shared/ui";
@@ -31,18 +39,21 @@ const CLASSIFICATION_OPTIONS = [
   { value: "customer_evidence", label: "classificationCustomerEvidence" },
   { value: "internal_evidence", label: "classificationInternalEvidence" },
   { value: "official_letter", label: "classificationOfficialLetter" },
+  { value: "other", label: "classificationOther" },
 ] as const;
 
 const ACCEPT_MIME =
-  "application/pdf,image/jpeg,image/png,image/webp,video/mp4,text/plain,.pdf,.jpg,.jpeg,.png,.webp,.mp4,.txt";
+  "application/pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,text/plain,application/zip,.pdf,.jpg,.jpeg,.png,.gif,.webp,.mp4,.txt,.zip";
 
 export interface StagingAttachmentsPanelProps {
   stagingToken: string;
   customerId?: string | null;
   disabled?: boolean;
   onStagingTokenResolved?: (token: string) => void;
-  /** True when at least one non-void staged file exists (create must send stagingToken). */
+  /** True when at least one non-void staged file exists (informational). */
   onHasStagedChange?: (hasStaged: boolean) => void;
+  /** True while a staging upload/void is in flight — parent should block submit. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /**
@@ -54,11 +65,18 @@ export function StagingAttachmentsPanel({
   disabled = false,
   onStagingTokenResolved,
   onHasStagedChange,
+  onBusyChange,
 }: StagingAttachmentsPanelProps) {
   const t = useTranslations("complaints");
+  const tErrors = useTranslations("errors");
+  const tCommon = useTranslations("common");
   const { hasPermission } = useAuth();
   const canUpload =
     hasPermission("attachment:create") || hasPermission("*");
+  const canOpen =
+    hasPermission("attachment:read") ||
+    hasPermission("attachment:create") ||
+    hasPermission("*");
   const canVoid =
     hasPermission("attachment:delete") || hasPermission("*");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,11 +87,69 @@ export function StagingAttachmentsPanel({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [voidingId, setVoidingId] = useState<string | null>(null);
-  const [voidReason, setVoidReason] = useState("");
-  const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const previewTabsRef = useRef<Map<string, Window>>(new Map());
 
   const customerLocked = Boolean(customerId?.trim());
   const uploadBlocked = disabled || !customerLocked;
+
+  const closePreviewTab = useCallback((attachmentId: string) => {
+    const tab = previewTabsRef.current.get(attachmentId);
+    if (tab && !tab.closed) {
+      try {
+        tab.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    previewTabsRef.current.delete(attachmentId);
+  }, []);
+
+  useEffect(() => {
+    onBusyChange?.(uploading || Boolean(voidingId) || Boolean(busyId));
+  }, [busyId, onBusyChange, uploading, voidingId]);
+
+  const onOpen = useCallback(
+    async (item: CmBatch1AttachmentResponse) => {
+      if (!canOpen || busyId || disabled) return;
+      const rowId = cmBatch1VoidTargetId(item);
+      const platformId = item.platformAttachmentId?.trim() || rowId;
+      if (!rowId || !platformId) {
+        setError(t("unableToOpenAttachment"));
+        return;
+      }
+      const preview = openBlankAttachmentTab();
+      if (!preview) {
+        setError(t("attachmentPopupBlocked"));
+        return;
+      }
+      setBusyId(rowId);
+      setError(null);
+      try {
+        const result = await downloadAttachment(platformId);
+        const url = URL.createObjectURL(result.blob);
+        showAttachmentInTab(preview, url);
+        previewTabsRef.current.set(rowId, preview);
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (err) {
+        try {
+          preview.close();
+        } catch {
+          /* ignore */
+        }
+        setError(
+          err instanceof ApiError
+            ? err.status === 404
+              ? t("attachmentBlobMissing")
+              : resolveApiErrorMessage(err, tErrors, tCommon)
+            : t("unableToOpenAttachment"),
+        );
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [busyId, canOpen, disabled, t, tErrors, tCommon],
+  );
 
   const notifyStaged = useCallback(
     (next: CmBatch1AttachmentResponse[]) => {
@@ -89,9 +165,9 @@ export function StagingAttachmentsPanel({
 
   const onFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
+      const { files, truncated } = pickCmBatch1UploadFiles(event.target.files);
       event.target.value = "";
-      if (!file || !canUpload || uploadBlocked) return;
+      if (files.length === 0 || !canUpload || uploadBlocked) return;
       const lockedCustomerId = customerId?.trim();
       if (!lockedCustomerId) {
         setError(t("attachAfterCustomerConfirm"));
@@ -100,31 +176,78 @@ export function StagingAttachmentsPanel({
 
       setUploading(true);
       setError(null);
+      let token = stagingToken;
+      const uploaded: CmBatch1AttachmentResponse[] = [];
+      const failures: string[] = [];
       try {
-        const res = await uploadCmBatch1Attachment({
-          file,
-          classification,
-          stagingToken,
-          customerId: lockedCustomerId,
-        });
-        const data = res.data;
-        setItems((prev) => {
-          const next = [data, ...prev];
-          notifyStaged(next);
-          return next;
-        });
-        const resolved = data.stagingToken?.trim() || stagingToken;
-        if (resolved && resolved !== stagingToken) {
-          onStagingTokenResolved?.(resolved);
+        for (const file of files) {
+          try {
+            const res = await uploadCmBatch1Attachment({
+              file,
+              classification,
+              stagingToken: token,
+              customerId: lockedCustomerId,
+            });
+            const data = normalizeCmBatch1Attachment(
+              res.data as unknown as Record<string, unknown>,
+            ) as CmBatch1AttachmentResponse;
+            if (!data.attachmentId && !data.platformAttachmentId) {
+              failures.push(
+                t("attachmentUploadNamedFailed", {
+                  name: file.name,
+                  detail: t("unableToUploadAttachment"),
+                }),
+              );
+              continue;
+            }
+            uploaded.push(data);
+            const resolved = data.stagingToken?.trim() || token;
+            if (resolved && resolved !== token) {
+              token = resolved;
+              onStagingTokenResolved?.(resolved);
+            }
+          } catch (err) {
+            const detail =
+              err instanceof ApiError
+                ? resolveApiErrorMessage(err, tErrors, tCommon)
+                : err instanceof Error
+                  ? err.message
+                  : t("unableToUploadAttachment");
+            failures.push(
+              t("attachmentUploadNamedFailed", {
+                name: file.name,
+                detail,
+              }),
+            );
+          }
         }
-      } catch (err) {
-        setError(
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : t("unableToUploadAttachment"),
-        );
+        if (uploaded.length > 0) {
+          setItems((prev) => {
+            const next = [...uploaded, ...prev];
+            notifyStaged(next);
+            return next;
+          });
+        }
+        const notes: string[] = [];
+        if (truncated) {
+          notes.push(
+            t("attachmentMultiUploadTruncated", {
+              max: CM_BATCH1_MAX_MULTI_UPLOAD,
+            }),
+          );
+        }
+        if (failures.length > 0) {
+          notes.push(
+            t("attachmentMultiUploadPartial", {
+              ok: uploaded.length,
+              fail: failures.length,
+              details: failures.join("; "),
+            }),
+          );
+        }
+        if (notes.length > 0) {
+          setError(notes.join(" "));
+        }
       } finally {
         setUploading(false);
       }
@@ -137,44 +260,59 @@ export function StagingAttachmentsPanel({
       onStagingTokenResolved,
       stagingToken,
       t,
+      tErrors,
+      tCommon,
       uploadBlocked,
     ],
   );
 
-  const onConfirmVoid = useCallback(async () => {
-    if (!voidTargetId || !canVoid || disabled) return;
-    const reason = normalizeCmBatch1VoidReason(voidReason);
-    if (!reason) {
-      setError(t("voidReasonRequired"));
-      return;
-    }
-    setVoidingId(voidTargetId);
-    setError(null);
-    try {
-      const res = await voidCmBatch1Attachment(voidTargetId, reason);
+  const onVoid = useCallback(
+    async (item: CmBatch1AttachmentResponse) => {
+      if (!canVoid || disabled || voidingId) return;
+      const targetId = cmBatch1VoidTargetId(item);
+      if (!targetId) {
+        setError(t("unableToVoidAttachment"));
+        return;
+      }
+      setVoidingId(targetId);
+      setError(null);
+      let snapshot: CmBatch1AttachmentResponse[] = [];
       setItems((prev) => {
-        const next = prev.map((item) =>
-          item.attachmentId === voidTargetId ? res.data : item,
+        snapshot = prev;
+        const next = prev.filter(
+          (row) => !isSameCmBatch1Attachment(row, targetId),
         );
         notifyStaged(next);
         return next;
       });
-      setVoidTargetId(null);
-      setVoidReason("");
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : t("unableToVoidAttachment"),
-      );
-    } finally {
-      setVoidingId(null);
-    }
-  }, [canVoid, disabled, notifyStaged, voidReason, voidTargetId, t]);
+      closePreviewTab(targetId);
+      try {
+        await voidCmBatch1Attachment(
+          targetId,
+          CM_BATCH1_VOID_REASON_UPLOADER_REMOVED,
+        );
+      } catch (err) {
+        setItems(() => {
+          notifyStaged(snapshot);
+          return snapshot;
+        });
+        setError(
+          err instanceof ApiError
+            ? resolveApiErrorMessage(err, tErrors, tCommon)
+            : err instanceof Error
+              ? err.message
+              : t("unableToVoidAttachment"),
+        );
+      } finally {
+        setVoidingId(null);
+      }
+    },
+    [canVoid, closePreviewTab, disabled, notifyStaged, t, tErrors, tCommon, voidingId],
+  );
 
-  const visible = items.filter((item) => item.status !== "VOID");
+  const visible = items.filter(
+    (item) => item.status !== "VOID" && item.status !== "SUPERSEDED",
+  );
 
   if (!canUpload) {
     return (
@@ -187,13 +325,13 @@ export function StagingAttachmentsPanel({
   }
 
   return (
-    <section className="space-y-[var(--ecmp-panel-gap)]">
+    <section className="space-y-[var(--ecmp-form-gap)]">
       <SectionHeader
         title={t("stagedAttachments")}
         description={t("stagedAttachmentsDescription")}
       />
       <Card>
-        <CardBody className="space-y-[var(--ecmp-panel-gap)]">
+        <CardBody className="space-y-3">
           {error ? (
             <Alert tone="danger" title={t("attachmentError")} description={error} />
           ) : null}
@@ -206,99 +344,61 @@ export function StagingAttachmentsPanel({
             />
           ) : null}
 
-          <div className="grid grid-cols-1 gap-[var(--ecmp-form-gap)] md:grid-cols-2 md:items-end">
-            <Select
-              name="attachmentClassification"
-              id="attachmentClassification"
-              label={t("classification")}
-              options={CLASSIFICATION_OPTIONS.map((option) => ({
-                ...option,
-                label: t(option.label),
-              }))}
-              value={classification}
-              onChange={(event) =>
-                setClassification(
-                  event.target.value as CmBatch1AttachmentClassification,
-                )
-              }
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+            <div className="min-w-0 sm:max-w-xs sm:flex-1">
+              <Select
+                name="attachmentClassification"
+                id="attachmentClassification"
+                label={t("classification")}
+                options={CLASSIFICATION_OPTIONS.map((option) => ({
+                  ...option,
+                  label: t(option.label),
+                }))}
+                value={classification}
+                onChange={(event) =>
+                  setClassification(
+                    event.target.value as CmBatch1AttachmentClassification,
+                  )
+                }
+                disabled={uploadBlocked || uploading}
+              />
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              className="sr-only"
+              accept={ACCEPT_MIME}
+              multiple
               disabled={uploadBlocked || uploading}
+              onChange={(event) => void onFileChange(event)}
+              aria-label={t("chooseFile")}
             />
-            <div className="flex flex-col gap-2">
-              <input
-                ref={inputRef}
-                type="file"
-                className="sr-only"
-                accept={ACCEPT_MIME}
-                disabled={uploadBlocked || uploading}
-                onChange={(event) => void onFileChange(event)}
-                aria-label={t("chooseFile")}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onPick}
-                loading={uploading}
-                disabled={uploadBlocked || uploading}
-                aria-label={t("uploadStagedAttachment")}
-              >
-                {uploading ? t("uploading") : t("uploadFile")}
-              </Button>
-              <p className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                {t("filePolicy")}
-              </p>
-            </div>
-          </div>
-
-          {voidTargetId ? (
-            <div
-              className="space-y-[var(--ecmp-form-gap)] rounded-[var(--ecmp-radius-md)] border border-ecmp-border bg-ecmp-surface-sunken p-3"
-              data-testid="staging-void-form"
+            <Button
+              type="button"
+              className="shrink-0 sm:self-end"
+              onClick={onPick}
+              loading={uploading}
+              disabled={uploadBlocked || uploading}
+              aria-label={t("uploadStagedAttachment")}
             >
-              <Input
-                id="stagingVoidReason"
-                name="stagingVoidReason"
-                label={t("voidReason")}
-                value={voidReason}
-                onChange={(event) => setVoidReason(event.target.value)}
-                disabled={disabled || voidingId !== null}
-                hint={t("voidReasonHint")}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setVoidTargetId(null);
-                    setVoidReason("");
-                  }}
-                  disabled={voidingId !== null}
-                >
-                  {t("cancel")}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => void onConfirmVoid()}
-                  loading={voidingId !== null}
-                  disabled={disabled || voidingId !== null}
-                  aria-label={t("confirmVoid")}
-                >
-                  {t("confirmVoid")}
-                </Button>
-              </div>
-            </div>
-          ) : null}
+              {uploading ? t("uploading") : t("uploadFile")}
+            </Button>
+          </div>
+          <p className="text-[length:var(--ecmp-font-helper-size)] leading-snug text-ecmp-text-secondary">
+            {t("filePolicy")}
+          </p>
 
           {visible.length === 0 ? (
-            <div data-testid="staging-empty">
-              <Empty
-                title={t("noStagedAttachments")}
-                description={t("stagedAttachmentsDescription")}
-                primaryAction={{
-                  label: t("uploadFile"),
-                  onClick: onPick,
-                  disabled: disabled || uploading || !canUpload,
-                }}
-              />
+            <div
+              data-testid="staging-empty"
+              className="rounded-[var(--ecmp-radius-md)] border border-dashed border-ecmp-border/80 bg-ecmp-surface-sunken/50 px-3 py-4 text-center"
+            >
+              <p className="text-[length:var(--ecmp-font-body-small-size)] font-medium text-ecmp-text-primary">
+                {t("noStagedAttachments")}
+              </p>
+              <p className="mt-1 text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                {t("noStagedAttachmentsHint")}
+              </p>
             </div>
           ) : (
             <ul
@@ -306,42 +406,71 @@ export function StagingAttachmentsPanel({
               data-testid="staging-list"
               aria-label={t("stagedAttachmentsAria")}
             >
-              {visible.map((item) => (
-                <li
-                  key={item.attachmentId}
-                  className="flex flex-col gap-2 px-3 py-3 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
-                  data-testid={`staging-item-${item.attachmentId}`}
-                >
-                  <div className="min-w-0 space-y-1">
-                    <span className="block truncate font-medium text-ecmp-text-primary">
-                      {item.originalName}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone="neutral">{item.status}</Badge>
-                      <Badge tone="info">{item.classification}</Badge>
-                      <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
-                        {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+              {visible.map((item) => {
+                const rowId = cmBatch1VoidTargetId(item) ?? item.originalName;
+                const classificationKey =
+                  cmBatch1AttachmentClassificationLabelKey(item.classification);
+                const classificationLabel =
+                  classificationKey === item.classification
+                    ? item.classification
+                    : t(classificationKey);
+                return (
+                  <li
+                    key={rowId}
+                    className="flex flex-col gap-2 px-3 py-2 text-[length:var(--ecmp-font-body-size)] sm:flex-row sm:items-center sm:justify-between"
+                    data-testid={`staging-item-${rowId}`}
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <span className="block truncate font-medium text-ecmp-text-primary">
+                        {item.originalName}
                       </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="neutral">{item.status}</Badge>
+                        <Badge tone="info">{classificationLabel}</Badge>
+                        <span className="text-[length:var(--ecmp-font-helper-size)] text-ecmp-text-secondary">
+                          {formatCmBatch1AttachmentBytes(item.sizeBytes)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={disabled || voidingId !== null}
-                      onClick={() => {
-                        setVoidTargetId(item.attachmentId);
-                        setVoidReason("");
-                        setError(null);
-                      }}
-                      aria-label={t("voidNamed", { name: item.originalName })}
-                    >
-                      {t("void")}
-                    </Button>
-                  ) : null}
-                </li>
-              ))}
+                    <div className="flex flex-shrink-0 flex-wrap gap-2">
+                      {canOpen ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            disabled || busyId !== null || voidingId !== null
+                          }
+                          loading={busyId === rowId}
+                          onClick={() => void onOpen(item)}
+                          aria-label={t("openAttachmentNamed", {
+                            name: item.originalName,
+                          })}
+                        >
+                          {t("openAttachment")}
+                        </Button>
+                      ) : null}
+                      {canVoid && isCmBatch1AttachmentVoidable(item.status) ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            disabled || busyId !== null || voidingId !== null
+                          }
+                          loading={voidingId === rowId}
+                          onClick={() => void onVoid(item)}
+                          aria-label={t("voidNamed", {
+                            name: item.originalName,
+                          })}
+                        >
+                          {t("void")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardBody>

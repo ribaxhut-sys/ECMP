@@ -13,6 +13,9 @@ export type { TextareaProps } from "./textarea";
 export { Select } from "./select";
 export type { SelectProps, SelectOption } from "./select";
 
+export { DatePicker, formatDateDDMMYYYY } from "./date-picker";
+export type { DatePickerProps } from "./date-picker";
+
 export { Checkbox } from "./checkbox";
 export type { CheckboxProps } from "./checkbox";
 
@@ -31,6 +34,8 @@ export type { CardProps } from "./card";
 
 export { Badge } from "./badge";
 export type { BadgeProps, BadgeTone, BadgeVariant } from "./badge";
+
+export { ReasonPresetTags } from "./reason-preset-tags";
 
 export { Alert } from "./alert";
 export type { AlertProps, AlertTone } from "./alert";

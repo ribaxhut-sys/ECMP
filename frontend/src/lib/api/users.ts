@@ -10,6 +10,7 @@ export interface UserRef {
   username: string;
   email: string;
   fullName: string;
+  initials?: string | null;
   roleId: string;
   roleCode: string | null;
   roleName: string | null;
@@ -36,6 +37,27 @@ export function fetchUsers(options?: {
   return apiRequest<ListResponse<UserRef>>(
     `/api/v1/users?${params.toString()}`,
   );
+}
+
+/** Page through API-214 (max pageSize 100) so the directory is complete. */
+export async function fetchAllUsers(options?: {
+  isActive?: boolean;
+}): Promise<UserRef[]> {
+  const rows: UserRef[] = [];
+  let page = 1;
+  for (;;) {
+    const res = await fetchUsers({
+      page,
+      pageSize: 100,
+      isActive: options?.isActive,
+    });
+    rows.push(...res.data);
+    const total = res.meta?.totalItems ?? rows.length;
+    if (rows.length >= total || res.data.length === 0) break;
+    page += 1;
+    if (page > 50) break;
+  }
+  return rows;
 }
 
 /** API-217 — soft activate/deactivate (requires users:update). */

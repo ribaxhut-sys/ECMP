@@ -7,14 +7,32 @@ Concurrency (TASK-PLATFORM-SECMIG-P5-001A): repository owns Atomic Claim via
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import String, and_, cast, exists, func, literal, or_, select
+from sqlalchemy import case as sql_case
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
+from app.core.authorization.visibility import (
+    DEFAULT_PUSAT_UNIT_CODES,
+    pusat_unit_clause,
+)
+from app.integrations.customer.local_cache_search import (
+    customer_ids_for_keyword,
+    ilike_contains_pattern,
+)
+from app.modules.cm_batch1.complaint_number import (
+    counter_name as complaint_counter_name,
+)
+from app.modules.cm_batch1.complaint_number import (
+    next_complaint_number as format_next_complaint_number,
+)
+from app.modules.cm_batch1.complaint_number import (
+    resolve_unit_code,
+)
 from app.modules.cm_batch1.entities import (
     ComplaintAggregate,
     DuplicateDecisionRecord,
@@ -29,9 +47,19 @@ from app.modules.cm_batch1.models import (
     CmBatch1IdempotencyORM,
     CmBatch1LaterReviewItemORM,
     CmBatch1NumberCounterORM,
+    CmBatch1PusatQueueSeenORM,
 )
-
-_COUNTER_NAME = "complaint_number"
+from app.modules.cm_batch1.predicates import (
+    AGGREGATE_STATUSES,
+    CLOSED_STATUS,
+    CLOSED_SUCCESS_DISPOSITIONS,
+    COMPLETED_LIST_FILTER,
+    ESCALATION_FAMILY,
+    HQ_SCHEDULED,
+    LIST_INTAKE_DISPOSITION_FILTERS,
+)
+from app.modules.cm_batch1.sla import apply_complaint_status
+from app.modules.cm_case.infrastructure.orm import CmCaseORM
 
 
 def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
@@ -45,11 +73,218 @@ def _to_entity(row: CmBatch1ComplaintORM) -> ComplaintAggregate:
         description=row.description,
         priority=row.priority,
         status=row.status,
+        closed_at=row.closed_at,
         intake_disposition=row.intake_disposition,
+        hq_accepted_at=row.hq_accepted_at,
+        hq_accepted_by=row.hq_accepted_by,
+        hq_arrival_date=row.hq_arrival_date,
+        hq_arrival_time=row.hq_arrival_time,
+        hq_destination_unit_id=row.hq_destination_unit_id,
+        hq_destination_set_by=row.hq_destination_set_by,
+        hq_destination_set_at=row.hq_destination_set_at,
+        proposed_arrival_date=row.proposed_arrival_date,
+        proposed_arrival_time=row.proposed_arrival_time,
+        proposed_by=row.proposed_by,
+        proposed_at=row.proposed_at,
+        owning_unit_id=row.owning_unit_id,
         created_at=row.created_at,
         created_by=row.created_by,
-        case_created=False,
+        decided_by=row.decided_by,
+        decided_at=row.decided_at,
+        case_created=bool(row.case_created),
     )
+
+
+def _clear_proposed(row: CmBatch1ComplaintORM) -> None:
+    row.proposed_arrival_date = None
+    row.proposed_arrival_time = None
+    row.proposed_by = None
+    row.proposed_at = None
+
+
+_TERMINAL_CASE_STATUSES = ("CLOSED", "CANCELLED", "RESOLVED")
+
+
+def _parent_id_text():
+    """``cm_batch1_complaints.id`` as the text form ``cm_cases.complaint_id`` uses.
+
+    Postgres ``id::text`` keeps the hyphens; SQLite cast strips them — rebuild
+    the canonical 8-4-4-4-12 shape so correlated EXISTS matches on both.
+    """
+    raw_id = cast(CmBatch1ComplaintORM.id, String)
+    return sql_case(
+        (func.length(raw_id) == 36, raw_id),
+        else_=func.concat(
+            func.substr(raw_id, 1, 8),
+            literal("-"),
+            func.substr(raw_id, 9, 4),
+            literal("-"),
+            func.substr(raw_id, 13, 4),
+            literal("-"),
+            func.substr(raw_id, 17, 4),
+            literal("-"),
+            func.substr(raw_id, 21, 12),
+        ),
+    )
+
+
+def pusat_row_scope_clause(*, pusat_unit_codes: frozenset[str] | None = None):
+    """Rows a Pusat actor may see (DEC-024 visibility ``PUSAT``).
+
+    HQ-owned / approved escalate path, but never a parent whose only Cases are
+    branch-closed (non-escalated) — that produced a false "Belum ada case" row
+    after the embed filter.
+    """
+    codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+    parent_id_txt = _parent_id_text()
+    pusat_clause = or_(
+        pusat_unit_clause(
+            CmBatch1ComplaintORM.owning_unit_id, pusat_unit_codes=codes
+        ),
+        CmBatch1ComplaintORM.intake_disposition.in_(
+            ["ESCALATE_APPROVED", "HQ_SCHEDULED", "HQ_CLOSED"]
+        ),
+        CmBatch1ComplaintORM.hq_accepted_at.is_not(None),
+    )
+    pusat_case_predicate = or_(
+        CmCaseORM.escalated_to_pusat.is_(True),
+        pusat_unit_clause(CmCaseORM.owning_unit_id, pusat_unit_codes=codes),
+        pusat_unit_clause(CmCaseORM.owner_unit_id, pusat_unit_codes=codes),
+    )
+    has_any_case = exists(
+        select(1)
+        .select_from(CmCaseORM)
+        .where(CmCaseORM.complaint_id == parent_id_txt)
+    )
+    has_pusat_case = exists(
+        select(1)
+        .select_from(CmCaseORM)
+        .where(
+            CmCaseORM.complaint_id == parent_id_txt,
+            pusat_case_predicate,
+        )
+    )
+    # A Case escalated straight to Pusat (DEC-029 / API-520) is HQ work even
+    # when the parent never took the intake escalate path — without this the
+    # row is invisible to Pusat and nobody can claim it.
+    return and_(
+        or_(pusat_clause, has_pusat_case),
+        or_(~has_any_case, has_pusat_case),
+    )
+
+
+def pusat_handling_clause():
+    """Still needs a Pusat handler — the ``needsPusatHandling=1`` queue.
+
+    Pengaduan Pusat = escalated from the branch and never handled (never
+    accepted, never claimed). Accepted / HQ_SCHEDULED work is Tindak lanjut.
+    A later unclaimed Case on a RETURNED_TO_BRANCH parent still counts.
+
+    Single source of truth: the list filter and the sidebar badge both call
+    this, so the badge can never count a row the list will not show.
+    """
+    parent_id_txt = _parent_id_text()
+    unclaimed_escalated = exists(
+        select(1)
+        .select_from(CmCaseORM)
+        .where(
+            CmCaseORM.complaint_id == parent_id_txt,
+            CmCaseORM.escalated_to_pusat.is_(True),
+            or_(
+                CmCaseORM.handling_claimed_by.is_(None),
+                CmCaseORM.handling_claimed_by == "",
+            ),
+            ~CmCaseORM.status.in_(_TERMINAL_CASE_STATUSES),
+        )
+    )
+    waiting_accept = and_(
+        CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+        CmBatch1ComplaintORM.hq_accepted_at.is_(None),
+        CmBatch1ComplaintORM.status != CLOSED_STATUS,
+    )
+    # Do not use NOT (x OR intake = HQ_SCHEDULED): NULL intake makes that
+    # UNKNOWN in SQL and drops DEC-029 rows that never set disposition.
+    not_yet_handled = and_(
+        CmBatch1ComplaintORM.hq_accepted_at.is_(None),
+        or_(
+            CmBatch1ComplaintORM.intake_disposition.is_(None),
+            CmBatch1ComplaintORM.intake_disposition != HQ_SCHEDULED,
+        ),
+    )
+    return and_(
+        CmBatch1ComplaintORM.status != CLOSED_STATUS,
+        not_yet_handled,
+        or_(unclaimed_escalated, waiting_accept),
+    )
+
+
+def _case_is_claimed():
+    return and_(
+        CmCaseORM.handling_claimed_by.is_not(None),
+        CmCaseORM.handling_claimed_by != "",
+    )
+
+
+def pusat_follow_up_case_clause():
+    """Case Pusat already handles — Tindak lanjut, still open.
+
+    Mutually exclusive with ``pusat_handling_clause`` per Case: never accepted
+    and never claimed stays on Pengaduan. NULL intake is not treated as
+    RETURNED / pending (SQL ``!=`` on NULL would drop the row).
+    """
+    accepted = CmBatch1ComplaintORM.hq_accepted_at.is_not(None)
+    scheduled = CmBatch1ComplaintORM.intake_disposition == HQ_SCHEDULED
+    claimed = _case_is_claimed()
+    escalated = CmCaseORM.escalated_to_pusat.is_(True)
+    return and_(
+        CmBatch1ComplaintORM.status != CLOSED_STATUS,
+        ~CmCaseORM.status.in_(_TERMINAL_CASE_STATUSES),
+        or_(
+            CmBatch1ComplaintORM.intake_disposition.is_(None),
+            CmBatch1ComplaintORM.intake_disposition != "RETURNED_TO_BRANCH",
+        ),
+        or_(
+            CmBatch1ComplaintORM.intake_disposition.is_(None),
+            CmBatch1ComplaintORM.intake_disposition
+            != "ESCALATE_PENDING_APPROVAL",
+        ),
+        or_(accepted, claimed, scheduled),
+        or_(escalated, accepted, scheduled),
+    )
+
+
+def pusat_queue_unread_clause(user_id: str):
+    """Queue rows this Pusat user has not opened since the last branch move.
+
+    Read means: a receipt exists for this user whose ``seen_at`` is not older
+    than the parent and every Case under it. Any later movement (a new Case, a
+    fresh escalation, a branch edit) makes ``seen_at`` stale and the row lights
+    up again — for that one user only.
+    """
+    uid = (user_id or "").strip()
+    parent_id_txt = _parent_id_text()
+    seen = CmBatch1PusatQueueSeenORM
+    # Two levels deep, so correlate explicitly — otherwise SQLAlchemy adds a
+    # second cm_batch1_complaints to the inner FROM and the comparison turns
+    # into a cross join over every complaint.
+    last_case_move = (
+        select(func.max(CmCaseORM.updated_at))
+        .where(CmCaseORM.complaint_id == parent_id_txt)
+        .correlate(CmBatch1ComplaintORM)
+        .scalar_subquery()
+    )
+    already_seen = exists(
+        select(1)
+        .select_from(seen)
+        .where(
+            seen.complaint_id == CmBatch1ComplaintORM.id,
+            seen.user_id == uid,
+            seen.seen_at >= CmBatch1ComplaintORM.updated_at,
+            # No Case yet → nothing to be newer than.
+            seen.seen_at >= func.coalesce(last_case_move, seen.seen_at),
+        )
+    ).correlate(CmBatch1ComplaintORM)
+    return ~already_seen
 
 
 class CmBatch1Repository:
@@ -260,6 +495,19 @@ class CmBatch1Repository:
         row = self._session.get(CmBatch1ComplaintORM, cid)
         return _to_entity(row) if row is not None else None
 
+    def complaint_numbers_by_ids(
+        self, complaint_ids: set[uuid.UUID]
+    ) -> dict[uuid.UUID, str]:
+        """One round-trip map id → complaint_number (dashboard recent-activity)."""
+        if not complaint_ids:
+            return {}
+        rows = self._session.execute(
+            select(CmBatch1ComplaintORM.id, CmBatch1ComplaintORM.complaint_number).where(
+                CmBatch1ComplaintORM.id.in_(complaint_ids)
+            )
+        ).all()
+        return {row.id: row.complaint_number for row in rows}
+
     def list_active_for_customer(self, customer_id: str) -> list[ComplaintAggregate]:
         rows = self._session.scalars(
             select(CmBatch1ComplaintORM)
@@ -292,25 +540,40 @@ class CmBatch1Repository:
         ).all()
         return [_to_entity(r) for r in rows]
 
-    def _next_complaint_number(self) -> str:
+    def _next_complaint_number(
+        self,
+        *,
+        owning_unit_id: str | None = None,
+        at: datetime | None = None,
+    ) -> str:
+        """Allocate ``CM{UNIT}-YYMM-NNNN``; counter per unit+month."""
+        when = at or datetime.now(UTC)
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        unit = resolve_unit_code(owning_unit_id)
+        name = complaint_counter_name(unit, year=when.year, month=when.month)
         row = self._session.scalar(
             select(CmBatch1NumberCounterORM)
-            .where(CmBatch1NumberCounterORM.name == _COUNTER_NAME)
+            .where(CmBatch1NumberCounterORM.name == name)
             .with_for_update()
         )
         if row is None:
-            row = CmBatch1NumberCounterORM(name=_COUNTER_NAME, value=0)
+            row = CmBatch1NumberCounterORM(name=name, value=0)
             self._session.add(row)
             self._session.flush()
             row = self._session.scalar(
                 select(CmBatch1NumberCounterORM)
-                .where(CmBatch1NumberCounterORM.name == _COUNTER_NAME)
+                .where(CmBatch1NumberCounterORM.name == name)
                 .with_for_update()
             )
             assert row is not None
         row.value += 1
         self._session.flush()
-        return f"CM-{row.value:08d}"
+        return format_next_complaint_number(
+            owning_unit_id=unit,
+            sequence=row.value,
+            at=when,
+        )
 
     def _dialect_name(self) -> str:
         bind = self._session.get_bind()
@@ -375,6 +638,10 @@ class CmBatch1Repository:
         channel_message_id: str | None,
         status: str = "REGISTERED",
         intake_disposition: str | None = None,
+        owning_unit_id: str | None = None,
+        proposed_arrival_date: date | None = None,
+        proposed_arrival_time: str | None = None,
+        proposed_by: str | None = None,
     ) -> tuple[ComplaintAggregate, bool]:
         """Atomic Claim create — ``created=False`` on idempotent / race-loser replay.
 
@@ -397,7 +664,10 @@ class CmBatch1Repository:
 
         complaint_id = uuid.uuid4()
         now = datetime.now(UTC)
-        complaint_number = self._next_complaint_number()
+        unit = (owning_unit_id or "").strip() or None
+        complaint_number = self._next_complaint_number(
+            owning_unit_id=unit, at=now
+        )
         initial_status = (status or "REGISTERED").strip().upper() or "REGISTERED"
         if initial_status not in {"REGISTERED", "CLOSED"}:
             initial_status = "REGISTERED"
@@ -412,11 +682,19 @@ class CmBatch1Repository:
             description=description,
             priority=priority,
             status=initial_status,
+            # Branch walk-away close at intake resolves the complaint the same
+            # moment it is registered (DEC-031: elapsed 0 days → MET).
+            closed_at=now if initial_status == CLOSED_STATUS else None,
             intake_disposition=disposition,
+            owning_unit_id=unit,
             case_created=False,
             created_by=created_by,
             created_at=now,
             updated_at=now,
+            proposed_arrival_date=proposed_arrival_date,
+            proposed_arrival_time=proposed_arrival_time,
+            proposed_by=proposed_by if proposed_arrival_date else None,
+            proposed_at=now if proposed_arrival_date else None,
         )
         self._session.add(orm)
         self._session.flush()
@@ -674,8 +952,12 @@ class CmBatch1Repository:
         complaint_id: str,
         *,
         intake_disposition: str,
+        description: str | None = None,
+        priority: str | None = None,
+        decided_by: str | None = None,
+        clear_proposed: bool = False,
     ) -> ComplaintAggregate | None:
-        """Update intake path label only (API-515). Status / Case untouched."""
+        """Update intake path label (API-515). Optionally refresh description/priority."""
         try:
             uid = uuid.UUID(str(complaint_id).strip())
         except ValueError:
@@ -685,6 +967,184 @@ class CmBatch1Repository:
             return None
         disposition = (intake_disposition or "").strip().upper() or None
         row.intake_disposition = disposition
+        if description is not None:
+            row.description = description
+        if priority is not None:
+            row.priority = priority.strip().upper()
+        if decided_by is not None:
+            row.decided_by = decided_by
+            row.decided_at = datetime.now(UTC)
+        if clear_proposed:
+            _clear_proposed(row)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def accept_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        accepted_by: str | None = None,
+        description: str | None = None,
+        intake_disposition: str | None = None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.hq_accepted_at = hq_accepted_at
+        row.hq_accepted_by = accepted_by
+        if description is not None:
+            row.description = description
+        if intake_disposition is not None:
+            row.intake_disposition = intake_disposition
+        _clear_proposed(row)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def schedule_hq_arrival(
+        self,
+        complaint_id: str,
+        *,
+        arrival_date: date,
+        arrival_time: str,
+        description: str | None = None,
+        intake_disposition: str | None = None,
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.hq_arrival_date = arrival_date
+        row.hq_arrival_time = arrival_time
+        # None means "keep the current destination" — rescheduling a time must
+        # not silently unset where the taxpayer was told to go.
+        if destination_unit_id is not None:
+            row.hq_destination_unit_id = destination_unit_id
+            row.hq_destination_set_by = destination_set_by
+            row.hq_destination_set_at = datetime.now(UTC)
+        if description is not None:
+            row.description = description
+        if intake_disposition is not None:
+            row.intake_disposition = intake_disposition
+        _clear_proposed(row)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def accept_and_schedule_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        hq_accepted_at: datetime,
+        accepted_by: str | None = None,
+        arrival_date: date,
+        arrival_time: str,
+        description: str,
+        intake_disposition: str = "HQ_SCHEDULED",
+        destination_unit_id: str | None = None,
+        destination_set_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.hq_accepted_at = hq_accepted_at
+        row.hq_accepted_by = accepted_by
+        row.hq_arrival_date = arrival_date
+        row.hq_arrival_time = arrival_time
+        if destination_unit_id is not None:
+            row.hq_destination_unit_id = destination_unit_id
+            row.hq_destination_set_by = destination_set_by
+            row.hq_destination_set_at = datetime.now(UTC)
+        row.description = description
+        row.intake_disposition = intake_disposition
+        _clear_proposed(row)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def complete_at_hq(
+        self,
+        complaint_id: str,
+        *,
+        description: str,
+        intake_disposition: str = "HQ_CLOSED",
+        closed_by: str | None = None,
+    ) -> ComplaintAggregate | None:
+        """Close Aggregate after HQ visit; terminalize open Cases; free HQ slot."""
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        now = datetime.now(UTC)
+        complaint_key = str(uid)
+        cases = self._session.scalars(
+            select(CmCaseORM).where(CmCaseORM.complaint_id == complaint_key)
+        ).all()
+        for case in cases:
+            status = (case.status or "").strip().upper()
+            if status in {"CLOSED", "CANCELLED"}:
+                continue
+            case.status = "CLOSED"
+            case.closed_by = closed_by
+            case.closed_at = now
+            case.updated_at = now
+        row.description = description
+        row.intake_disposition = intake_disposition
+        apply_complaint_status(row, "CLOSED", now=now)
+        row.updated_at = now
+        self._session.flush()
+        return _to_entity(row)
+
+    def propose_arrival(
+        self,
+        complaint_id: str,
+        *,
+        proposed_date: date,
+        proposed_time: str,
+        proposed_by: str | None,
+    ) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        row.proposed_arrival_date = proposed_date
+        row.proposed_arrival_time = proposed_time
+        row.proposed_by = proposed_by
+        row.proposed_at = datetime.now(UTC)
+        row.updated_at = datetime.now(UTC)
+        self._session.flush()
+        return _to_entity(row)
+
+    def clear_proposed_arrival(self, complaint_id: str) -> ComplaintAggregate | None:
+        try:
+            uid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return None
+        row = self._session.get(CmBatch1ComplaintORM, uid)
+        if row is None:
+            return None
+        _clear_proposed(row)
         row.updated_at = datetime.now(UTC)
         self._session.flush()
         return _to_entity(row)
@@ -699,44 +1159,97 @@ class CmBatch1Repository:
         category: str | None = None,
         status: str | None = None,
         intake_disposition: str | None = None,
+        created_by: str | None = None,
+        decided_by: str | None = None,
+        visibility: str | None = None,
+        actor_id: str | None = None,
+        org_unit_id: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
+        needs_pusat_handling: bool = False,
     ) -> tuple[list[ComplaintAggregate], int]:
-        """Newest-first Aggregate list (API-514 coexistence read)."""
+        """Newest-first Aggregate list (API-514) with DEC-024 row visibility."""
         page = max(1, int(page))
         page_size = max(1, min(int(page_size), 100))
         stmt = select(CmBatch1ComplaintORM)
         count_stmt = select(func.count()).select_from(CmBatch1ComplaintORM)
 
+        vis = (visibility or "ALL").strip().upper()
+        codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+        if vis == "ALL":
+            pass
+        elif vis == "SELF":
+            actor = (actor_id or "").strip()
+            if not actor:
+                return [], 0
+            stmt = stmt.where(CmBatch1ComplaintORM.created_by == actor)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.created_by == actor)
+        elif vis == "UNIT":
+            unit = (org_unit_id or "").strip()
+            if not unit:
+                return [], 0
+            stmt = stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.owning_unit_id == unit)
+        elif vis == "PUSAT":
+            scope = pusat_row_scope_clause(pusat_unit_codes=codes)
+            stmt = stmt.where(scope)
+            count_stmt = count_stmt.where(scope)
+        else:
+            return [], 0
+
         kw = (keyword or "").strip()
         if kw:
-            escaped = (
-                kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            )
-            pattern = f"%{escaped}%"
-            keyword_clause = (
-                CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\")
-                | CmBatch1ComplaintORM.subject.ilike(pattern, escape="\\")
-                | CmBatch1ComplaintORM.customer_id.ilike(pattern, escape="\\")
-            )
+            pattern = ilike_contains_pattern(kw)
+            clauses = [
+                CmBatch1ComplaintORM.complaint_number.ilike(pattern, escape="\\"),
+                CmBatch1ComplaintORM.subject.ilike(pattern, escape="\\"),
+                CmBatch1ComplaintORM.description.ilike(pattern, escape="\\"),
+                CmBatch1ComplaintORM.customer_id.ilike(pattern, escape="\\"),
+            ]
+            customer_keys = customer_ids_for_keyword(self._session, kw)
+            if customer_keys:
+                clauses.append(CmBatch1ComplaintORM.customer_id.in_(customer_keys))
+            keyword_clause = or_(*clauses)
             stmt = stmt.where(keyword_clause)
             count_stmt = count_stmt.where(keyword_clause)
 
         st = (status or "").strip().upper()
-        if st in {"REGISTERED", "CLOSED"}:
+        if st == "OPEN":
+            open_clause = CmBatch1ComplaintORM.status != CLOSED_STATUS
+            stmt = stmt.where(open_clause)
+            count_stmt = count_stmt.where(open_clause)
+        elif st in AGGREGATE_STATUSES:
             stmt = stmt.where(CmBatch1ComplaintORM.status == st)
             count_stmt = count_stmt.where(CmBatch1ComplaintORM.status == st)
 
         disp = (intake_disposition or "").strip().upper()
-        _allowed_disp = {
-            "BRANCH_CLOSED",
-            "ESCALATE_PENDING_APPROVAL",
-            "ESCALATE_APPROVED",
-            "ESCALATE_REJECTED",
-        }
-        if disp in _allowed_disp:
-            stmt = stmt.where(CmBatch1ComplaintORM.intake_disposition == disp)
-            count_stmt = count_stmt.where(
-                CmBatch1ComplaintORM.intake_disposition == disp
-            )
+        if disp and disp in LIST_INTAKE_DISPOSITION_FILTERS:
+            if disp == "ESCALATED":
+                stmt = stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
+                )
+                count_stmt = count_stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY)
+                )
+            elif disp == "UNESCALATED":
+                unescalated = or_(
+                    CmBatch1ComplaintORM.intake_disposition.is_(None),
+                    ~CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY),
+                )
+                stmt = stmt.where(unescalated)
+                count_stmt = count_stmt.where(unescalated)
+            elif disp == COMPLETED_LIST_FILTER:
+                completed = CmBatch1ComplaintORM.intake_disposition.in_(
+                    CLOSED_SUCCESS_DISPOSITIONS
+                )
+                stmt = stmt.where(completed)
+                count_stmt = count_stmt.where(completed)
+            else:
+                stmt = stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition == disp
+                )
+                count_stmt = count_stmt.where(
+                    CmBatch1ComplaintORM.intake_disposition == disp
+                )
 
         pri = (priority or "").strip().upper()
         if pri:
@@ -750,6 +1263,21 @@ class CmBatch1Repository:
             stmt = stmt.where(cat_clause)
             count_stmt = count_stmt.where(cat_clause)
 
+        cb = (created_by or "").strip()
+        if cb:
+            stmt = stmt.where(CmBatch1ComplaintORM.created_by == cb)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.created_by == cb)
+
+        db_ = (decided_by or "").strip()
+        if db_:
+            stmt = stmt.where(CmBatch1ComplaintORM.decided_by == db_)
+            count_stmt = count_stmt.where(CmBatch1ComplaintORM.decided_by == db_)
+
+        if needs_pusat_handling:
+            handling_clause = pusat_handling_clause()
+            stmt = stmt.where(handling_clause)
+            count_stmt = count_stmt.where(handling_clause)
+
         total = int(self._session.scalar(count_stmt) or 0)
         rows = self._session.scalars(
             stmt.order_by(CmBatch1ComplaintORM.created_at.desc())
@@ -757,3 +1285,213 @@ class CmBatch1Repository:
             .limit(page_size)
         ).all()
         return [_to_entity(r) for r in rows], total
+
+    def count_pusat_queue_unread(self, user_id: str) -> int:
+        """Sidebar badge for one Pusat user: queue rows they have not opened.
+
+        Same scope + handling predicates as ``list_complaints`` with
+        ``needs_pusat_handling=True``, so the badge can never disagree with the
+        list behind it.
+        """
+        uid = (user_id or "").strip()
+        if not uid:
+            return 0
+        stmt = (
+            select(func.count())
+            .select_from(CmBatch1ComplaintORM)
+            .where(
+                pusat_row_scope_clause(),
+                pusat_handling_clause(),
+                pusat_queue_unread_clause(uid),
+            )
+        )
+        return int(self._session.scalar(stmt) or 0)
+
+    def count_pusat_follow_up_unread(self, user_id: str) -> int:
+        """Tindak lanjut parents this Pusat user has not opened since last move.
+
+        Same unread receipt as the Pengaduan badge (``cm_pusat_queue_seen``),
+        scoped to follow-up Cases so one row cannot light both menus.
+        Count is parents (same grain as ``pusatQueue``).
+        """
+        uid = (user_id or "").strip()
+        if not uid:
+            return 0
+        follow_up_exists = (
+            exists(
+                select(1)
+                .select_from(CmCaseORM)
+                .where(
+                    CmCaseORM.complaint_id == _parent_id_text(),
+                    pusat_follow_up_case_clause(),
+                )
+            ).correlate(CmBatch1ComplaintORM)
+        )
+        stmt = (
+            select(func.count())
+            .select_from(CmBatch1ComplaintORM)
+            .where(
+                pusat_row_scope_clause(),
+                follow_up_exists,
+                pusat_queue_unread_clause(uid),
+            )
+        )
+        return int(self._session.scalar(stmt) or 0)
+
+    def mark_pusat_queue_seen(self, complaint_id: str, user_id: str) -> None:
+        """Upsert this user's read receipt for one parent (idempotent)."""
+        try:
+            cid = uuid.UUID(str(complaint_id).strip())
+        except ValueError:
+            return
+        uid = (user_id or "").strip()
+        if not uid:
+            return
+        now = datetime.now(UTC)
+        row = self._session.scalar(
+            select(CmBatch1PusatQueueSeenORM).where(
+                CmBatch1PusatQueueSeenORM.complaint_id == cid,
+                CmBatch1PusatQueueSeenORM.user_id == uid,
+            )
+        )
+        if row is None:
+            self._session.add(
+                CmBatch1PusatQueueSeenORM(
+                    complaint_id=cid, user_id=uid, seen_at=now
+                )
+            )
+        else:
+            row.seen_at = now
+        self._session.flush()
+
+    def unread_parent_ids(self, user_id: str, complaint_ids: list[str]) -> set[str]:
+        """Which of these parents are still unread for this Pusat user."""
+        uid = (user_id or "").strip()
+        ids: list[uuid.UUID] = []
+        for raw in complaint_ids:
+            try:
+                ids.append(uuid.UUID(str(raw).strip()))
+            except ValueError:
+                continue
+        if not uid or not ids:
+            return set()
+        stmt = select(CmBatch1ComplaintORM.id).where(
+            CmBatch1ComplaintORM.id.in_(ids),
+            pusat_queue_unread_clause(uid),
+        )
+        return {str(cid) for cid in self._session.scalars(stmt)}
+
+
+    def work_stats_for_user(self, user_key: str) -> dict[str, int]:
+        """Complaint work counters for one actor (UM-BUG-006 / Users directory)."""
+        key = (user_key or "").strip()
+        if not key:
+            return {
+                "created_count": 0,
+                "escalation_requested_count": 0,
+                "escalation_approved_count": 0,
+                "escalation_rejected_count": 0,
+            }
+        created_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(CmBatch1ComplaintORM.created_by == key)
+            )
+            or 0
+        )
+        escalation_requested_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(
+                    CmBatch1ComplaintORM.created_by == key,
+                    # Same predicate as the ESCALATED list drill-down, so the
+                    # counter and the list it opens cannot disagree.
+                    CmBatch1ComplaintORM.intake_disposition.in_(ESCALATION_FAMILY),
+                )
+            )
+            or 0
+        )
+        escalation_approved_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(
+                    CmBatch1ComplaintORM.decided_by == key,
+                    CmBatch1ComplaintORM.intake_disposition == "ESCALATE_APPROVED",
+                )
+            )
+            or 0
+        )
+        escalation_rejected_count = int(
+            self._session.scalar(
+                select(func.count())
+                .select_from(CmBatch1ComplaintORM)
+                .where(
+                    CmBatch1ComplaintORM.decided_by == key,
+                    CmBatch1ComplaintORM.intake_disposition == "ESCALATE_REJECTED",
+                )
+            )
+            or 0
+        )
+        return {
+            "created_count": created_count,
+            "escalation_requested_count": escalation_requested_count,
+            "escalation_approved_count": escalation_approved_count,
+            "escalation_rejected_count": escalation_rejected_count,
+        }
+
+    def list_cases_for_complaint_ids(
+        self,
+        complaint_ids: list[str],
+        *,
+        visibility: str | None = None,
+        pusat_unit_codes: frozenset[str] | None = None,
+    ) -> dict[str, list[dict[str, object]]]:
+        """Parent-scoped Case rows for Aggregate list (API-514 embed).
+
+        For ``PUSAT`` visibility, only Cases that are with Pusat are embedded
+        (``escalated_to_pusat`` or Pusat owning/owner unit). Branch-closed
+        sibling Cases on a mixed complaint must not appear in the Pusat queue.
+        """
+        keys = [str(i).strip() for i in complaint_ids if str(i).strip()]
+        if not keys:
+            return {}
+        from app.modules.cm_case.infrastructure.orm import CmCaseORM
+
+        codes = pusat_unit_codes or DEFAULT_PUSAT_UNIT_CODES
+        stmt = (
+            select(CmCaseORM)
+            .where(CmCaseORM.complaint_id.in_(keys))
+            .order_by(CmCaseORM.created_at.desc())
+        )
+        if (visibility or "").strip().upper() == "PUSAT":
+            stmt = stmt.where(
+                (CmCaseORM.escalated_to_pusat.is_(True))
+                | pusat_unit_clause(
+                    CmCaseORM.owning_unit_id, pusat_unit_codes=codes
+                )
+                | pusat_unit_clause(
+                    CmCaseORM.owner_unit_id, pusat_unit_codes=codes
+                )
+            )
+        rows = list(self._session.scalars(stmt))
+        out: dict[str, list[dict[str, object]]] = {k: [] for k in keys}
+        for row in rows:
+            cid = str(row.complaint_id)
+            if cid not in out:
+                out[cid] = []
+            out[cid].append(
+                {
+                    "caseId": str(row.id),
+                    "caseNumber": row.case_number,
+                    "complaintId": cid,
+                    "status": row.status,
+                    "subject": row.subject,
+                    "priority": row.priority,
+                    "escalatedToPusat": bool(row.escalated_to_pusat),
+                    "handlingClaimedBy": row.handling_claimed_by,
+                }
+            )
+        return out

@@ -626,10 +626,10 @@ Normative definitions only. Terms without an approved Decision Log definition ar
 | Field | Content |
 |---|---|
 | **Clause ID** | BC-9.9 |
-| **Requirement** | Case Number SHALL be independent of Complaint Number and SHALL use format `CASE-YYYY-NNNNNN`. |
-| **Rationale** | BQ-004. |
-| **Source Artifact(s)** | DL-024 |
-| **Decision ID(s)** | DL-024 |
+| **Requirement** | Case Number SHALL be independent of Complaint Number and SHALL use format `UNIT-YYMM-NNNN` (e.g. `TAB-2608-0001`). Complaint Number SHALL use `CM{UNIT}-YYMM-NNNN` (e.g. `CMTAB-2608-0001`). |
+| **Rationale** | BQ-004. Format string amended 2026-08-22 (independensi tidak dibuka). |
+| **Source Artifact(s)** | DL-024; DL-070 |
+| **Decision ID(s)** | DL-024; DL-070 |
 
 ## BC-9.10 — SLA binding in lifecycle
 

@@ -17,8 +17,10 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
+    event,
     false,
     func,
+    inspect,
     text,
     true,
 )
@@ -85,6 +87,7 @@ class User(TimestampAuditSoftDeleteMixin, Base):
     __table_args__ = (
         UniqueConstraint("email", name="uq_users_email"),
         UniqueConstraint("username", name="uq_users_username"),
+        UniqueConstraint("initials", name="uq_users_initials"),
         Index("ix_users_role_id", "role_id"),
         Index("ix_users_branch_id", "branch_id"),
         Index("ix_users_is_active", "is_active"),
@@ -103,6 +106,7 @@ class User(TimestampAuditSoftDeleteMixin, Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     username: Mapped[str] = mapped_column(String(64), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    initials: Mapped[str] = mapped_column(String(3), nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
@@ -119,6 +123,40 @@ class User(TimestampAuditSoftDeleteMixin, Base):
 
     role: Mapped[Role] = relationship(back_populates="users")
     branch: Mapped[Branch | None] = relationship(back_populates="users")
+
+
+@event.listens_for(User, "before_insert")
+def _assign_user_initials_before_insert(mapper, connection, target: User) -> None:
+    """Fill initials when a caller (tests, seeds) omits them.
+
+    Registration (API-213) sets the value explicitly. Uniqueness includes
+    inactive and soft-deleted rows.
+    """
+    current = (getattr(target, "initials", None) or "").strip().upper()
+    if current:
+        target.initials = current
+        return
+    from app.modules.users.initials import allocate_user_initials
+
+    taken = {
+        row[0]
+        for row in connection.execute(
+            text("SELECT initials FROM users WHERE initials IS NOT NULL")
+        )
+        if row[0]
+    }
+    session = inspect(target).session
+    if session is not None:
+        for obj in session.new:
+            if isinstance(obj, User) and obj is not target:
+                extra = (getattr(obj, "initials", None) or "").strip().upper()
+                if extra:
+                    taken.add(extra)
+    target.initials = allocate_user_initials(
+        target.full_name,
+        taken,
+        username=target.username,
+    )
 
 
 class Customer(TimestampAuditSoftDeleteMixin, Base):

@@ -16,7 +16,7 @@
 {
 	email {$ACME_EMAIL}
 	servers {
-		protocols h1 h2 h3
+		protocols h1 h2
 	}
 }
 
@@ -44,6 +44,9 @@
 
 	@backend path /api/* /live /ready /health /version
 	handle @backend {
+		request_body {
+			max_size 55MB
+		}
 		reverse_proxy backend:8000
 	}
 

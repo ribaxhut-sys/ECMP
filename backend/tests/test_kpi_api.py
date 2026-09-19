@@ -1,4 +1,4 @@
-"""KPI Foundation integration tests (TASK-026 / API-318)."""
+"""KPI API integration tests — Aggregate SoT (DEC-026 / API-318)."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
-from app.core.enums import ComplaintStatus, SlaStatus
 from app.core.security import create_access_token
 from app.db.session import get_db_session
 from app.main import create_app
-from app.models import Complaint, Customer, SlaPolicy, SlaRecord, User
+from app.models import User
+from app.modules.cm_batch1.models import CmBatch1ComplaintORM
 
 
 def _postgres_available() -> bool:
@@ -90,124 +90,52 @@ def auth_header(actor: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture()
-def customer_id(db_session: Session) -> uuid.UUID:
-    customer = Customer(
-        external_customer_id=f"CUST-{uuid.uuid4().hex[:8].upper()}",
-        full_name="KPI Customer",
-    )
-    db_session.add(customer)
-    db_session.commit()
-    db_session.refresh(customer)
-    return customer.id
-
-
-def _activate_policy(db_session: Session) -> None:
+def _seed_cm(
+    db_session: Session,
+    *,
+    status: str,
+    priority: str = "HIGH",
+    category: str = "BILLING",
+    actor: User,
+) -> None:
     now = datetime.now(UTC)
-    db_session.execute(
-        text(
-            "UPDATE sla_policies SET is_active = false, updated_at = :now "
-            "WHERE is_active = true"
-        ),
-        {"now": now},
+    db_session.add(
+        CmBatch1ComplaintORM(
+            id=uuid.uuid4(),
+            complaint_number=f"UNIT-2608-{uuid.uuid4().hex[:4].upper()}",
+            customer_id="CUST-KPI",
+            category=category,
+            channel="WEB",
+            subject=f"KPI {status} {uuid.uuid4().hex[:6]}",
+            description="KPI seed",
+            priority=priority,
+            status=status,
+            case_created=False,
+            created_by=str(actor.id),
+            created_at=now,
+            updated_at=now,
+        )
     )
-    policy = SlaPolicy(
-        name=f"KPI-Policy-{uuid.uuid4().hex[:8]}",
-        description="KPI test",
-        assignment_target_minutes=60,
-        appointment_target_minutes=120,
-        resolution_target_minutes=240,
-        escalation_target_minutes=90,
-        overall_target_minutes=480,
-        is_active=True,
-        created_at=now,
-        updated_at=now,
-    )
-    db_session.add(policy)
-    db_session.commit()
 
 
 def test_kpi_summary_end_to_end(
     client: TestClient,
     db_session: Session,
     auth_header: dict[str, str],
-    customer_id: uuid.UUID,
     actor: User,
 ) -> None:
-    _activate_policy(db_session)
-    marker = f"KPI-{uuid.uuid4().hex[:8]}"
-
-    created = client.post(
-        "/api/v1/complaints",
-        json={
-            "customerId": str(customer_id),
-            "subject": f"{marker} open",
-            "description": "KPI open complaint",
-            "priority": "HIGH",
-            "channel": "WEB",
-            "category": "BILLING",
-        },
-        headers=auth_header,
-    )
-    assert created.status_code == 201, created.text
-    cid = uuid.UUID(created.json()["data"]["id"])
-
-    # Force assignment COMPLETED + overall BREACHED on this complaint's SLA.
-    row = db_session.scalar(select(SlaRecord).where(SlaRecord.complaint_id == cid))
-    assert row is not None
-    row.assignment_status = SlaStatus.COMPLETED
-    row.overall_status = SlaStatus.BREACHED
-    db_session.commit()
-
-    # Closed complaint with HIGH priority filter match
-    now = datetime.now(UTC)
-    closed = Complaint(
-        complaint_number=f"CMP-{uuid.uuid4().hex[:10].upper()}",
-        customer_id=customer_id,
-        source_type="CUSTOMER",
-        source_id=customer_id,
-        target_type="BRANCH",
-        target_id=None,
-        subject=f"{marker} closed",
-        description="closed",
-        status=ComplaintStatus.CLOSED,
-        priority="HIGH",
-        channel="WEB",
-        category="BILLING",
-        reported_at=now,
-        closed_at=now,
-        created_at=now,
-        updated_at=now,
-        created_by=actor.id,
-        updated_by=actor.id,
-    )
-    db_session.add(closed)
-    db_session.flush()
-    sla_closed = SlaRecord(
-        complaint_id=closed.id,
-        assignment_due_at=now + timedelta(hours=1),
-        appointment_due_at=now + timedelta(hours=2),
-        resolution_due_at=now + timedelta(hours=3),
-        escalation_due_at=now + timedelta(hours=1),
-        overall_due_at=now + timedelta(hours=4),
-        assignment_status=SlaStatus.PENDING,
-        appointment_status=SlaStatus.PENDING,
-        resolution_status=SlaStatus.PENDING,
-        escalation_status=SlaStatus.PENDING,
-        overall_status=SlaStatus.PENDING,
-        created_at=now,
-        updated_at=now,
-    )
-    db_session.add(sla_closed)
+    _seed_cm(db_session, status="REGISTERED", actor=actor)
+    _seed_cm(db_session, status="CLOSED", actor=actor)
     db_session.commit()
 
     unfiltered = client.get("/api/v1/kpi/summary", headers=auth_header)
     assert unfiltered.status_code == 200, unfiltered.text
     body = unfiltered.json()["data"]
-    assert "complaints" in body
     assert body["complaints"]["total"] >= 2
-    assert body["assignment"]["completed"] >= 1
-    assert body["overall"]["breached"] >= 1
+    assert body["complaints"]["closed"] >= 1
+    assert body["complaints"]["open"] >= 1
+    assert body["assignment"]["completed"] == 0
+    assert body["overall"]["breached"] == 0
 
     filtered = client.get(
         "/api/v1/kpi/summary",
@@ -220,7 +148,7 @@ def test_kpi_summary_end_to_end(
     assert fbody["complaints"]["closed"] >= 1
     assert fbody["complaints"]["open"] >= 1
 
-    # Priority filter excludes LOW-only noise if any — ensure API accepts date range.
+    now = datetime.now(UTC)
     date_from = (now - timedelta(days=1)).isoformat().replace("+00:00", "Z")
     date_to = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
     ranged = client.get(
